@@ -3,7 +3,8 @@ import {
   signInWithGoogle, signInWithGitHub, signOutUser, getCurrentUser, onUserAuthStateChanged,
   submitRatingToFirestore, getRatingStatsFromFirestore, submitReportToFirestore,
   submitAppToFirestore, getAllRatingsFromFirestore, getAllAppsFromFirestore,
-  getAppFromFirestore, incrementAppViews, toggleVote, getUserVote, seedAppsToFirestore
+  getAppFromFirestore, incrementAppViews, toggleVote, getUserVote, seedAppsToFirestore,
+  submitEditRequest, getEditRequestsForApp, getUserEditRequests
 } from './firebase-config.js';
 
 // ── State ────────────────────────────────────────────────────────────────────
@@ -516,6 +517,14 @@ async function showAppDetail(appId) {
           </div>
 
           <button class="report-btn detail-report" data-app-id="${esc(appId)}" data-app-name="${esc(app.name)}">⚑ Report this app</button>
+          <button class="btn btn-edit-request" data-app-id="${esc(appId)}" data-app-name="${esc(app.name)}">✏️ Suggest Edit</button>
+        </div>
+
+        <div class="edit-requests-section" id="edit-requests-${esc(appId)}">
+          <h3>Edit Requests</h3>
+          <div class="edit-requests-list" id="er-list-${esc(appId)}">
+            <p class="er-loading">Loading edit requests…</p>
+          </div>
         </div>
       </div>
     </div>
@@ -532,6 +541,174 @@ async function showAppDetail(appId) {
     const rb = e.currentTarget;
     openReportModal(rb.dataset.appId, rb.dataset.appName);
   });
+
+  // Suggest Edit button
+  detailView.querySelector(".btn-edit-request")?.addEventListener("click", e => {
+    const btn = e.currentTarget;
+    openEditRequestModal(btn.dataset.appId, btn.dataset.appName, app);
+  });
+
+  // Load edit requests for this app
+  loadEditRequestsForDetail(appId);
+}
+
+// ── Edit Request (PR-style) ──────────────────────────────────────────────────
+function openEditRequestModal(appId, appName, app) {
+  if (!currentUser) {
+    showToast("Sign in to suggest edits");
+    return;
+  }
+  const modal = document.getElementById("edit-request-modal");
+  const form = document.getElementById("edit-request-form");
+  form.reset();
+  clearFormMsg(form);
+
+  // Set app ID
+  document.getElementById("er-app-id").value = appId;
+  modal.querySelector(".modal-title").textContent = `✏️ Suggest Edit — ${appName}`;
+
+  // Pre-fill placeholders with current data
+  document.getElementById("er-name").placeholder = app.name || "App name";
+  document.getElementById("er-description").placeholder = app.description || "Description";
+  document.getElementById("er-uses").placeholder = app.uses || "Uses";
+  document.getElementById("er-alternative").placeholder = app.alternative || "Alternative of";
+  document.getElementById("er-logo").placeholder = app.logo || "Logo URL";
+  document.getElementById("er-download").placeholder = app.download || "Download URL";
+  document.getElementById("er-source").placeholder = app.source || "Source URL";
+
+  // Pre-check current platforms
+  form.querySelectorAll("input[name='er-platforms']").forEach(cb => {
+    cb.checked = (app.platforms || []).includes(cb.value);
+  });
+
+  // Show submitter info
+  const submitterEl = document.getElementById("edit-request-submitter");
+  submitterEl.innerHTML = `
+    <div class="er-submitter-card">
+      ${currentUser.photoURL
+        ? `<img class="er-avatar" src="${esc(currentUser.photoURL)}" alt="" referrerpolicy="no-referrer">`
+        : `<div class="er-avatar-fallback">${esc((currentUser.displayName || currentUser.email || "U").charAt(0))}</div>`}
+      <div class="er-submitter-info">
+        <span class="er-submitter-name">${esc(currentUser.displayName || "User")}</span>
+        <span class="er-submitter-email">${esc(currentUser.email || "")}</span>
+      </div>
+      <span class="er-provider-badge">${esc(currentUser.providerData?.[0]?.providerId === "github.com" ? "GitHub" : "Google")}</span>
+    </div>
+  `;
+
+  modal.classList.add("open");
+}
+
+async function handleEditRequestSubmit(e) {
+  e.preventDefault();
+  const form = e.target;
+  const btn = form.querySelector(".btn-submit");
+
+  const appId = document.getElementById("er-app-id").value;
+  const reason = document.getElementById("er-reason").value.trim();
+
+  if (!reason) { showFormError(form, "Please explain why this edit is needed."); return; }
+  if (reason.length < 5) { showFormError(form, "Reason must be at least 5 characters."); return; }
+
+  // Gather only changed fields
+  const changes = {};
+  const fields = [
+    { id: "er-name", key: "name" },
+    { id: "er-description", key: "description" },
+    { id: "er-uses", key: "uses" },
+    { id: "er-alternative", key: "alternative" },
+    { id: "er-logo", key: "logo" },
+    { id: "er-download", key: "download" },
+    { id: "er-source", key: "source" },
+    { id: "er-category", key: "category" }
+  ];
+
+  fields.forEach(({ id, key }) => {
+    const val = document.getElementById(id).value.trim();
+    if (val) changes[key] = val;
+  });
+
+  const platforms = [...form.querySelectorAll("input[name='er-platforms']:checked")].map(el => el.value);
+  // Find the app to compare platforms
+  const app = apps.find(a => a.id === appId);
+  const currentPlatforms = app?.platforms || [];
+  const platformsChanged = platforms.length !== currentPlatforms.length ||
+    platforms.some(p => !currentPlatforms.includes(p)) ||
+    currentPlatforms.some(p => !platforms.includes(p));
+  if (platformsChanged && platforms.length > 0) {
+    changes.platforms = platforms;
+  }
+
+  if (Object.keys(changes).length === 0) {
+    showFormError(form, "No changes detected. Edit at least one field.");
+    return;
+  }
+
+  changes.reason = reason;
+
+  btn.disabled = true;
+  btn.setAttribute("data-original", btn.textContent);
+  btn.textContent = "Submitting…";
+
+  try {
+    await submitEditRequest(appId, changes, currentUser);
+    showFormSuccess(form, "Edit request submitted! It will be reviewed by the team.");
+    setTimeout(() => {
+      closeModal("edit-request-modal");
+      // Reload edit requests list
+      loadEditRequestsForDetail(appId);
+    }, 2000);
+  } catch (err) {
+    showFormError(form, err.message || "Failed to submit edit request.");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = btn.getAttribute("data-original") || "Submit Edit Request";
+  }
+}
+
+async function loadEditRequestsForDetail(appId) {
+  const listEl = document.getElementById(`er-list-${appId}`);
+  if (!listEl) return;
+
+  try {
+    const requests = await getEditRequestsForApp(appId);
+    if (requests.length === 0) {
+      listEl.innerHTML = `<p class="er-empty">No edit requests yet. Be the first to suggest an improvement!</p>`;
+      return;
+    }
+
+    listEl.innerHTML = requests.map(er => {
+      const date = new Date(er.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+      const statusClass = er.status === "open" ? "er-status-open" : er.status === "merged" ? "er-status-merged" : "er-status-closed";
+      const statusIcon = er.status === "open" ? "🟢" : er.status === "merged" ? "🟣" : "🔴";
+      const changedFields = Object.keys(er.changes || {}).filter(k => k !== "reason");
+      const submitter = er.submitter || {};
+      const avatarHtml = submitter.photoURL
+        ? `<img class="er-avatar-sm" src="${esc(submitter.photoURL)}" alt="" referrerpolicy="no-referrer">`
+        : `<div class="er-avatar-sm-fallback">${esc((submitter.displayName || "U").charAt(0))}</div>`;
+
+      return `
+        <div class="er-card">
+          <div class="er-card-header">
+            <span class="er-status ${statusClass}">${statusIcon} ${esc(er.status)}</span>
+            <span class="er-date">${date}</span>
+          </div>
+          <div class="er-card-submitter">
+            ${avatarHtml}
+            <span class="er-submitter-link">${esc(submitter.displayName || "Anonymous")}</span>
+            ${submitter.provider ? `<span class="er-provider-sm">via ${esc(submitter.provider === "github.com" ? "GitHub" : "Google")}</span>` : ""}
+          </div>
+          <div class="er-card-changes">
+            <span class="er-changes-label">Changes:</span>
+            ${changedFields.map(f => `<span class="er-change-tag">${esc(f)}</span>`).join("")}
+          </div>
+          ${er.changes?.reason ? `<p class="er-card-reason">"${esc(er.changes.reason)}"</p>` : ""}
+        </div>
+      `;
+    }).join("");
+  } catch (err) {
+    listEl.innerHTML = `<p class="er-empty">Could not load edit requests.</p>`;
+  }
 }
 
 // ── Rankings Page ────────────────────────────────────────────────────────────
@@ -797,11 +974,18 @@ function updateAuthUI(user) {
   const content = document.getElementById("auth-content");
 
   if (user) {
-    trigger.innerHTML = `<span id="auth-icon">✓</span><span id="auth-label">${esc(user.displayName || "Account")}</span>`;
+    const avatarHtml = user.photoURL
+      ? `<img class="auth-avatar" src="${esc(user.photoURL)}" alt="" referrerpolicy="no-referrer">`
+      : `<span id="auth-icon">✓</span>`;
+    trigger.innerHTML = `${avatarHtml}<span id="auth-label">${esc(user.displayName || "Account")}</span>`;
+    const providerName = user.providerData?.[0]?.providerId === "github.com" ? "GitHub" : "Google";
     content.innerHTML = `
       <div class="user-info">
+        ${user.photoURL ? `<img class="auth-dropdown-avatar" src="${esc(user.photoURL)}" alt="" referrerpolicy="no-referrer">` : ""}
         <div class="user-name">${esc(user.displayName || "User")}</div>
         <div class="user-email">${esc(user.email || "")}</div>
+        <div class="user-provider">Signed in via ${esc(providerName)}</div>
+        <div class="user-uid" title="User ID">${esc(user.uid.slice(0, 12))}…</div>
       </div>
       <button class="auth-option signout" id="signout-btn">← Sign Out</button>
     `;
@@ -970,6 +1154,7 @@ async function init() {
   document.getElementById("submit-app-btn").addEventListener("click", openSubmitModal);
   document.getElementById("report-form").addEventListener("submit", handleReportSubmit);
   document.getElementById("submit-form").addEventListener("submit", handleSubmitApp);
+  document.getElementById("edit-request-form").addEventListener("submit", handleEditRequestSubmit);
 
   // Grid events
   document.getElementById("app-grid").addEventListener("click", e => {

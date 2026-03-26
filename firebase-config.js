@@ -291,4 +291,59 @@ export async function seedAppsToFirestore(appsArray) {
   return count;
 }
 
+// ── Edit Requests (Pull-Request style) ────────────────────────────────────────
+
+export async function submitEditRequest(appId, changes, user) {
+  try {
+    const editRef = await addDoc(collection(db, "edit_requests"), {
+      appId,
+      changes,
+      status: "open",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      submitter: {
+        uid: user.uid,
+        displayName: user.displayName || "Anonymous",
+        email: user.email || "",
+        photoURL: user.photoURL || "",
+        provider: user.providerData?.[0]?.providerId || "unknown"
+      }
+    });
+    return editRef.id;
+  } catch (error) {
+    console.error("Error submitting edit request:", error);
+    throw error;
+  }
+}
+
+export async function getEditRequestsForApp(appId) {
+  try {
+    const q = query(
+      collection(db, "edit_requests"),
+      where("appId", "==", appId),
+      orderBy("createdAt", "desc")
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (error) {
+    console.error("Error getting edit requests:", error);
+    return [];
+  }
+}
+
+export async function getUserEditRequests(userId) {
+  try {
+    const q = query(
+      collection(db, "edit_requests"),
+      where("submitter.uid", "==", userId),
+      orderBy("createdAt", "desc")
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (error) {
+    console.error("Error getting user edit requests:", error);
+    return [];
+  }
+}
+
 export { auth, db, app };
