@@ -28,7 +28,9 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isAdmin();
       allow update: if isAdmin()
-        || (isSignedIn() && resource.data.addedBy.uid == request.auth.uid);
+        || (isSignedIn() && resource.data.addedBy.uid == request.auth.uid)
+        || (isSignedIn()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["likes", "dislikes", "views"]));
       allow delete: if isAdmin();
     }
 
@@ -53,15 +55,6 @@ service cloud.firestore {
       allow create: if isSignedIn()
         && request.resource.data.userId == request.auth.uid;
       allow update, delete: if false;
-    }
-
-    // ── Ratings ──────────────────────────────────────────────────────────────
-    match /ratings/{ratingId} {
-      allow read: if true;
-      allow create: if isSignedIn();
-      allow update: if isSignedIn()
-        && resource.data.userId == request.auth.uid;
-      allow delete: if isAdmin();
     }
 
     // ── Submissions ──────────────────────────────────────────────────────────
@@ -126,6 +119,16 @@ service cloud.firestore {
         && resource.data.uid == request.auth.uid || isAdmin();
       allow create: if isSignedIn();
       allow update, delete: if false;
+    }
+
+    // ── Follows ──────────────────────────────────────────────────────────────
+    match /follows/{followId} {
+      allow read: if true;
+      allow create: if isSignedIn()
+        && request.resource.data.followerId == request.auth.uid;
+      allow delete: if isSignedIn()
+        && resource.data.followerId == request.auth.uid;
+      allow update: if false;
     }
   }
 }

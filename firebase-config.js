@@ -65,56 +65,6 @@ export function onUserAuthStateChanged(callback) {
 
 // ── Firestore Helpers ─────────────────────────────────────────────────────────
 
-export async function submitRatingToFirestore(appId, star, userId, sessionId) {
-  try {
-    const ratingsRef = collection(db, "ratings");
-    
-    // Check if user already rated this app
-    const q = query(ratingsRef, where("appId", "==", appId), where("userId", "==", userId));
-    const snapshot = await getDocs(q);
-    
-    if (!snapshot.empty) {
-      // Update existing rating
-      const docId = snapshot.docs[0].id;
-      await updateDoc(doc(db, "ratings", docId), {
-        star,
-        timestamp: new Date().toISOString(),
-        sessionId
-      });
-    } else {
-      // Create new rating
-      await addDoc(ratingsRef, {
-        appId,
-        userId,
-        star,
-        sessionId,
-        timestamp: new Date().toISOString()
-      });
-    }
-    
-    return await getRatingStatsFromFirestore(appId);
-  } catch (error) {
-    console.error("Error submitting rating:", error);
-    throw error;
-  }
-}
-
-export async function getRatingStatsFromFirestore(appId) {
-  try {
-    const q = query(collection(db, "ratings"), where("appId", "==", appId));
-    const snapshot = await getDocs(q);
-    
-    const votes = snapshot.docs.map(doc => doc.data().star);
-    const total = votes.length;
-    const avg = total > 0 ? parseFloat((votes.reduce((a, b) => a + b, 0) / total).toFixed(2)) : 0;
-    
-    return { appId, avg, total };
-  } catch (error) {
-    console.error("Error getting rating stats:", error);
-    throw error;
-  }
-}
-
 export async function submitReportToFirestore(appId, appName, reason, details, userId) {
   try {
     await addDoc(collection(db, "reports"), {
@@ -143,33 +93,6 @@ export async function submitAppToFirestore(payload, userId) {
   } catch (error) {
     console.error("Error submitting app:", error);
     throw error;
-  }
-}
-
-export async function getAllRatingsFromFirestore() {
-  try {
-    const snapshot = await getDocs(collection(db, "ratings"));
-    const map = {};
-    
-    snapshot.forEach(doc => {
-      const data = doc.data();
-      if (!map[data.appId]) map[data.appId] = [];
-      map[data.appId].push(data.star);
-    });
-    
-    const result = {};
-    Object.keys(map).forEach(id => {
-      const votes = map[id];
-      result[id] = {
-        avg: parseFloat((votes.reduce((a, b) => a + b, 0) / votes.length).toFixed(2)),
-        total: votes.length
-      };
-    });
-    
-    return result;
-  } catch (error) {
-    console.error("Error getting all ratings:", error);
-    return {};
   }
 }
 
@@ -203,34 +126,33 @@ export async function getAppFromFirestore(appId) {
 export async function incrementAppViews(appId, userId) {
   try {
     const appRef = doc(db, "apps", appId);
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
     if (userId) {
-      // Check if this user already viewed this app within the last hour
-      const viewsRef = collection(db, "app_views");
-      const q = query(
-        viewsRef,
-        where("appId", "==", appId),
-        where("userId", "==", userId),
-        where("timestamp", ">", oneHourAgo),
-        limit(1)
-      );
-      const existing = await getDocs(q);
-      if (!existing.empty) {
-        // Already viewed within the last hour — just return current count
-        const snap = await getDoc(appRef);
-        return snap.data()?.views || 0;
+      try {
+        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+        const viewsRef = collection(db, "app_views");
+        const q = query(
+          viewsRef,
+          where("appId", "==", appId),
+          where("userId", "==", userId),
+          where("timestamp", ">", oneHourAgo),
+          limit(1)
+        );
+        const existing = await getDocs(q);
+        if (!existing.empty) {
+          const snap = await getDoc(appRef);
+          return snap.data()?.views || 0;
+        }
+        await addDoc(collection(db, "app_views"), {
+          appId,
+          userId,
+          timestamp: new Date().toISOString()
+        });
+      } catch (viewErr) {
+        console.warn("View throttle check failed (missing index?), incrementing anyway:", viewErr);
       }
-
-      // Record this view
-      await addDoc(collection(db, "app_views"), {
-        appId,
-        userId,
-        timestamp: new Date().toISOString()
-      });
     }
 
-    // Increment the counter
     await updateDoc(appRef, { views: increment(1) });
     const updated = await getDoc(appRef);
     return updated.data()?.views || 0;

@@ -1,8 +1,8 @@
 // ── Firebase Imports ─────────────────────────────────────────────────────────
 import {
   signInWithGoogle, signInWithGitHub, signOutUser, getCurrentUser, onUserAuthStateChanged,
-  submitRatingToFirestore, getRatingStatsFromFirestore, submitReportToFirestore,
-  submitAppToFirestore, getAllRatingsFromFirestore, getAllAppsFromFirestore,
+  submitReportToFirestore,
+  submitAppToFirestore, getAllAppsFromFirestore,
   getAppFromFirestore, incrementAppViews, toggleVote, getUserVote, seedAppsToFirestore,
   submitEditRequest, getEditRequestsForApp, getUserEditRequests
 } from './firebase-config.js';
@@ -19,7 +19,8 @@ import {
   isAdminOrTeam, adminAddApp, adminUpdateApp, adminRemoveApp,
   getAllPendingSubmissions, getAllEditRequests, approveSubmission, rejectSubmission,
   requestChangesOnSubmission,
-  getAllSubmissions, getUserSubmissions, updateSubmission, getSubmissionComments, addSubmissionComment
+  getAllSubmissions, getUserSubmissions, updateSubmission, getSubmissionComments, addSubmissionComment,
+  followUser, unfollowUser, isFollowing
 } from './firebase-db.js';
 
 // ── State ────────────────────────────────────────────────────────────────────
@@ -27,7 +28,7 @@ let currentUser = null;
 let userRecord = null;
 let isAdmin = false;
 let apps = [];
-let ratingsCache = {};
+
 
 // ── Seed data (used to populate Firestore if empty) ──────────────────────────
 const SEED_APPS = [
@@ -219,30 +220,7 @@ async function loadApps() {
   }
 }
 
-async function fetchAllRatings() {
-  try {
-    ratingsCache = await getAllRatingsFromFirestore();
-  } catch (err) {
-    console.error("Error fetching ratings:", err);
-    ratingsCache = {};
-  }
-}
 
-async function submitRating(appId, star) {
-  if (!currentUser) {
-    showToast("Sign in to rate apps");
-    return null;
-  }
-  try {
-    const result = await submitRatingToFirestore(appId, star, currentUser.uid, getSessionId());
-    ratingsCache[appId] = { avg: result.avg, total: result.total };
-    return result;
-  } catch (err) {
-    console.error("Error submitting rating:", err);
-    showToast("Failed to save rating");
-    return null;
-  }
-}
 
 async function submitApp(payload) {
   if (!currentUser) throw new Error("Sign in required");
@@ -272,13 +250,10 @@ window.seedApps = async function() {
 
 // ── Ranking Calculator ───────────────────────────────────────────────────────
 function calcRankScore(app) {
-  const r = ratingsCache[app.id] || {};
-  const avg = r.avg || 0;
-  const total = r.total || 0;
   const likes = app.likes || 0;
   const dislikes = app.dislikes || 0;
   const views = app.views || 0;
-  return (avg * 20) + (total * 3) + (likes * 2) - (dislikes) + (views * 0.05);
+  return (likes * 2) - (dislikes) + (views * 0.05);
 }
 
 function getRankedApps() {
@@ -296,29 +271,16 @@ function platformIcon(p) {
   return { Linux:"🐧", Windows:"🪟", macOS:"🍎", Android:"🤖", iOS:"📱", Web:"🌐" }[p] || "💻";
 }
 
-function renderStars(appId, interactive) {
-  const c = ratingsCache[appId] || {};
-  const avg = c.avg || 0;
-  const rounded = Math.round(avg);
-  return [1,2,3,4,5].map(n => `
-    <span class="star${n <= rounded ? " active" : ""}${interactive ? " interactive" : ""}"
-      data-app="${esc(appId)}" data-star="${n}"
-      role="button" aria-label="Rate ${n} star${n > 1 ? "s" : ""}">★</span>
-  `).join("");
-}
-
 function addedByBadge(addedBy) {
   if (!addedBy) return '<span class="added-by-badge team">OpenLib Team</span>';
   if (addedBy.type === "openlib-team") {
     return '<span class="added-by-badge team">OpenLib Team</span>';
   }
-  return `<span class="added-by-badge user">👤 ${esc(addedBy.name || "User")}</span>`;
+  const profileLink = addedBy.uid ? `href="#/profile/${esc(addedBy.uid)}"` : "";
+  return `<a ${profileLink} class="added-by-badge user added-by-link">👤 ${esc(addedBy.name || "User")}</a>`;
 }
 
 function buildCard(app) {
-  const c = ratingsCache[app.id] || {};
-  const avg = c.avg ? c.avg.toFixed(1) : "—";
-  const total = c.total || 0;
   const rank = getAppRank(app.id);
   const plates = (app.platforms || []).map(p => `<span class="platform-tag">${platformIcon(p)} ${esc(p)}</span>`).join("");
   const logoHtml = app.logo
@@ -344,12 +306,7 @@ function buildCard(app) {
         <span class="stat-item">${addedByBadge(app.addedBy)}</span>
       </div>
       <div class="platforms-row">${plates}</div>
-      <div class="rating-block">
-        <div class="stars" data-app="${esc(app.id)}">${renderStars(app.id, true)}</div>
-        <div class="rating-info">
-          <div class="rating-avg" id="avg-${esc(app.id)}">${avg}</div>
-          <div id="count-${esc(app.id)}">${total} rating${total !== 1 ? "s" : ""}</div>
-        </div>
+      <div class="card-footer">
         <button class="report-btn" data-app-id="${esc(app.id)}" data-app-name="${esc(app.name)}"
           title="Report this app" aria-label="Report ${esc(app.name)}">⚑</button>
       </div>
@@ -451,9 +408,6 @@ async function showAppDetail(appId) {
     userVote = await getUserVote(appId, currentUser.uid);
   }
 
-  const c = ratingsCache[appId] || {};
-  const avg = c.avg ? c.avg.toFixed(1) : "—";
-  const total = c.total || 0;
   const rank = getAppRank(appId);
   const plates = (app.platforms || []).map(p => `<span class="platform-tag">${platformIcon(p)} ${esc(p)}</span>`).join("");
   const logoHtml = app.logo
@@ -504,10 +458,6 @@ async function showAppDetail(appId) {
             <span class="stat-number">${app.dislikes || 0}</span>
             <span class="stat-label">Dislikes</span>
           </div>
-          <div class="detail-stat-card">
-            <span class="stat-number">${avg}</span>
-            <span class="stat-label">${total} Ratings</span>
-          </div>
         </div>
 
         <div class="detail-actions">
@@ -518,15 +468,6 @@ async function showAppDetail(appId) {
             <button class="vote-btn dislike-btn ${userVote === 'dislike' ? 'active' : ''}" data-app-id="${esc(appId)}" data-vote="dislike">
               👎 Dislike <span class="vote-count" id="dislike-count-${esc(appId)}">${app.dislikes || 0}</span>
             </button>
-          </div>
-
-          <div class="rating-block detail-rating">
-            <span class="detail-rate-label">Rate:</span>
-            <div class="stars" data-app="${esc(appId)}">${renderStars(appId, true)}</div>
-            <div class="rating-info">
-              <div class="rating-avg" id="avg-${esc(appId)}">${avg}</div>
-              <div id="count-${esc(appId)}">${total} rating${total !== 1 ? "s" : ""}</div>
-            </div>
           </div>
 
           <div class="detail-links">
@@ -723,7 +664,7 @@ function renderRecommendations() {
     return;
   }
 
-  const recs = computeRecommendations(apps, ratingsCache, userRecord);
+  const recs = computeRecommendations(apps, {}, userRecord);
   if (recs.length === 0) {
     container.style.display = "none";
     return;
@@ -734,8 +675,6 @@ function renderRecommendations() {
     <h2 class="rec-title">Recommended for You</h2>
     <div class="rec-grid">
       ${recs.map(app => {
-        const c = ratingsCache[app.id] || {};
-        const avg = c.avg ? c.avg.toFixed(1) : "—";
         const logoHtml = app.logo
           ? `<img class="rec-logo" src="${esc(app.logo)}" alt="" onerror="this.style.display='none'">`
           : `<div class="rec-logo-fallback">${esc(app.name.charAt(0))}</div>`;
@@ -746,7 +685,7 @@ function renderRecommendations() {
               <span class="rec-name">${esc(app.name)}</span>
               <span class="rec-cat">${esc(app.category)}</span>
             </div>
-            <span class="rec-rating">⭐ ${avg}</span>
+            <span class="rec-rating">👍 ${app.likes || 0}</span>
           </a>`;
       }).join("")}
     </div>
@@ -779,6 +718,14 @@ async function showProfile(uid) {
   const editReqs = await getUserEditRequests(targetUid);
   const userSubs = isOwnProfile ? await getUserSubmissions(targetUid) : [];
 
+  // Follow state
+  const followersCount = record.followersCount || 0;
+  const followingCount = record.followingCount || 0;
+  let currentlyFollowing = false;
+  if (!isOwnProfile && currentUser) {
+    currentlyFollowing = await isFollowing(currentUser.uid, targetUid);
+  }
+
   const avatarHtml = record.photoURL
     ? `<img class="profile-avatar" src="${esc(record.photoURL)}" alt="" referrerpolicy="no-referrer">`
     : `<div class="profile-avatar-fallback">${esc((record.displayName || "U").charAt(0))}</div>`;
@@ -794,13 +741,22 @@ async function showProfile(uid) {
           ${record.bio ? `<p class="profile-bio">${esc(record.bio)}</p>` : ""}
           ${record.website ? `<a href="${esc(record.website)}" class="profile-website" target="_blank" rel="noopener">${esc(record.website)}</a>` : ""}
           <p class="profile-joined">Joined ${new Date(record.createdAt).toLocaleDateString("en-US", { month: "long", year: "numeric" })}</p>
+          <div class="profile-follow-info">
+            <span class="follow-count"><strong id="followers-count">${followersCount}</strong> Followers</span>
+            <span class="follow-count"><strong id="following-count">${followingCount}</strong> Following</span>
+          </div>
+          ${!isOwnProfile && currentUser ? `
+            <button class="btn btn-follow ${currentlyFollowing ? 'following' : ''}" id="follow-btn" data-uid="${esc(targetUid)}">
+              ${currentlyFollowing ? '✓ Following' : '+ Follow'}
+            </button>
+          ` : ""}
+          ${!isOwnProfile && !currentUser ? `<button class="btn btn-follow" id="follow-btn-guest">+ Follow</button>` : ""}
         </div>
       </div>
 
       <div class="profile-stats">
         <div class="profile-stat"><span class="stat-number">${record.activity?.appsSubmitted || 0}</span><span class="stat-label">Apps Submitted</span></div>
         <div class="profile-stat"><span class="stat-number">${record.activity?.editsProposed || 0}</span><span class="stat-label">Edits Proposed</span></div>
-        <div class="profile-stat"><span class="stat-number">${record.activity?.ratingsGiven || 0}</span><span class="stat-label">Ratings</span></div>
         <div class="profile-stat"><span class="stat-number">${record.activity?.reviewsDone || 0}</span><span class="stat-label">Reviews</span></div>
       </div>
 
@@ -951,6 +907,36 @@ async function showProfile(uid) {
       });
     });
   }
+
+  // Follow button handler
+  document.getElementById("follow-btn")?.addEventListener("click", async e => {
+    const btn = e.currentTarget;
+    const followeeUid = btn.dataset.uid;
+    btn.disabled = true;
+    try {
+      if (btn.classList.contains("following")) {
+        await unfollowUser(currentUser.uid, followeeUid);
+        btn.classList.remove("following");
+        btn.textContent = "+ Follow";
+        const el = document.getElementById("followers-count");
+        if (el) el.textContent = Math.max(0, parseInt(el.textContent) - 1);
+      } else {
+        await followUser(currentUser.uid, followeeUid);
+        btn.classList.add("following");
+        btn.textContent = "✓ Following";
+        const el = document.getElementById("followers-count");
+        if (el) el.textContent = parseInt(el.textContent) + 1;
+      }
+    } catch (err) {
+      showToast(err.message || "Follow action failed");
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  document.getElementById("follow-btn-guest")?.addEventListener("click", () => {
+    showToast("Sign in to follow users");
+  });
 }
 
 // ── Organization View ────────────────────────────────────────────────────────
@@ -1044,7 +1030,7 @@ async function showOrgView(orgId) {
               <span class="org-icon">📦</span>
               <div class="profile-list-info">
                 <span class="profile-list-name">${esc(app.name)}</span>
-                <span class="profile-list-meta">${esc(app.category)} · ⭐ ${(ratingsCache[app.id]?.avg || 0).toFixed(1)}</span>
+                <span class="profile-list-meta">${esc(app.category)} · 👍 ${app.likes || 0}</span>
               </div>
             </a>
           `).join("") : `<p class="profile-empty">No apps yet.</p>`}
@@ -2024,11 +2010,9 @@ function showRankings() {
     <div class="rankings-page">
       <a href="#/" class="back-link">← Back to library</a>
       <h1 class="rankings-title">🏆 App Rankings</h1>
-      <p class="rankings-subtitle">Ranked by community ratings, likes, and popularity</p>
+      <p class="rankings-subtitle">Ranked by community likes and popularity</p>
       <div class="rankings-list">
         ${ranked.map((app, i) => {
-          const c = ratingsCache[app.id] || {};
-          const avg = c.avg ? c.avg.toFixed(1) : "—";
           const score = calcRankScore(app).toFixed(0);
           const logoHtml = app.logo
             ? `<img class="rank-logo" src="${esc(app.logo)}" alt="" onerror="this.style.display='none'">`
@@ -2042,7 +2026,6 @@ function showRankings() {
                 <span class="ranking-cat">${esc(app.category)}</span>
               </div>
               <div class="ranking-metrics">
-                <span title="Rating">⭐ ${avg}</span>
                 <span title="Likes">👍 ${app.likes || 0}</span>
                 <span title="Views">👁 ${app.views || 0}</span>
               </div>
@@ -2112,32 +2095,6 @@ async function handleVoteClick(e) {
     showToast("Vote failed, try again");
   } finally {
     btn.disabled = false;
-  }
-}
-
-// ── Star Rating ──────────────────────────────────────────────────────────────
-async function handleStarClick(e) {
-  const star = e.target.closest(".star.interactive");
-  if (!star) return;
-  if (!currentUser) {
-    showToast("Sign in to rate apps");
-    return;
-  }
-  const appId = star.dataset.app;
-  const value = parseInt(star.dataset.star, 10);
-
-  document.querySelectorAll(`.star[data-app="${appId}"]`).forEach((s, i) => {
-    s.classList.toggle("active", i < value);
-  });
-
-  const result = await submitRating(appId, value);
-  if (result) {
-    ratingsCache[appId] = { avg: result.avg, total: result.total };
-    const avgEl = document.getElementById(`avg-${appId}`);
-    const countEl = document.getElementById(`count-${appId}`);
-    if (avgEl) avgEl.textContent = result.avg ? result.avg.toFixed(1) : "—";
-    if (countEl) countEl.textContent = `${result.total} rating${result.total !== 1 ? "s" : ""}`;
-    showToast(`Rated ${value} ★ — saved`);
   }
 }
 
@@ -2568,7 +2525,6 @@ async function init() {
 
   // Load data from Firestore
   await loadApps();
-  await fetchAllRatings();
 
   buildFilters();
   renderGrid(getFiltered());
@@ -2588,12 +2544,11 @@ async function init() {
 
   // Grid events
   document.getElementById("app-grid").addEventListener("click", e => {
-    handleStarClick(e);
     const rb = e.target.closest(".report-btn");
     if (rb) openReportModal(rb.dataset.appId, rb.dataset.appName);
 
     // Make entire card clickable to open detail view
-    if (e.target.closest("a, button, .stars, .report-btn")) return;
+    if (e.target.closest("a, button, .report-btn")) return;
     const card = e.target.closest(".app-card");
     if (card) {
       const appId = card.dataset.id;

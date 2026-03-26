@@ -644,71 +644,6 @@ header {
   letter-spacing: 0.3px;
 }
 
-/* ── Card: rating ── */
-.rating-block {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding-top: 6px;
-  border-top: 1px solid var(--border);
-}
-
-.stars {
-  display: flex;
-  gap: 3px;
-}
-
-.star {
-  font-size: 18px;
-  cursor: pointer;
-  transition: transform 0.15s, filter 0.15s;
-  filter: grayscale(1) opacity(0.3);
-  line-height: 1;
-  display: inline-block;
-}
-
-.star.active {
-  filter: none;
-  animation: starPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-@keyframes starPop {
-  0% { transform: scale(0.8); }
-  50% { transform: scale(1.2); }
-  100% { transform: scale(1); }
-}
-
-.star:hover {
-  transform: scale(1.25);
-  filter: drop-shadow(0 0 4px var(--accent-dim));
-}
-
-.stars:hover .star {
-  filter: grayscale(0.5) opacity(0.6);
-}
-
-.stars .star:hover {
-  filter: drop-shadow(0 0 4px var(--accent));
-}
-
-.stars .star:hover ~ .star {
-  filter: grayscale(1) opacity(0.3);
-  transform: scale(1);
-}
-
-.rating-info {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--text-3);
-  line-height: 1.2;
-}
-
-.rating-avg {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--accent);
-}
-
 /* ── Card: actions ── */
 .card-actions {
   display: flex;
@@ -1315,6 +1250,16 @@ textarea:focus-visible {
   background: var(--blue-dim);
 }
 
+a.added-by-link {
+  text-decoration: none;
+  cursor: pointer;
+  transition: opacity var(--transition), border-color var(--transition);
+}
+a.added-by-link:hover {
+  opacity: 0.8;
+  border-color: var(--blue);
+}
+
 /* ── App Link ── */
 .app-link {
   color: var(--text);
@@ -1516,17 +1461,6 @@ textarea:focus-visible {
 .vote-count {
   font-family: var(--font-mono);
   font-size: 13px;
-}
-
-.detail-rating {
-  padding: 12px 0;
-}
-
-.detail-rate-label {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--text-3);
-  margin-right: 8px;
 }
 
 .detail-links {
@@ -2328,6 +2262,54 @@ textarea:focus-visible {
   font-size: 11px;
   color: var(--text-3);
   margin-top: 6px;
+}
+
+.profile-follow-info {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.profile-follow-info .follow-count strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.btn-follow {
+  margin-top: 10px;
+  padding: 6px 20px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  background: transparent;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.btn-follow:hover {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.btn-follow.following {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.btn-follow.following:hover {
+  background: transparent;
+  border-color: var(--red, #e74c3c);
+  color: var(--red, #e74c3c);
+}
+
+.btn-follow:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .profile-stats {

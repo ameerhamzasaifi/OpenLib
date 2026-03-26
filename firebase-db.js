@@ -546,7 +546,7 @@ async function incrementActivity(uid, field) {
   }
 }
 
-export function computeRecommendations(allApps, ratingsCache, userRecord) {
+export function computeRecommendations(allApps, _unused, userRecord) {
   if (!allApps.length) return [];
 
   const prefCats = userRecord?.preferences?.categories || [];
@@ -559,8 +559,7 @@ export function computeRecommendations(allApps, ratingsCache, userRecord) {
     if (prefCats.length > 0 && prefCats.includes(app.category)) score += 40;
 
     // Popularity (30%)
-    const r = ratingsCache[app.id] || {};
-    const pop = ((r.avg || 0) * 4) + ((r.total || 0) * 2) + ((app.likes || 0) * 1.5) + ((app.views || 0) * 0.01);
+    const pop = ((app.likes || 0) * 1.5) + ((app.views || 0) * 0.01);
     score += Math.min(30, pop);
 
     // Freshness (15%)
@@ -858,4 +857,57 @@ export async function addSubmissionComment(submissionId, commentText, user) {
   };
   const ref = await addDoc(collection(db, "review_comments"), comment);
   return { id: ref.id, ...comment };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  FOLLOW SYSTEM — Collection: follows/{followerId_followeeId}
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export async function followUser(followerId, followeeId) {
+  if (followerId === followeeId) throw new Error("Cannot follow yourself");
+  const followDocId = `${followerId}_${followeeId}`;
+  const ref = doc(db, "follows", followDocId);
+  const snap = await getDoc(ref);
+  if (snap.exists()) return false; // already following
+
+  await setDoc(ref, {
+    followerId,
+    followeeId,
+    createdAt: new Date().toISOString()
+  });
+
+  // Update counts on both user records
+  await updateDoc(doc(db, "user_records", followerId), { followingCount: increment(1) });
+  await updateDoc(doc(db, "user_records", followeeId), { followersCount: increment(1) });
+  return true;
+}
+
+export async function unfollowUser(followerId, followeeId) {
+  const followDocId = `${followerId}_${followeeId}`;
+  const ref = doc(db, "follows", followDocId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return false; // not following
+
+  await deleteDoc(ref);
+  await updateDoc(doc(db, "user_records", followerId), { followingCount: increment(-1) });
+  await updateDoc(doc(db, "user_records", followeeId), { followersCount: increment(-1) });
+  return true;
+}
+
+export async function isFollowing(followerId, followeeId) {
+  const ref = doc(db, "follows", `${followerId}_${followeeId}`);
+  const snap = await getDoc(ref);
+  return snap.exists();
+}
+
+export async function getFollowersCount(uid) {
+  const q = query(collection(db, "follows"), where("followeeId", "==", uid));
+  const snap = await getDocs(q);
+  return snap.size;
+}
+
+export async function getFollowingCount(uid) {
+  const q = query(collection(db, "follows"), where("followerId", "==", uid));
+  const snap = await getDocs(q);
+  return snap.size;
 }
