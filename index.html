@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="OpenLib — A curated open-source app library. Discover, rate, and explore the best free and open-source software.">
+  <meta name="theme-color" content="#0c0c0f">
+  <title>OpenLib — Open Source App Library</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23f0a500'/><text x='16' y='23' font-family='sans-serif' font-size='18' font-weight='900' fill='%230c0c0f' text-anchor='middle'>O</text></svg>">
+</head>
+<body>
+
+  <!-- ── Header ── -->
+  <header>
+    <div class="header-inner">
+      <a class="logo-group" href="#">
+        <div class="logo-icon">OL</div>
+        <span class="logo-title">Open<span>Lib</span></span>
+      </a>
+      <div class="header-actions">
+        <span class="count-badge" id="total-count">— apps</span>
+        <button class="btn-submit-app" id="submit-app-btn" aria-label="Submit a new app (Alt+S)" title="Submit app (Alt+S)">+ Submit App</button>
+        <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme" title="Toggle theme">
+          <span id="theme-icon">☀️</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- ── Controls ── -->
+    <section class="controls-section" aria-label="Search and filter">
+      <div class="hero-text">
+        <h1>The <em>open-source</em> app library</h1>
+        <p>Discover free alternatives. Rate what you use. Own your software stack.</p>
+      </div>
+      <div class="controls-row">
+        <div class="search-wrap">
+          <svg class="search-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+            <circle cx="9" cy="9" r="6"/><path d="m15 15 3.5 3.5"/>
+          </svg>
+          <input
+            type="search"
+            id="search-input"
+            placeholder="Search apps, categories, alternatives…"
+            autocomplete="off"
+            spellcheck="false"
+            aria-label="Search apps (Alt+F)"
+            title="Search apps (Alt+F)"
+          >
+        </div>
+        <div class="filters" id="filters-container" role="group" aria-label="Category filters"></div>
+      </div>
+    </section>
+
+    <!-- ── App Grid ── -->
+    <section class="grid-section" aria-label="App listing">
+      <div class="section-meta">
+        <span class="results-count" id="results-count">Loading…</span>
+      </div>
+      <div id="app-grid" role="list"></div>
+    </section>
+
+  </main>
+
+  <!-- ── Footer ── -->
+  <footer>
+    <div class="footer-inner">
+      <div class="footer-left">
+        <strong>OpenLib</strong> — A curated open-source app library<br>
+        Ratings are stored server-side. Reports and submissions go to <code>data/</code> on your server.<br>
+        MIT License &mdash; <a href="https://github.com/ameerhamzasaifi/openlib" target="_blank" rel="noopener">Contribute on GitHub</a>
+      </div>
+      <nav class="footer-right" aria-label="Footer links">
+        <a href="https://github.com/ameerhamzasaifi/openlib" target="_blank" rel="noopener" class="footer-link">GitHub</a>
+        <a href="https://github.com/ameerhamzasaifi/openlib/blob/main/README.md" target="_blank" rel="noopener" class="footer-link">Docs</a>
+      </nav>
+    </div>
+  </footer>
+
+  <!-- ── Toast ── -->
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       MODAL: REPORT APP
+  ════════════════════════════════════════════════════════════════ -->
+  <div class="modal-overlay" id="report-modal" role="dialog" aria-modal="true" aria-labelledby="report-title">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title" id="report-title">Report App</h2>
+        <button class="modal-close" aria-label="Close modal">✕</button>
+      </div>
+      <form id="report-form" novalidate>
+        <div class="form-group">
+          <label for="report-reason">Reason <span class="required">*</span></label>
+          <select id="report-reason" required>
+            <option value="">— Select a reason —</option>
+            <option value="broken-link">Broken download or source link</option>
+            <option value="wrong-info">Incorrect information</option>
+            <option value="malware">Possible malware or security concern</option>
+            <option value="duplicate">Duplicate entry</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="report-details">Additional details <span class="optional">(optional)</span></label>
+          <textarea id="report-details" rows="3" placeholder="Describe the issue…"></textarea>
+        </div>
+        <div class="form-msg" role="alert"></div>
+        <button type="submit" class="btn btn-primary btn-submit">Submit Report</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       MODAL: SUBMIT NEW APP
+  ════════════════════════════════════════════════════════════════ -->
+  <div class="modal-overlay" id="submit-modal" role="dialog" aria-modal="true" aria-labelledby="submit-title">
+    <div class="modal modal-wide">
+      <div class="modal-header">
+        <h2 class="modal-title" id="submit-title">Submit an App</h2>
+        <button class="modal-close" aria-label="Close modal">✕</button>
+      </div>
+      <form id="submit-form" novalidate>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="sub-name">App Name <span class="required">*</span></label>
+            <input type="text" id="sub-name" placeholder="e.g. Inkscape" required>
+          </div>
+          <div class="form-group">
+            <label for="sub-category">Category <span class="required">*</span></label>
+            <select id="sub-category" required>
+              <option value="">— Pick one —</option>
+              <option value="Communication">Communication</option>
+              <option value="Design">Design</option>
+              <option value="Finance">Finance</option>
+              <option value="Media">Media</option>
+              <option value="Productivity">Productivity</option>
+              <option value="Security">Security</option>
+              <option value="Utility">Utility</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="sub-logo">Logo URL <span class="optional">(optional)</span></label>
+            <input type="url" id="sub-logo" placeholder="https://…/logo.png">
+          </div>
+          <div class="form-group">
+            <label for="sub-alternative">Alternative of <span class="required">*</span></label>
+            <input type="text" id="sub-alternative" placeholder="e.g. Adobe Photoshop" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="sub-description">Description <span class="required">*</span></label>
+          <textarea id="sub-description" rows="2" placeholder="One-sentence description of what the app does." required></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="sub-uses">Uses / Problem it solves <span class="required">*</span></label>
+          <textarea id="sub-uses" rows="2" placeholder="What specific problem does this app solve for users?" required></textarea>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="sub-download">Download URL <span class="required">*</span></label>
+            <input type="url" id="sub-download" placeholder="https://appname.org/download" required>
+          </div>
+          <div class="form-group">
+            <label for="sub-source">Source URL <span class="required">*</span></label>
+            <input type="url" id="sub-source" placeholder="https://github.com/…" required>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="sub-maintainer">Maintainer type <span class="required">*</span></label>
+            <select id="sub-maintainer" required>
+              <option value="">— Select —</option>
+              <option value="individual">Individual</option>
+              <option value="organization">Organization</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="sub-email">Your email <span class="optional">(optional)</span></label>
+            <input type="email" id="sub-email" placeholder="you@example.com">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Supported Platforms <span class="required">*</span></label>
+          <div class="checkbox-group">
+            <label class="checkbox-label"><input type="checkbox" name="platforms" value="Linux"> 🐧 Linux</label>
+            <label class="checkbox-label"><input type="checkbox" name="platforms" value="Windows"> 🪟 Windows</label>
+            <label class="checkbox-label"><input type="checkbox" name="platforms" value="macOS"> 🍎 macOS</label>
+            <label class="checkbox-label"><input type="checkbox" name="platforms" value="Android"> 🤖 Android</label>
+            <label class="checkbox-label"><input type="checkbox" name="platforms" value="iOS"> 📱 iOS</label>
+            <label class="checkbox-label"><input type="checkbox" name="platforms" value="Web"> 🌐 Web</label>
+          </div>
+        </div>
+
+        <div class="form-msg" role="alert"></div>
+        <button type="submit" class="btn btn-primary btn-submit">Submit App</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
