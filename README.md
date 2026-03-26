@@ -17,31 +17,6 @@ cp firebase-config.template.js firebase-config.js
 # Fill in your Firebase credentials from Firebase Console
 ```
 
-### Firebase Project
-
-1. Create a project at https://console.firebase.google.com
-2. Enable **Firestore Database** and **Authentication** (Google + GitHub providers)
-3. Copy your config values into `firebase-config.js`
-
-### Run Locally
-
-```bash
-python3 -m http.server 3000
-# http://localhost:3000
-```
-
-### Deploy
-
-```bash
-firebase deploy --only hosting
-```
-
-### Seed Data
-
-Open the live site, press F12, run: `seedApps()`
-
----
-
 ## Stack
 
 | Layer | Tech |
@@ -62,14 +37,6 @@ Open the live site, press F12, run: `seedApps()`
 - Edit requests with code-review workflow
 - Admin dashboard (roles, verification, moderation)
 - Dark/light theme, responsive, keyboard shortcuts (Alt+S, Alt+F)
-
-## Security
-
-- `firebase-config.js` is gitignored (never committed)
-- `.firebaseignore` ensures it deploys to Firebase Hosting
-- `firebase-config.template.js` is the safe reference template
-- Input HTML-escaped against XSS
-- Firestore rules enforce auth and role checks
 
 ## Contributing
 
