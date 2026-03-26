@@ -200,12 +200,40 @@ export async function getAppFromFirestore(appId) {
 
 // ── Views ─────────────────────────────────────────────────────────────────────
 
-export async function incrementAppViews(appId) {
+export async function incrementAppViews(appId, userId) {
   try {
     const appRef = doc(db, "apps", appId);
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+
+    if (userId) {
+      // Check if this user already viewed this app within the last hour
+      const viewsRef = collection(db, "app_views");
+      const q = query(
+        viewsRef,
+        where("appId", "==", appId),
+        where("userId", "==", userId),
+        where("timestamp", ">", oneHourAgo),
+        limit(1)
+      );
+      const existing = await getDocs(q);
+      if (!existing.empty) {
+        // Already viewed within the last hour — just return current count
+        const snap = await getDoc(appRef);
+        return snap.data()?.views || 0;
+      }
+
+      // Record this view
+      await addDoc(collection(db, "app_views"), {
+        appId,
+        userId,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Increment the counter
     await updateDoc(appRef, { views: increment(1) });
     const updated = await getDoc(appRef);
-    return updated.data().views || 0;
+    return updated.data()?.views || 0;
   } catch (error) {
     console.error("Error incrementing views:", error);
     return 0;

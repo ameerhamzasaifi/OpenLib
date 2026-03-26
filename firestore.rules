@@ -47,6 +47,14 @@ service cloud.firestore {
         && resource.data.userId == request.auth.uid;
     }
 
+    // ── App Views (throttle tracking) ────────────────────────────────────────
+    match /app_views/{viewId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
     // ── Ratings ──────────────────────────────────────────────────────────────
     match /ratings/{ratingId} {
       allow read: if true;

@@ -438,8 +438,9 @@ async function showAppDetail(appId) {
     return;
   }
 
-  // Increment views
-  const newViews = await incrementAppViews(appId);
+  // Increment views (throttled: 1 per user per app per hour)
+  const viewUserId = currentUser ? currentUser.uid : null;
+  const newViews = await incrementAppViews(appId, viewUserId);
   app.views = newViews;
   const localIdx = apps.findIndex(a => a.id === appId);
   if (localIdx >= 0) apps[localIdx].views = newViews;
