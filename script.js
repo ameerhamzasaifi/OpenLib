@@ -2458,7 +2458,7 @@ function debounce(fn, ms) {
 }
 
 // ── Meta helpers ─────────────────────────────────────────────────────────────
-const BASE_URL = "https://ameerhamzasaifi.github.io/OpenLib/";
+const BASE_URL = `${location.origin}${location.pathname}`;
 
 function updatePageMeta({ title, description, url }) {
   document.title = title;
