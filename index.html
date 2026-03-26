@@ -38,6 +38,8 @@
       <div class="header-actions">
         <span class="count-badge" id="total-count">— apps</span>
         <a href="#/rankings" class="nav-link" id="ranking-nav-link" title="Rankings">🏆 Rankings</a>
+        <a href="#/profile" class="nav-link" id="profile-nav-link" title="Profile" style="display:none;">👤 Profile</a>
+        <a href="#/admin" class="nav-link nav-link-admin" id="admin-nav-link" title="Admin" style="display:none;">⚙️ Admin</a>
 
         <!-- Auth Menu -->
         <div class="auth-menu" id="auth-menu">
@@ -76,6 +78,9 @@
       </div>
     </section>
 
+    <!-- ═══ RECOMMENDATIONS ═══ -->
+    <section class="recommendations-section" id="recommendations-section" style="display:none;" aria-label="Recommended apps"></section>
+
     <section class="grid-section" aria-label="App listing">
       <div class="section-meta">
         <span class="results-count" id="results-count">Loading…</span>
@@ -89,6 +94,15 @@
 
   <!-- ═══ RANKINGS VIEW ═══ -->
   <div id="rankings-view" style="display:none;" class="view-section"></div>
+
+  <!-- ═══ PROFILE VIEW ═══ -->
+  <div id="profile-view" style="display:none;" class="view-section"></div>
+
+  <!-- ═══ ORGANIZATION VIEW ═══ -->
+  <div id="org-view" style="display:none;" class="view-section"></div>
+
+  <!-- ═══ ADMIN VIEW ═══ -->
+  <div id="admin-view" style="display:none;" class="view-section"></div>
 
   <!-- ── Footer ── -->
   <footer>
@@ -325,6 +339,38 @@
         </div>
         <div class="form-msg" role="alert"></div>
         <button type="submit" class="btn btn-primary btn-submit">Submit Edit Request</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ═══ MODAL: CREATE ORGANIZATION ═══ -->
+  <div class="modal-overlay" id="create-org-modal" role="dialog" aria-modal="true" aria-labelledby="create-org-title">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title" id="create-org-title">Create Organization</h2>
+        <button class="modal-close" aria-label="Close modal">✕</button>
+      </div>
+      <form id="create-org-form" novalidate>
+        <div class="form-group">
+          <label for="org-name">Organization Name <span class="required">*</span></label>
+          <input type="text" id="org-name" placeholder="e.g. My Open Source Team" required maxlength="60">
+        </div>
+        <div class="form-group">
+          <label for="org-description">Description <span class="optional">(optional)</span></label>
+          <textarea id="org-description" rows="2" placeholder="What does your organization do?" maxlength="300"></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="org-logo">Logo URL <span class="optional">(optional)</span></label>
+            <input type="url" id="org-logo" placeholder="https://…/logo.png">
+          </div>
+          <div class="form-group">
+            <label for="org-website">Website <span class="optional">(optional)</span></label>
+            <input type="url" id="org-website" placeholder="https://…">
+          </div>
+        </div>
+        <div class="form-msg" role="alert"></div>
+        <button type="submit" class="btn btn-primary btn-submit">Create Organization</button>
       </form>
     </div>
   </div>

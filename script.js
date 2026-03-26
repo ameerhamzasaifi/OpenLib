@@ -7,8 +7,23 @@ import {
   submitEditRequest, getEditRequestsForApp, getUserEditRequests
 } from './firebase-config.js';
 
+import {
+  createOrUpdateUserRecord, getUserRecord, updateUserProfile, updateUserRole,
+  setAccountVerified, setTeamAccount, getAllUsers,
+  createOrganization, getOrganization, updateOrganization, addOrgMember,
+  removeOrgMember, transferOwnership, transferToCorporation, getUserOrganizations, getAllOrganizations,
+  submitAppWithOwner, getAppsByOwner, transferAppOwnership,
+  getAppVersions,
+  addReviewComment, getReviewComments, approveEditRequest, mergeEditRequest, rejectEditRequest,
+  computeRecommendations, trackActivity,
+  isAdminOrTeam, adminAddApp, adminUpdateApp, adminRemoveApp,
+  getAllPendingSubmissions, getAllEditRequests, approveSubmission, rejectSubmission
+} from './firebase-db.js';
+
 // ── State ────────────────────────────────────────────────────────────────────
 let currentUser = null;
+let userRecord = null;
+let isAdmin = false;
 let apps = [];
 let ratingsCache = {};
 
@@ -405,8 +420,8 @@ function buildFilters() {
 
 // ── App Detail Page ──────────────────────────────────────────────────────────
 async function showAppDetail(appId) {
-  document.getElementById("home-view").style.display = "none";
-  document.getElementById("rankings-view").style.display = "none";
+  const views = ["home-view", "rankings-view", "profile-view", "org-view", "admin-view"];
+  views.forEach(v => { const el = document.getElementById(v); if (el) el.style.display = "none"; });
   const detailView = document.getElementById("detail-view");
   detailView.style.display = "block";
 
@@ -526,6 +541,13 @@ async function showAppDetail(appId) {
             <p class="er-loading">Loading edit requests…</p>
           </div>
         </div>
+
+        <div class="version-history-section">
+          <h3>Version History</h3>
+          <div class="version-history-list" id="version-history-${esc(appId)}">
+            <p class="er-loading">Loading history…</p>
+          </div>
+        </div>
       </div>
     </div>
   `;
@@ -548,8 +570,9 @@ async function showAppDetail(appId) {
     openEditRequestModal(btn.dataset.appId, btn.dataset.appName, app);
   });
 
-  // Load edit requests for this app
+  // Load edit requests and version history for this app
   loadEditRequestsForDetail(appId);
+  loadVersionHistory(appId);
 }
 
 // ── Edit Request (PR-style) ──────────────────────────────────────────────────
@@ -666,6 +689,731 @@ async function handleEditRequestSubmit(e) {
   }
 }
 
+// ── Verified / Team Badges ───────────────────────────────────────────────────
+function verifiedBadge(record) {
+  if (!record) return "";
+  let badges = "";
+  if (record.teamAccount) badges += '<span class="badge badge-team" title="Team Account">⚡ Team</span>';
+  if (record.verified) badges += '<span class="badge badge-verified" title="Verified">✓ Verified</span>';
+  return badges;
+}
+
+function roleBadge(role) {
+  const labels = {
+    "openlib-team": "OpenLib Team",
+    "admin": "Admin",
+    "maintainer": "Maintainer",
+    "contributor": "Contributor",
+    "user": "User"
+  };
+  const cls = ["admin", "openlib-team"].includes(role) ? "badge-admin" : role === "maintainer" ? "badge-maintainer" : "";
+  return `<span class="badge badge-role ${cls}">${esc(labels[role] || role)}</span>`;
+}
+
+// ── Recommendations Section ──────────────────────────────────────────────────
+function renderRecommendations() {
+  const container = document.getElementById("recommendations-section");
+  if (!container) return;
+
+  if (!currentUser || !userRecord) {
+    container.style.display = "none";
+    return;
+  }
+
+  const recs = computeRecommendations(apps, ratingsCache, userRecord);
+  if (recs.length === 0) {
+    container.style.display = "none";
+    return;
+  }
+
+  container.style.display = "block";
+  container.innerHTML = `
+    <h2 class="rec-title">Recommended for You</h2>
+    <div class="rec-grid">
+      ${recs.map(app => {
+        const c = ratingsCache[app.id] || {};
+        const avg = c.avg ? c.avg.toFixed(1) : "—";
+        const logoHtml = app.logo
+          ? `<img class="rec-logo" src="${esc(app.logo)}" alt="" onerror="this.style.display='none'">`
+          : `<div class="rec-logo-fallback">${esc(app.name.charAt(0))}</div>`;
+        return `
+          <a href="#/app/${esc(app.id)}" class="rec-card">
+            ${logoHtml}
+            <div class="rec-info">
+              <span class="rec-name">${esc(app.name)}</span>
+              <span class="rec-cat">${esc(app.category)}</span>
+            </div>
+            <span class="rec-rating">⭐ ${avg}</span>
+          </a>`;
+      }).join("")}
+    </div>
+  `;
+}
+
+// ── Profile View ─────────────────────────────────────────────────────────────
+async function showProfile(uid) {
+  const views = ["home-view", "detail-view", "rankings-view", "org-view", "admin-view"];
+  views.forEach(v => { const el = document.getElementById(v); if (el) el.style.display = "none"; });
+  const profileView = document.getElementById("profile-view");
+  profileView.style.display = "block";
+  profileView.innerHTML = `<div class="detail-loading">Loading profile…</div>`;
+
+  const isOwnProfile = !uid || uid === currentUser?.uid;
+  const targetUid = uid || currentUser?.uid;
+  if (!targetUid) {
+    profileView.innerHTML = `<div class="empty-state"><h3>Sign in to view your profile</h3><a href="#/">← Back</a></div>`;
+    return;
+  }
+
+  const record = isOwnProfile ? (userRecord || await getUserRecord(targetUid)) : await getUserRecord(targetUid);
+  if (!record) {
+    profileView.innerHTML = `<div class="empty-state"><h3>Profile not found</h3><a href="#/">← Back</a></div>`;
+    return;
+  }
+
+  const orgs = await getUserOrganizations(targetUid);
+  const userApps = await getAppsByOwner(targetUid);
+  const editReqs = await getUserEditRequests(targetUid);
+
+  const avatarHtml = record.photoURL
+    ? `<img class="profile-avatar" src="${esc(record.photoURL)}" alt="" referrerpolicy="no-referrer">`
+    : `<div class="profile-avatar-fallback">${esc((record.displayName || "U").charAt(0))}</div>`;
+
+  profileView.innerHTML = `
+    <div class="profile-page">
+      <a href="#/" class="back-link">← Back to library</a>
+      <div class="profile-header">
+        ${avatarHtml}
+        <div class="profile-header-text">
+          <h1 class="profile-name">${esc(record.displayName)} ${verifiedBadge(record)} ${roleBadge(record.role)}</h1>
+          <p class="profile-email">${esc(record.email)}</p>
+          ${record.bio ? `<p class="profile-bio">${esc(record.bio)}</p>` : ""}
+          ${record.website ? `<a href="${esc(record.website)}" class="profile-website" target="_blank" rel="noopener">${esc(record.website)}</a>` : ""}
+          <p class="profile-joined">Joined ${new Date(record.createdAt).toLocaleDateString("en-US", { month: "long", year: "numeric" })}</p>
+        </div>
+      </div>
+
+      <div class="profile-stats">
+        <div class="profile-stat"><span class="stat-number">${record.activity?.appsSubmitted || 0}</span><span class="stat-label">Apps Submitted</span></div>
+        <div class="profile-stat"><span class="stat-number">${record.activity?.editsProposed || 0}</span><span class="stat-label">Edits Proposed</span></div>
+        <div class="profile-stat"><span class="stat-number">${record.activity?.ratingsGiven || 0}</span><span class="stat-label">Ratings</span></div>
+        <div class="profile-stat"><span class="stat-number">${record.activity?.reviewsDone || 0}</span><span class="stat-label">Reviews</span></div>
+      </div>
+
+      ${isOwnProfile ? `
+        <div class="profile-edit-section">
+          <h3>Edit Profile</h3>
+          <form id="profile-edit-form" class="profile-form">
+            <div class="form-group"><label for="profile-bio">Bio</label><textarea id="profile-bio" rows="2" maxlength="200" placeholder="A short bio…">${esc(record.bio || "")}</textarea></div>
+            <div class="form-group"><label for="profile-website">Website</label><input type="url" id="profile-website" placeholder="https://…" value="${esc(record.website || "")}"></div>
+            <div class="form-group">
+              <label>Preferred Categories</label>
+              <div class="checkbox-group">
+                ${["Communication","Design","Finance","Media","Productivity","Security","Utility","Other"].map(c =>
+                  `<label class="checkbox-label"><input type="checkbox" name="pref-cat" value="${c}" ${(record.preferences?.categories || []).includes(c) ? "checked" : ""}> ${c}</label>`
+                ).join("")}
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Preferred Platforms</label>
+              <div class="checkbox-group">
+                ${["Linux","Windows","macOS","Android","iOS","Web"].map(p =>
+                  `<label class="checkbox-label"><input type="checkbox" name="pref-plat" value="${p}" ${(record.preferences?.platforms || []).includes(p) ? "checked" : ""}> ${p}</label>`
+                ).join("")}
+              </div>
+            </div>
+            <div class="form-msg" role="alert"></div>
+            <button type="submit" class="btn btn-primary">Save Profile</button>
+          </form>
+        </div>
+      ` : ""}
+
+      <div class="profile-section">
+        <h3>Organizations (${orgs.length})</h3>
+        ${isOwnProfile ? `<button class="btn btn-secondary btn-sm" id="create-org-btn">+ Create Organization</button>` : ""}
+        <div class="profile-list">
+          ${orgs.length ? orgs.map(org => `
+            <a href="#/org/${esc(org.id)}" class="profile-list-item">
+              <span class="org-icon">🏢</span>
+              <div class="profile-list-info">
+                <span class="profile-list-name">${esc(org.name)} ${org.verified ? '<span class="badge badge-verified">✓</span>' : ""}</span>
+                <span class="profile-list-meta">${org.members?.length || 0} members · ${org.apps?.length || 0} apps</span>
+              </div>
+              <span class="profile-list-role">${esc(org.members?.find(m => m.uid === targetUid)?.role || "member")}</span>
+            </a>
+          `).join("") : `<p class="profile-empty">No organizations yet.</p>`}
+        </div>
+      </div>
+
+      <div class="profile-section">
+        <h3>Apps (${userApps.length})</h3>
+        <div class="profile-list">
+          ${userApps.length ? userApps.map(app => `
+            <a href="#/app/${esc(app.id)}" class="profile-list-item">
+              <span class="org-icon">📦</span>
+              <div class="profile-list-info">
+                <span class="profile-list-name">${esc(app.name)}</span>
+                <span class="profile-list-meta">${esc(app.category)} · ${app.views || 0} views</span>
+              </div>
+            </a>
+          `).join("") : `<p class="profile-empty">No apps yet.</p>`}
+        </div>
+      </div>
+
+      <div class="profile-section">
+        <h3>Edit Requests (${editReqs.length})</h3>
+        <div class="profile-list">
+          ${editReqs.length ? editReqs.slice(0, 10).map(er => {
+            const statusIcon = er.status === "open" ? "🟢" : er.status === "merged" ? "🟣" : "🔴";
+            return `
+              <div class="profile-list-item">
+                <span class="org-icon">${statusIcon}</span>
+                <div class="profile-list-info">
+                  <span class="profile-list-name">${esc(er.appId)} — ${esc(er.changes?.reason || "Edit")}</span>
+                  <span class="profile-list-meta">${esc(er.status)} · ${new Date(er.createdAt).toLocaleDateString()}</span>
+                </div>
+              </div>`;
+          }).join("") : `<p class="profile-empty">No edit requests yet.</p>`}
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Attach handlers
+  if (isOwnProfile) {
+    document.getElementById("profile-edit-form")?.addEventListener("submit", async e => {
+      e.preventDefault();
+      const form = e.target;
+      const bio = document.getElementById("profile-bio").value.trim();
+      const website = document.getElementById("profile-website").value.trim();
+      const categories = [...form.querySelectorAll("input[name='pref-cat']:checked")].map(el => el.value);
+      const platforms = [...form.querySelectorAll("input[name='pref-plat']:checked")].map(el => el.value);
+
+      try {
+        await updateUserProfile(currentUser.uid, { bio, website, preferences: { categories, platforms } });
+        userRecord = await getUserRecord(currentUser.uid);
+        showFormSuccess(form, "Profile updated!");
+        renderRecommendations();
+      } catch (err) {
+        showFormError(form, err.message);
+      }
+    });
+
+    document.getElementById("create-org-btn")?.addEventListener("click", () => {
+      document.getElementById("create-org-modal")?.classList.add("open");
+    });
+  }
+}
+
+// ── Organization View ────────────────────────────────────────────────────────
+async function showOrgView(orgId) {
+  const views = ["home-view", "detail-view", "rankings-view", "profile-view", "admin-view"];
+  views.forEach(v => { const el = document.getElementById(v); if (el) el.style.display = "none"; });
+  const orgView = document.getElementById("org-view");
+  orgView.style.display = "block";
+  orgView.innerHTML = `<div class="detail-loading">Loading organization…</div>`;
+
+  const org = await getOrganization(orgId);
+  if (!org) {
+    orgView.innerHTML = `<div class="empty-state"><h3>Organization not found</h3><a href="#/">← Back</a></div>`;
+    return;
+  }
+
+  const orgApps = await getAppsByOwner(orgId);
+  const isOwner = currentUser && org.ownerId === currentUser.uid;
+  const isMember = currentUser && org.members?.some(m => m.uid === currentUser.uid);
+  const memberRole = org.members?.find(m => m.uid === currentUser?.uid)?.role;
+  const canManage = isOwner || memberRole === "maintainer";
+
+  orgView.innerHTML = `
+    <div class="org-page">
+      <a href="#/" class="back-link">← Back to library</a>
+      <div class="org-header">
+        ${org.logoURL ? `<img class="org-logo" src="${esc(org.logoURL)}" alt="" onerror="this.style.display='none'">` : `<div class="org-logo-fallback">🏢</div>`}
+        <div class="org-header-text">
+          <h1 class="org-name">${esc(org.name)} ${org.verified ? '<span class="badge badge-verified">✓ Verified</span>' : ""}</h1>
+          ${org.ownerType === "corporation" ? `<span class="badge badge-corp">🏛 Corporation: ${esc(org.corporationName || "")}</span>` : ""}
+          ${org.description ? `<p class="org-desc">${esc(org.description)}</p>` : ""}
+          ${org.website ? `<a href="${esc(org.website)}" class="org-website" target="_blank" rel="noopener">${esc(org.website)}</a>` : ""}
+          <p class="org-meta">Created ${new Date(org.createdAt).toLocaleDateString("en-US", { month: "long", year: "numeric" })}</p>
+        </div>
+      </div>
+
+      <div class="org-stats">
+        <div class="profile-stat"><span class="stat-number">${org.members?.length || 0}</span><span class="stat-label">Members</span></div>
+        <div class="profile-stat"><span class="stat-number">${orgApps.length}</span><span class="stat-label">Apps</span></div>
+      </div>
+
+      <div class="org-section">
+        <h3>Members</h3>
+        ${canManage ? `
+          <div class="org-add-member">
+            <input type="email" id="org-add-email" placeholder="user@email.com" class="org-member-input">
+            <select id="org-add-role" class="org-member-select">
+              <option value="contributor">Contributor</option>
+              <option value="maintainer">Maintainer</option>
+            </select>
+            <button class="btn btn-secondary btn-sm" id="org-add-member-btn">Add Member</button>
+          </div>
+        ` : ""}
+        <div class="org-members-list">
+          ${(org.members || []).map(m => `
+            <div class="org-member-item" data-uid="${esc(m.uid)}">
+              <span class="org-member-name">${esc(m.displayName || "User")}</span>
+              <span class="badge badge-role">${esc(m.role)}</span>
+              ${canManage && m.uid !== org.ownerId ? `<button class="btn-icon btn-remove-member" data-uid="${esc(m.uid)}" title="Remove">✕</button>` : ""}
+            </div>
+          `).join("")}
+        </div>
+      </div>
+
+      ${isOwner ? `
+        <div class="org-section">
+          <h3>Ownership</h3>
+          <div class="org-ownership-actions">
+            <div class="org-transfer-row">
+              <select id="transfer-member-select" class="org-member-select">
+                <option value="">Transfer to member…</option>
+                ${org.members.filter(m => m.uid !== org.ownerId).map(m =>
+                  `<option value="${esc(m.uid)}">${esc(m.displayName)}</option>`
+                ).join("")}
+              </select>
+              <button class="btn btn-secondary btn-sm" id="transfer-ownership-btn">Transfer</button>
+            </div>
+            <div class="org-transfer-row">
+              <input type="text" id="corp-name-input" placeholder="Corporation name" class="org-member-input">
+              <button class="btn btn-secondary btn-sm" id="transfer-corp-btn">Transfer to Corporation</button>
+            </div>
+          </div>
+        </div>
+      ` : ""}
+
+      <div class="org-section">
+        <h3>Apps (${orgApps.length})</h3>
+        <div class="profile-list">
+          ${orgApps.length ? orgApps.map(app => `
+            <a href="#/app/${esc(app.id)}" class="profile-list-item">
+              <span class="org-icon">📦</span>
+              <div class="profile-list-info">
+                <span class="profile-list-name">${esc(app.name)}</span>
+                <span class="profile-list-meta">${esc(app.category)} · ⭐ ${(ratingsCache[app.id]?.avg || 0).toFixed(1)}</span>
+              </div>
+            </a>
+          `).join("") : `<p class="profile-empty">No apps yet.</p>`}
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Event handlers
+  document.getElementById("org-add-member-btn")?.addEventListener("click", async () => {
+    const email = document.getElementById("org-add-email").value.trim();
+    const role = document.getElementById("org-add-role").value;
+    if (!email) { showToast("Enter an email"); return; }
+    try {
+      await addOrgMember(orgId, email, role, currentUser.uid);
+      showToast("Member added!");
+      showOrgView(orgId);
+    } catch (err) { showToast(err.message); }
+  });
+
+  orgView.querySelectorAll(".btn-remove-member").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      try {
+        await removeOrgMember(orgId, btn.dataset.uid, currentUser.uid);
+        showToast("Member removed");
+        showOrgView(orgId);
+      } catch (err) { showToast(err.message); }
+    });
+  });
+
+  document.getElementById("transfer-ownership-btn")?.addEventListener("click", async () => {
+    const newOwner = document.getElementById("transfer-member-select").value;
+    if (!newOwner) { showToast("Select a member"); return; }
+    try {
+      await transferOwnership(orgId, newOwner, currentUser.uid);
+      showToast("Ownership transferred!");
+      showOrgView(orgId);
+    } catch (err) { showToast(err.message); }
+  });
+
+  document.getElementById("transfer-corp-btn")?.addEventListener("click", async () => {
+    const corpName = document.getElementById("corp-name-input").value.trim();
+    if (!corpName) { showToast("Enter corporation name"); return; }
+    try {
+      await transferToCorporation(orgId, corpName, currentUser.uid);
+      showToast("Transferred to corporation!");
+      showOrgView(orgId);
+    } catch (err) { showToast(err.message); }
+  });
+}
+
+// ── Admin Dashboard ──────────────────────────────────────────────────────────
+async function showAdminDashboard() {
+  const views = ["home-view", "detail-view", "rankings-view", "profile-view", "org-view"];
+  views.forEach(v => { const el = document.getElementById(v); if (el) el.style.display = "none"; });
+  const adminView = document.getElementById("admin-view");
+  adminView.style.display = "block";
+
+  if (!currentUser || !isAdmin) {
+    adminView.innerHTML = `<div class="empty-state"><h3>Access Denied</h3><p>Admin access required.</p><a href="#/">← Back</a></div>`;
+    return;
+  }
+
+  adminView.innerHTML = `<div class="detail-loading">Loading admin dashboard…</div>`;
+
+  const [submissions, editRequests, users, orgs] = await Promise.all([
+    getAllPendingSubmissions(),
+    getAllEditRequests("open"),
+    getAllUsers(),
+    getAllOrganizations()
+  ]);
+
+  adminView.innerHTML = `
+    <div class="admin-page">
+      <a href="#/" class="back-link">← Back to library</a>
+      <h1 class="admin-title">⚙️ Admin Dashboard</h1>
+
+      <div class="admin-stats">
+        <div class="admin-stat-card"><span class="stat-number">${submissions.length}</span><span class="stat-label">Pending Submissions</span></div>
+        <div class="admin-stat-card"><span class="stat-number">${editRequests.length}</span><span class="stat-label">Open Edit Requests</span></div>
+        <div class="admin-stat-card"><span class="stat-number">${users.length}</span><span class="stat-label">Users</span></div>
+        <div class="admin-stat-card"><span class="stat-number">${orgs.length}</span><span class="stat-label">Organizations</span></div>
+        <div class="admin-stat-card"><span class="stat-number">${apps.length}</span><span class="stat-label">Apps</span></div>
+      </div>
+
+      <div class="admin-tabs">
+        <button class="admin-tab active" data-tab="submissions">Submissions</button>
+        <button class="admin-tab" data-tab="edit-requests">Edit Requests</button>
+        <button class="admin-tab" data-tab="users">Users</button>
+        <button class="admin-tab" data-tab="add-app">Add App</button>
+      </div>
+
+      <div class="admin-tab-content" id="admin-tab-content">
+        ${renderAdminSubmissions(submissions)}
+      </div>
+    </div>
+  `;
+
+  // Tab switching
+  adminView.querySelectorAll(".admin-tab").forEach(tab => {
+    tab.addEventListener("click", async () => {
+      adminView.querySelectorAll(".admin-tab").forEach(t => t.classList.remove("active"));
+      tab.classList.add("active");
+      const panel = document.getElementById("admin-tab-content");
+
+      switch (tab.dataset.tab) {
+        case "submissions": panel.innerHTML = renderAdminSubmissions(submissions); break;
+        case "edit-requests": panel.innerHTML = renderAdminEditRequests(editRequests); break;
+        case "users": panel.innerHTML = renderAdminUsers(users); break;
+        case "add-app": panel.innerHTML = renderAdminAddApp(); break;
+      }
+      attachAdminHandlers(tab.dataset.tab);
+    });
+  });
+
+  attachAdminHandlers("submissions");
+}
+
+function renderAdminSubmissions(submissions) {
+  if (!submissions.length) return `<p class="admin-empty">No pending submissions.</p>`;
+  return submissions.map(sub => `
+    <div class="admin-card" data-id="${esc(sub.id)}">
+      <div class="admin-card-header">
+        <strong>${esc(sub.name)}</strong>
+        <span class="badge badge-role">${esc(sub.category)}</span>
+        <span class="admin-card-date">${new Date(sub.timestamp).toLocaleDateString()}</span>
+      </div>
+      <p class="admin-card-desc">${esc(sub.description)}</p>
+      <div class="admin-card-meta">
+        <span>By: ${esc(sub.userId?.slice(0, 12))}…</span>
+        <span>Download: <a href="${esc(sub.download)}" target="_blank" rel="noopener">${esc(sub.download)}</a></span>
+      </div>
+      <div class="admin-card-actions">
+        <button class="btn btn-primary btn-sm admin-approve-sub" data-id="${esc(sub.id)}">✓ Approve</button>
+        <button class="btn btn-secondary btn-sm admin-reject-sub" data-id="${esc(sub.id)}">✕ Reject</button>
+      </div>
+    </div>
+  `).join("");
+}
+
+function renderAdminEditRequests(editRequests) {
+  if (!editRequests.length) return `<p class="admin-empty">No open edit requests.</p>`;
+  return editRequests.map(er => {
+    const changedFields = Object.keys(er.changes || {}).filter(k => k !== "reason");
+    return `
+      <div class="admin-card" data-id="${esc(er.id)}">
+        <div class="admin-card-header">
+          <strong>App: ${esc(er.appId)}</strong>
+          <span class="er-status er-status-open">🟢 open</span>
+          <span class="admin-card-date">${new Date(er.createdAt).toLocaleDateString()}</span>
+        </div>
+        <div class="er-card-changes">
+          ${changedFields.map(f => `<span class="er-change-tag">${esc(f)}</span>`).join("")}
+        </div>
+        ${er.changes?.reason ? `<p class="er-card-reason">"${esc(er.changes.reason)}"</p>` : ""}
+        <div class="admin-card-actions">
+          <button class="btn btn-primary btn-sm admin-merge-er" data-id="${esc(er.id)}">Merge</button>
+          <button class="btn btn-secondary btn-sm admin-approve-er" data-id="${esc(er.id)}">Approve</button>
+          <button class="btn btn-secondary btn-sm admin-reject-er" data-id="${esc(er.id)}">Reject</button>
+        </div>
+      </div>`;
+  }).join("");
+}
+
+function renderAdminUsers(users) {
+  return `
+    <div class="admin-users-list">
+      ${users.map(u => `
+        <div class="admin-user-card" data-uid="${esc(u.uid)}">
+          <div class="admin-user-header">
+            ${u.photoURL ? `<img class="admin-user-avatar" src="${esc(u.photoURL)}" alt="" referrerpolicy="no-referrer">` : `<div class="admin-user-avatar-fallback">${esc((u.displayName || "U").charAt(0))}</div>`}
+            <div class="admin-user-info">
+              <span class="admin-user-name">${esc(u.displayName)} ${verifiedBadge(u)}</span>
+              <span class="admin-user-email">${esc(u.email)}</span>
+            </div>
+          </div>
+          <div class="admin-user-controls">
+            <select class="admin-role-select" data-uid="${esc(u.uid)}">
+              ${["user","contributor","maintainer","admin","openlib-team"].map(r =>
+                `<option value="${r}" ${u.role === r ? "selected" : ""}>${r}</option>`
+              ).join("")}
+            </select>
+            <button class="btn btn-sm ${u.verified ? 'btn-active' : 'btn-secondary'} admin-toggle-verified" data-uid="${esc(u.uid)}" data-verified="${u.verified}">
+              ${u.verified ? "✓ Verified" : "Verify"}
+            </button>
+            <button class="btn btn-sm ${u.teamAccount ? 'btn-active' : 'btn-secondary'} admin-toggle-team" data-uid="${esc(u.uid)}" data-team="${u.teamAccount}">
+              ${u.teamAccount ? "⚡ Team" : "Set Team"}
+            </button>
+          </div>
+        </div>
+      `).join("")}
+    </div>`;
+}
+
+function renderAdminAddApp() {
+  return `
+    <form id="admin-add-app-form" class="admin-form">
+      <div class="form-row">
+        <div class="form-group"><label>App Name *</label><input type="text" id="aa-name" required maxlength="100"></div>
+        <div class="form-group"><label>Category *</label>
+          <select id="aa-category" required>
+            <option value="">— Pick —</option>
+            <option value="Communication">Communication</option><option value="Design">Design</option>
+            <option value="Finance">Finance</option><option value="Media">Media</option>
+            <option value="Productivity">Productivity</option><option value="Security">Security</option>
+            <option value="Utility">Utility</option><option value="Other">Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Logo URL</label><input type="url" id="aa-logo"></div>
+        <div class="form-group"><label>Alternative of *</label><input type="text" id="aa-alternative" required maxlength="100"></div>
+      </div>
+      <div class="form-group"><label>Description *</label><textarea id="aa-description" rows="2" required maxlength="300"></textarea></div>
+      <div class="form-group"><label>Uses *</label><textarea id="aa-uses" rows="2" required maxlength="300"></textarea></div>
+      <div class="form-row">
+        <div class="form-group"><label>Download URL *</label><input type="url" id="aa-download" required></div>
+        <div class="form-group"><label>Source URL *</label><input type="url" id="aa-source" required></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Maintainer *</label>
+          <select id="aa-maintainer" required><option value="individual">Individual</option><option value="organization">Organization</option></select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Platforms *</label>
+        <div class="checkbox-group">
+          <label class="checkbox-label"><input type="checkbox" name="aa-platforms" value="Linux"> Linux</label>
+          <label class="checkbox-label"><input type="checkbox" name="aa-platforms" value="Windows"> Windows</label>
+          <label class="checkbox-label"><input type="checkbox" name="aa-platforms" value="macOS"> macOS</label>
+          <label class="checkbox-label"><input type="checkbox" name="aa-platforms" value="Android"> Android</label>
+          <label class="checkbox-label"><input type="checkbox" name="aa-platforms" value="iOS"> iOS</label>
+          <label class="checkbox-label"><input type="checkbox" name="aa-platforms" value="Web"> Web</label>
+        </div>
+      </div>
+      <div class="form-msg" role="alert"></div>
+      <button type="submit" class="btn btn-primary">Add App (Admin)</button>
+    </form>`;
+}
+
+function attachAdminHandlers(tab) {
+  if (tab === "submissions") {
+    document.querySelectorAll(".admin-approve-sub").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        btn.disabled = true;
+        try {
+          await approveSubmission(btn.dataset.id, currentUser.uid);
+          btn.closest(".admin-card").remove();
+          showToast("Submission approved & app created!");
+          await loadApps();
+        } catch (err) { showToast(err.message); }
+        btn.disabled = false;
+      });
+    });
+    document.querySelectorAll(".admin-reject-sub").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const reason = prompt("Reason for rejection:");
+        if (reason === null) return;
+        btn.disabled = true;
+        try {
+          await rejectSubmission(btn.dataset.id, currentUser.uid, reason);
+          btn.closest(".admin-card").remove();
+          showToast("Submission rejected");
+        } catch (err) { showToast(err.message); }
+        btn.disabled = false;
+      });
+    });
+  }
+
+  if (tab === "edit-requests") {
+    document.querySelectorAll(".admin-merge-er").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        btn.disabled = true;
+        try {
+          await mergeEditRequest(btn.dataset.id, currentUser.uid);
+          btn.closest(".admin-card").remove();
+          showToast("Edit request merged!");
+          await loadApps();
+        } catch (err) { showToast(err.message); }
+        btn.disabled = false;
+      });
+    });
+    document.querySelectorAll(".admin-approve-er").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        btn.disabled = true;
+        try {
+          await approveEditRequest(btn.dataset.id, currentUser.uid);
+          showToast("Edit request approved!");
+        } catch (err) { showToast(err.message); }
+        btn.disabled = false;
+      });
+    });
+    document.querySelectorAll(".admin-reject-er").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const reason = prompt("Reason for rejection:");
+        if (reason === null) return;
+        btn.disabled = true;
+        try {
+          await rejectEditRequest(btn.dataset.id, currentUser.uid, reason);
+          btn.closest(".admin-card").remove();
+          showToast("Edit request rejected");
+        } catch (err) { showToast(err.message); }
+        btn.disabled = false;
+      });
+    });
+  }
+
+  if (tab === "users") {
+    document.querySelectorAll(".admin-role-select").forEach(select => {
+      select.addEventListener("change", async () => {
+        try {
+          await updateUserRole(select.dataset.uid, select.value, currentUser.uid);
+          showToast("Role updated!");
+        } catch (err) {
+          showToast(err.message);
+          showAdminDashboard();
+        }
+      });
+    });
+    document.querySelectorAll(".admin-toggle-verified").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const current = btn.dataset.verified === "true";
+        try {
+          await setAccountVerified(btn.dataset.uid, !current, currentUser.uid);
+          showToast(current ? "Verification removed" : "Account verified!");
+          showAdminDashboard();
+        } catch (err) { showToast(err.message); }
+      });
+    });
+    document.querySelectorAll(".admin-toggle-team").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const current = btn.dataset.team === "true";
+        try {
+          await setTeamAccount(btn.dataset.uid, !current, currentUser.uid);
+          showToast(current ? "Team status removed" : "Marked as Team account!");
+          showAdminDashboard();
+        } catch (err) { showToast(err.message); }
+      });
+    });
+  }
+
+  if (tab === "add-app") {
+    document.getElementById("admin-add-app-form")?.addEventListener("submit", async e => {
+      e.preventDefault();
+      const form = e.target;
+      const platforms = [...form.querySelectorAll("input[name='aa-platforms']:checked")].map(el => el.value);
+      if (!platforms.length) { showFormError(form, "Select at least one platform."); return; }
+
+      const appData = {
+        name: document.getElementById("aa-name").value.trim(),
+        logo: document.getElementById("aa-logo").value.trim(),
+        category: document.getElementById("aa-category").value,
+        description: document.getElementById("aa-description").value.trim(),
+        uses: document.getElementById("aa-uses").value.trim(),
+        alternative: document.getElementById("aa-alternative").value.trim(),
+        download: document.getElementById("aa-download").value.trim(),
+        source: document.getElementById("aa-source").value.trim(),
+        maintainer: document.getElementById("aa-maintainer").value,
+        platforms
+      };
+
+      try {
+        await adminAddApp(appData, currentUser.uid);
+        showFormSuccess(form, "App added successfully!");
+        form.reset();
+        await loadApps();
+      } catch (err) {
+        showFormError(form, err.message);
+      }
+    });
+  }
+}
+
+// ── Version History (in detail page) ─────────────────────────────────────────
+async function loadVersionHistory(appId) {
+  const container = document.getElementById(`version-history-${appId}`);
+  if (!container) return;
+
+  try {
+    const versions = await getAppVersions(appId);
+    if (!versions.length) {
+      container.innerHTML = `<p class="er-empty">No version history yet.</p>`;
+      return;
+    }
+
+    container.innerHTML = versions.map(v => {
+      const date = new Date(v.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+      const changedFields = Object.keys(v.changes || {});
+      const typeIcon = v.type === "initial" ? "🎉" : v.type === "ownership_transfer" ? "🔄" : "📝";
+
+      return `
+        <div class="version-card">
+          <div class="version-header">
+            <span class="version-type">${typeIcon} ${esc(v.type)}</span>
+            <span class="version-date">${date}</span>
+          </div>
+          <p class="version-message">${esc(v.commitMessage)}</p>
+          <div class="version-author">
+            ${v.authorPhoto ? `<img class="er-avatar-sm" src="${esc(v.authorPhoto)}" alt="" referrerpolicy="no-referrer">` : ""}
+            <span>${esc(v.authorName || "Unknown")}</span>
+          </div>
+          ${changedFields.length ? `
+            <div class="version-changes">
+              ${changedFields.map(f => {
+                const c = v.changes[f];
+                return `<div class="version-diff"><span class="diff-field">${esc(f)}</span><span class="diff-old">− ${esc(String(c?.old || ""))}</span><span class="diff-new">+ ${esc(String(c?.new || ""))}</span></div>`;
+              }).join("")}
+            </div>
+          ` : ""}
+        </div>`;
+    }).join("");
+  } catch (e) {
+    container.innerHTML = `<p class="er-empty">Could not load version history.</p>`;
+  }
+}
+
+// ── Enhanced Edit Request with Review Comments ───────────────────────────────
 async function loadEditRequestsForDetail(appId) {
   const listEl = document.getElementById(`er-list-${appId}`);
   if (!listEl) return;
@@ -686,11 +1434,14 @@ async function loadEditRequestsForDetail(appId) {
       const avatarHtml = submitter.photoURL
         ? `<img class="er-avatar-sm" src="${esc(submitter.photoURL)}" alt="" referrerpolicy="no-referrer">`
         : `<div class="er-avatar-sm-fallback">${esc((submitter.displayName || "U").charAt(0))}</div>`;
+      const approvals = er.approvals || [];
+      const canReview = isAdmin && er.status === "open";
 
       return `
-        <div class="er-card">
+        <div class="er-card" data-er-id="${esc(er.id)}">
           <div class="er-card-header">
             <span class="er-status ${statusClass}">${statusIcon} ${esc(er.status)}</span>
+            ${approvals.length ? `<span class="er-approvals">✓ ${approvals.length} approval${approvals.length > 1 ? "s" : ""}</span>` : ""}
             <span class="er-date">${date}</span>
           </div>
           <div class="er-card-submitter">
@@ -703,18 +1454,110 @@ async function loadEditRequestsForDetail(appId) {
             ${changedFields.map(f => `<span class="er-change-tag">${esc(f)}</span>`).join("")}
           </div>
           ${er.changes?.reason ? `<p class="er-card-reason">"${esc(er.changes.reason)}"</p>` : ""}
+          <div class="er-comments-section" id="er-comments-${esc(er.id)}"></div>
+          ${currentUser ? `
+            <div class="er-comment-form">
+              <input type="text" class="er-comment-input" data-er-id="${esc(er.id)}" placeholder="Add a comment…" maxlength="500">
+              <button class="btn btn-sm btn-secondary er-comment-btn" data-er-id="${esc(er.id)}">Comment</button>
+            </div>
+          ` : ""}
+          ${canReview ? `
+            <div class="er-review-actions">
+              <button class="btn btn-sm btn-primary er-merge-btn" data-er-id="${esc(er.id)}">Merge</button>
+              <button class="btn btn-sm btn-secondary er-approve-btn" data-er-id="${esc(er.id)}">Approve</button>
+              <button class="btn btn-sm btn-secondary er-reject-btn" data-er-id="${esc(er.id)}">Reject</button>
+            </div>
+          ` : ""}
         </div>
       `;
     }).join("");
+
+    // Load comments for each ER
+    for (const er of requests) {
+      loadERComments(er.id);
+    }
+
+    // Attach comment handlers
+    listEl.querySelectorAll(".er-comment-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const input = listEl.querySelector(`.er-comment-input[data-er-id="${btn.dataset.erId}"]`);
+        const text = input?.value.trim();
+        if (!text) return;
+        try {
+          await addReviewComment(btn.dataset.erId, text, currentUser);
+          input.value = "";
+          loadERComments(btn.dataset.erId);
+        } catch (err) { showToast(err.message); }
+      });
+    });
+
+    // Admin review handlers
+    listEl.querySelectorAll(".er-merge-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        btn.disabled = true;
+        try {
+          await mergeEditRequest(btn.dataset.erId, currentUser.uid);
+          showToast("Edit request merged!");
+          await loadApps();
+          loadEditRequestsForDetail(appId);
+        } catch (err) { showToast(err.message); }
+        btn.disabled = false;
+      });
+    });
+    listEl.querySelectorAll(".er-approve-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        btn.disabled = true;
+        try {
+          await approveEditRequest(btn.dataset.erId, currentUser.uid);
+          showToast("Approved!");
+          loadEditRequestsForDetail(appId);
+        } catch (err) { showToast(err.message); }
+        btn.disabled = false;
+      });
+    });
+    listEl.querySelectorAll(".er-reject-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const reason = prompt("Reason for rejection:");
+        if (reason === null) return;
+        btn.disabled = true;
+        try {
+          await rejectEditRequest(btn.dataset.erId, currentUser.uid, reason);
+          showToast("Rejected");
+          loadEditRequestsForDetail(appId);
+        } catch (err) { showToast(err.message); }
+        btn.disabled = false;
+      });
+    });
   } catch (err) {
     listEl.innerHTML = `<p class="er-empty">Could not load edit requests.</p>`;
   }
 }
 
+async function loadERComments(editRequestId) {
+  const container = document.getElementById(`er-comments-${editRequestId}`);
+  if (!container) return;
+  try {
+    const comments = await getReviewComments(editRequestId);
+    if (!comments.length) { container.innerHTML = ""; return; }
+    container.innerHTML = comments.map(c => {
+      const typeClass = c.type === "approval" ? "comment-approval" : c.type === "rejection" ? "comment-rejection" : c.type === "merge" ? "comment-merge" : "";
+      return `
+        <div class="er-comment ${typeClass}">
+          ${c.authorPhoto ? `<img class="er-avatar-sm" src="${esc(c.authorPhoto)}" alt="" referrerpolicy="no-referrer">` : ""}
+          <span class="er-comment-author">${esc(c.authorName)}</span>
+          <span class="er-comment-text">${esc(c.text)}</span>
+          <span class="er-comment-time">${new Date(c.createdAt).toLocaleDateString()}</span>
+        </div>`;
+    }).join("");
+  } catch (e) {
+    container.innerHTML = "";
+  }
+}
+
 // ── Rankings Page ────────────────────────────────────────────────────────────
 function showRankings() {
-  document.getElementById("home-view").style.display = "none";
-  document.getElementById("detail-view").style.display = "none";
+  const views = ["home-view", "detail-view", "profile-view", "org-view", "admin-view"];
+  views.forEach(v => { const el = document.getElementById(v); if (el) el.style.display = "none"; });
   const rankView = document.getElementById("rankings-view");
   rankView.style.display = "block";
 
@@ -968,12 +1811,22 @@ function toggleTheme() {
 }
 
 // ── Auth UI ──────────────────────────────────────────────────────────────────
-function updateAuthUI(user) {
+async function updateAuthUI(user) {
   currentUser = user;
   const trigger = document.getElementById("auth-trigger");
   const content = document.getElementById("auth-content");
+  const adminLink = document.getElementById("admin-nav-link");
+  const profileLink = document.getElementById("profile-nav-link");
 
   if (user) {
+    // Create/update user record in Firestore
+    userRecord = await createOrUpdateUserRecord(user);
+    isAdmin = userRecord && ["admin", "openlib-team"].includes(userRecord.role);
+
+    // Show/hide admin link
+    if (adminLink) adminLink.style.display = isAdmin ? "inline-flex" : "none";
+    if (profileLink) profileLink.style.display = "inline-flex";
+
     const avatarHtml = user.photoURL
       ? `<img class="auth-avatar" src="${esc(user.photoURL)}" alt="" referrerpolicy="no-referrer">`
       : `<span id="auth-icon">✓</span>`;
@@ -982,14 +1835,19 @@ function updateAuthUI(user) {
     content.innerHTML = `
       <div class="user-info">
         ${user.photoURL ? `<img class="auth-dropdown-avatar" src="${esc(user.photoURL)}" alt="" referrerpolicy="no-referrer">` : ""}
-        <div class="user-name">${esc(user.displayName || "User")}</div>
+        <div class="user-name">${esc(user.displayName || "User")} ${verifiedBadge(userRecord)}</div>
         <div class="user-email">${esc(user.email || "")}</div>
         <div class="user-provider">Signed in via ${esc(providerName)}</div>
-        <div class="user-uid" title="User ID">${esc(user.uid.slice(0, 12))}…</div>
+        <div class="user-role">${roleBadge(userRecord?.role || "user")}</div>
       </div>
+      <a href="#/profile" class="auth-option profile-link">👤 My Profile</a>
       <button class="auth-option signout" id="signout-btn">← Sign Out</button>
     `;
   } else {
+    userRecord = null;
+    isAdmin = false;
+    if (adminLink) adminLink.style.display = "none";
+    if (profileLink) profileLink.style.display = "none";
     trigger.innerHTML = `<span id="auth-icon">👤</span><span id="auth-label">Sign in</span>`;
     content.innerHTML = `
       <button class="auth-option google" id="google-signin-btn">
@@ -1051,8 +1909,9 @@ function setupAuthHandlers() {
 }
 
 function initAuth() {
-  onUserAuthStateChanged(user => {
-    updateAuthUI(user);
+  onUserAuthStateChanged(async user => {
+    await updateAuthUI(user);
+    renderRecommendations();
   });
   setupAuthHandlers();
 }
@@ -1104,6 +1963,17 @@ function handleRoute() {
       url: `${BASE_URL}#/rankings`
     });
     showRankings();
+  } else if (hash === "#/profile" || hash.startsWith("#/profile/")) {
+    const uid = hash === "#/profile" ? null : decodeURIComponent(hash.replace("#/profile/", ""));
+    updatePageMeta({ title: "Profile — OpenLib", description: "User profile on OpenLib.", url: `${BASE_URL}${hash}` });
+    showProfile(uid);
+  } else if (hash.startsWith("#/org/")) {
+    const orgId = decodeURIComponent(hash.replace("#/org/", ""));
+    updatePageMeta({ title: "Organization — OpenLib", description: "Organization on OpenLib.", url: `${BASE_URL}${hash}` });
+    showOrgView(orgId);
+  } else if (hash === "#/admin") {
+    updatePageMeta({ title: "Admin — OpenLib", description: "Admin dashboard.", url: `${BASE_URL}#/admin` });
+    showAdminDashboard();
   } else {
     updatePageMeta({
       title: "OpenLib — Open Source App Library",
@@ -1115,9 +1985,10 @@ function handleRoute() {
 }
 
 function showHome() {
-  document.getElementById("detail-view").style.display = "none";
-  document.getElementById("rankings-view").style.display = "none";
+  const views = ["detail-view", "rankings-view", "profile-view", "org-view", "admin-view"];
+  views.forEach(v => { const el = document.getElementById(v); if (el) el.style.display = "none"; });
   document.getElementById("home-view").style.display = "block";
+  renderRecommendations();
 }
 
 function renderCurrentView() {
@@ -1126,9 +1997,16 @@ function renderCurrentView() {
     showAppDetail(hash.replace("#/app/", ""));
   } else if (hash === "#/rankings") {
     showRankings();
+  } else if (hash === "#/profile" || hash.startsWith("#/profile/")) {
+    showProfile(hash === "#/profile" ? null : hash.replace("#/profile/", ""));
+  } else if (hash.startsWith("#/org/")) {
+    showOrgView(hash.replace("#/org/", ""));
+  } else if (hash === "#/admin") {
+    showAdminDashboard();
   } else {
     buildFilters();
     renderGrid(getFiltered());
+    renderRecommendations();
   }
 }
 
@@ -1228,6 +2106,40 @@ async function init() {
     }
     if (e.altKey && e.key === "s") { e.preventDefault(); openSubmitModal(); }
     if (e.altKey && e.key === "f") { e.preventDefault(); document.getElementById("search-input").focus(); }
+  });
+
+  // Nav links
+  document.getElementById("profile-nav-link")?.addEventListener("click", e => { e.preventDefault(); location.hash = "#/profile"; });
+  document.getElementById("admin-nav-link")?.addEventListener("click", e => { e.preventDefault(); location.hash = "#/admin"; });
+
+  // Create organization form
+  document.getElementById("create-org-form")?.addEventListener("submit", async e => {
+    e.preventDefault();
+    const form = e.target;
+    const name = document.getElementById("org-name").value.trim();
+    const description = document.getElementById("org-description").value.trim();
+    const logoURL = document.getElementById("org-logo").value.trim();
+    const website = document.getElementById("org-website").value.trim();
+
+    if (!name || name.length < 2) { showFormError(form, "Name must be at least 2 characters."); return; }
+
+    const btn = form.querySelector(".btn-submit");
+    btn.disabled = true;
+    btn.textContent = "Creating…";
+    try {
+      const org = await createOrganization({ name, description, logoURL, website }, currentUser.uid);
+      showFormSuccess(form, "Organization created!");
+      userRecord = await getUserRecord(currentUser.uid);
+      setTimeout(() => {
+        closeModal("create-org-modal");
+        location.hash = `#/org/${org.id}`;
+      }, 1500);
+    } catch (err) {
+      showFormError(form, err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Create Organization";
+    }
   });
 }
 
