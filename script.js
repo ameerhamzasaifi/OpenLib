@@ -1776,9 +1776,12 @@ function attachAdminHandlers(tab) {
       const platforms = [...form.querySelectorAll("input[name='aa-platforms']:checked")].map(el => el.value);
       if (!platforms.length) { showFormError(form, "Select at least one platform."); return; }
 
+      const aaLogo = document.getElementById("aa-logo").value.trim();
+      if (aaLogo && !isValidLogoURL(aaLogo)) { showFormError(form, "Logo URL must end in .jpg, .jpeg, .png, or .svg"); return; }
+
       const appData = {
         name: document.getElementById("aa-name").value.trim(),
-        logo: document.getElementById("aa-logo").value.trim(),
+        logo: aaLogo,
         category: document.getElementById("aa-category").value,
         description: document.getElementById("aa-description").value.trim(),
         uses: document.getElementById("aa-uses").value.trim(),
@@ -2208,9 +2211,12 @@ async function handleSubmitApp(e) {
   if (description.length < 10 || description.length > 300) { showFormError(form, "Description must be 10-300 characters."); return; }
   if (uses.length < 10 || uses.length > 300) { showFormError(form, "Uses field must be 10-300 characters."); return; }
 
+  const logo = form.querySelector("#sub-logo").value.trim();
+  if (logo && !isValidLogoURL(logo)) { showFormError(form, "Logo URL must end in .jpg, .jpeg, .png, or .svg"); return; }
+
   const payload = {
     name,
-    logo: form.querySelector("#sub-logo").value.trim(),
+    logo,
     category: form.querySelector("#sub-category").value,
     description,
     uses,
@@ -2280,9 +2286,12 @@ async function handleResubmit(e) {
 
   if (!platforms.length) { showFormError(form, "Select at least one platform."); return; }
 
+  const resubLogo = document.getElementById("resub-logo").value.trim();
+  if (resubLogo && !isValidLogoURL(resubLogo)) { showFormError(form, "Logo URL must end in .jpg, .jpeg, .png, or .svg"); return; }
+
   const updatedData = {
     name: document.getElementById("resub-name").value.trim(),
-    logo: document.getElementById("resub-logo").value.trim(),
+    logo: resubLogo,
     category: document.getElementById("resub-category").value,
     description: document.getElementById("resub-description").value.trim(),
     uses: document.getElementById("resub-uses").value.trim(),
@@ -2311,6 +2320,12 @@ async function handleResubmit(e) {
     btn.disabled = false;
     btn.textContent = "Resubmit for Review";
   }
+}
+
+// ── Validation Helpers ────────────────────────────────────────────────────────
+function isValidLogoURL(url) {
+  if (!url) return true; // logo is optional
+  return /\.(jpe?g|png|svg)(\?.*)?$/i.test(new URL(url, location.href).pathname);
 }
 
 // ── Modal Utilities ──────────────────────────────────────────────────────────
@@ -2576,6 +2591,14 @@ async function init() {
     handleStarClick(e);
     const rb = e.target.closest(".report-btn");
     if (rb) openReportModal(rb.dataset.appId, rb.dataset.appName);
+
+    // Make entire card clickable to open detail view
+    if (e.target.closest("a, button, .stars, .report-btn")) return;
+    const card = e.target.closest(".app-card");
+    if (card) {
+      const appId = card.dataset.id;
+      if (appId) location.hash = `#/app/${appId}`;
+    }
   });
 
   // Auth-gate on card links (event delegation — find the actual link)
