@@ -1248,20 +1248,20 @@ function renderAdminAddApp() {
 }
 
 function attachAdminHandlers(tab) {
-      document.querySelectorAll(".admin-request-changes-sub").forEach(btn => {
-        btn.addEventListener("click", async () => {
-          const comment = prompt("Describe the required changes for this submission:");
-          if (comment === null || !comment.trim()) return;
-          btn.disabled = true;
-          try {
-            await requestChangesOnSubmission(btn.dataset.id, currentUser.uid, comment);
-            btn.closest(".admin-card").remove();
-            showToast("Requested changes on submission");
-          } catch (err) { showToast(err.message); }
-          btn.disabled = false;
-        });
-      });
   if (tab === "submissions") {
+    document.querySelectorAll(".admin-request-changes-sub").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const comment = prompt("Describe the required changes for this submission:");
+        if (comment === null || !comment.trim()) return;
+        btn.disabled = true;
+        try {
+          await requestChangesOnSubmission(btn.dataset.id, currentUser.uid, comment);
+          btn.closest(".admin-card").remove();
+          showToast("Requested changes on submission");
+        } catch (err) { showToast(err.message); }
+        btn.disabled = false;
+      });
+    });
     document.querySelectorAll(".admin-approve-sub").forEach(btn => {
       btn.addEventListener("click", async () => {
         btn.disabled = true;
@@ -2011,6 +2011,8 @@ function showHome() {
   const views = ["detail-view", "rankings-view", "profile-view", "org-view", "admin-view"];
   views.forEach(v => { const el = document.getElementById(v); if (el) el.style.display = "none"; });
   document.getElementById("home-view").style.display = "block";
+  buildFilters();
+  renderGrid(getFiltered());
   renderRecommendations();
 }
 
@@ -2064,10 +2066,17 @@ async function init() {
     if (rb) openReportModal(rb.dataset.appId, rb.dataset.appName);
   });
 
-  // Auth-gate on card links
+  // Auth-gate on card links (event delegation — find the actual link)
   document.getElementById("app-grid").addEventListener("click", e => {
     const link = e.target.closest(".auth-gate-link");
-    if (link) handleAuthGateClick(e);
+    if (link) {
+      if (currentUser) return; // Allow through
+      e.preventDefault();
+      e.stopPropagation();
+      const action = link.dataset.action;
+      const appName = link.dataset.appName;
+      openLoginPrompt(action, appName, link.href);
+    }
   });
 
   // Login prompt modal handlers
