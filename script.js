@@ -422,7 +422,7 @@ function buildFilters() {
 
 // ── App Detail Page ──────────────────────────────────────────────────────────
 async function showAppDetail(appId) {
-  const views = ["home-view", "rankings-view", "profile-view", "org-view", "admin-view"];
+  const views = ["home-view", "rankings-view", "profile-view", "org-view", "admin-view", "verify-view"];
   views.forEach(v => { const el = document.getElementById(v); if (el) el.style.display = "none"; });
   const detailView = document.getElementById("detail-view");
   detailView.style.display = "block";
@@ -754,7 +754,7 @@ function renderRecommendations() {
 
 // ── Profile View ─────────────────────────────────────────────────────────────
 async function showProfile(uid) {
-  const views = ["home-view", "detail-view", "rankings-view", "org-view", "admin-view"];
+  const views = ["home-view", "detail-view", "rankings-view", "org-view", "admin-view", "verify-view"];
   views.forEach(v => { const el = document.getElementById(v); if (el) el.style.display = "none"; });
   const profileView = document.getElementById("profile-view");
   profileView.style.display = "block";
@@ -802,6 +802,12 @@ async function showProfile(uid) {
         <div class="profile-stat"><span class="stat-number">${record.activity?.ratingsGiven || 0}</span><span class="stat-label">Ratings</span></div>
         <div class="profile-stat"><span class="stat-number">${record.activity?.reviewsDone || 0}</span><span class="stat-label">Reviews</span></div>
       </div>
+
+      ${isOwnProfile && ["admin", "openlib-team"].includes(record.role) ? `
+        <div class="profile-team-actions">
+          <a href="#/verify" class="btn btn-primary btn-verify-submissions" id="verify-submissions-btn">🛡️ Verify App Submissions</a>
+        </div>
+      ` : ""}
 
       ${isOwnProfile ? `
         <div class="profile-edit-section">
@@ -948,7 +954,7 @@ async function showProfile(uid) {
 
 // ── Organization View ────────────────────────────────────────────────────────
 async function showOrgView(orgId) {
-  const views = ["home-view", "detail-view", "rankings-view", "profile-view", "admin-view"];
+  const views = ["home-view", "detail-view", "rankings-view", "profile-view", "admin-view", "verify-view"];
   views.forEach(v => { const el = document.getElementById(v); if (el) el.style.display = "none"; });
   const orgView = document.getElementById("org-view");
   orgView.style.display = "block";
@@ -1089,9 +1095,255 @@ async function showOrgView(orgId) {
   });
 }
 
+// ── Verify Submissions (Team-only screen) ────────────────────────────────────
+async function showVerifySubmissions() {
+  const allViews = ["home-view", "detail-view", "rankings-view", "profile-view", "org-view", "admin-view"];
+  allViews.forEach(v => { const el = document.getElementById(v); if (el) el.style.display = "none"; });
+  const verifyView = document.getElementById("verify-view");
+  verifyView.style.display = "block";
+
+  // Access check — only team / admin
+  const isTeam = userRecord && ["admin", "openlib-team"].includes(userRecord.role);
+  if (!currentUser || !isTeam) {
+    verifyView.innerHTML = `<div class="empty-state"><h3>Access Denied</h3><p>Only OpenLib team members can verify submissions.</p><a href="#/">← Back to library</a></div>`;
+    return;
+  }
+
+  verifyView.innerHTML = `<div class="detail-loading">Loading submissions for review…</div>`;
+
+  const submissions = await getAllSubmissions();
+  const pendingCount = submissions.filter(s => s.status === "pending").length;
+  const changesCount = submissions.filter(s => s.status === "changes_requested").length;
+  const approvedCount = submissions.filter(s => s.status === "approved").length;
+  const rejectedCount = submissions.filter(s => s.status === "rejected").length;
+
+  verifyView.innerHTML = `
+    <div class="verify-page">
+      <a href="#/profile" class="back-link">← Back to profile</a>
+      <h1 class="verify-title">🛡️ Verify App Submissions</h1>
+      <p class="verify-subtitle">Review, accept, reject, or request changes on submitted apps.</p>
+
+      <div class="verify-stats">
+        <div class="verify-stat-card verify-stat-pending"><span class="stat-number">${pendingCount}</span><span class="stat-label">Pending</span></div>
+        <div class="verify-stat-card verify-stat-changes"><span class="stat-number">${changesCount}</span><span class="stat-label">Changes Requested</span></div>
+        <div class="verify-stat-card verify-stat-approved"><span class="stat-number">${approvedCount}</span><span class="stat-label">Approved</span></div>
+        <div class="verify-stat-card verify-stat-rejected"><span class="stat-number">${rejectedCount}</span><span class="stat-label">Rejected</span></div>
+      </div>
+
+      <div class="sub-filters" id="verify-filters">
+        <button class="sub-filter-btn active" data-filter="pending">🟡 Pending (${pendingCount})</button>
+        <button class="sub-filter-btn" data-filter="changes_requested">🟠 Changes Requested (${changesCount})</button>
+        <button class="sub-filter-btn" data-filter="approved">🟢 Approved (${approvedCount})</button>
+        <button class="sub-filter-btn" data-filter="rejected">🔴 Rejected (${rejectedCount})</button>
+        <button class="sub-filter-btn" data-filter="all">All (${submissions.length})</button>
+      </div>
+
+      <div class="verify-list" id="verify-list">
+        ${renderVerifyCards(submissions, "pending")}
+      </div>
+    </div>
+  `;
+
+  // Store submissions for filter switching
+  verifyView._submissions = submissions;
+
+  // Filter buttons
+  verifyView.querySelectorAll(".sub-filter-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      verifyView.querySelectorAll(".sub-filter-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      const filter = btn.dataset.filter;
+      document.getElementById("verify-list").innerHTML = renderVerifyCards(submissions, filter);
+      attachVerifyHandlers();
+    });
+  });
+
+  attachVerifyHandlers();
+}
+
+function renderVerifyCards(submissions, filter) {
+  const filtered = filter === "all" ? submissions : submissions.filter(s => s.status === filter);
+  if (!filtered.length) return `<p class="admin-empty">No ${filter === "all" ? "" : filter.replace("_", " ")} submissions.</p>`;
+
+  return filtered.map(sub => {
+    const statusIcon = sub.status === "pending" ? "🟡" : sub.status === "approved" ? "🟢" : sub.status === "rejected" ? "🔴" : sub.status === "changes_requested" ? "🟠" : "⚪";
+    const statusLabel = sub.status === "changes_requested" ? "Changes Requested" : sub.status.charAt(0).toUpperCase() + sub.status.slice(1);
+    const canAct = sub.status === "pending" || sub.status === "changes_requested";
+
+    return `
+    <div class="verify-card" data-id="${esc(sub.id)}" data-status="${esc(sub.status)}">
+      <div class="verify-card-header">
+        <div class="verify-card-title">
+          ${sub.logo ? `<img class="verify-card-logo" src="${esc(sub.logo)}" alt="" onerror="this.style.display='none'">` : `<div class="verify-card-logo-fallback">${esc((sub.name || "?").charAt(0))}</div>`}
+          <div>
+            <strong class="verify-card-name">${esc(sub.name)}</strong>
+            <span class="badge badge-role">${esc(sub.category)}</span>
+            <span class="sub-status-badge sub-status-${esc(sub.status)}">${statusIcon} ${statusLabel}</span>
+          </div>
+        </div>
+        <span class="verify-card-date">${new Date(sub.timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
+      </div>
+
+      <div class="verify-card-body">
+        <div class="verify-field"><label>Description</label><p>${esc(sub.description)}</p></div>
+        <div class="verify-field"><label>Uses / Problem solved</label><p>${esc(sub.uses || "—")}</p></div>
+        <div class="verify-field-row">
+          <div class="verify-field"><label>Alternative of</label><p>${esc(sub.alternative || "—")}</p></div>
+          <div class="verify-field"><label>Maintainer</label><p>${esc(sub.maintainer || "—")}</p></div>
+        </div>
+        <div class="verify-field-row">
+          <div class="verify-field"><label>Download</label><p><a href="${esc(sub.download)}" target="_blank" rel="noopener">${esc(sub.download || "—")}</a></p></div>
+          <div class="verify-field"><label>Source Code</label><p><a href="${esc(sub.source)}" target="_blank" rel="noopener">${esc(sub.source || "—")}</a></p></div>
+        </div>
+        <div class="verify-field">
+          <label>Platforms</label>
+          <div class="verify-platforms">${(sub.platforms || []).map(p => `<span class="platform-tag">${platformIcon(p)} ${esc(p)}</span>`).join(" ") || "—"}</div>
+        </div>
+        <div class="verify-field-row">
+          <div class="verify-field"><label>Submitted by</label><p>${esc(sub.userId?.slice(0, 16))}… ${sub.submitterEmail ? `(${esc(sub.submitterEmail)})` : ""}</p></div>
+          <div class="verify-field"><label>Date</label><p>${new Date(sub.timestamp).toLocaleString()}</p></div>
+        </div>
+        ${sub.updatedAt && sub.updatedAt !== sub.timestamp ? `<div class="verify-field"><label>Last updated</label><p>${new Date(sub.updatedAt).toLocaleString()}</p></div>` : ""}
+      </div>
+
+      ${sub.status === "changes_requested" && sub.changesComment ? `
+        <div class="verify-feedback verify-feedback-changes">
+          <strong>💬 Requested changes:</strong> ${esc(sub.changesComment)}
+        </div>
+      ` : ""}
+      ${sub.status === "rejected" && sub.rejectReason ? `
+        <div class="verify-feedback verify-feedback-rejected">
+          <strong>❌ Rejection reason:</strong> ${esc(sub.rejectReason)}
+        </div>
+      ` : ""}
+      ${sub.status === "approved" && sub.reviewedBy ? `
+        <div class="verify-feedback verify-feedback-approved">
+          <strong>✅ Approved</strong> on ${sub.reviewedAt ? new Date(sub.reviewedAt).toLocaleDateString() : ""}
+        </div>
+      ` : ""}
+
+      <div class="verify-comments" id="verify-comments-${esc(sub.id)}"></div>
+
+      <div class="verify-comment-form">
+        <input type="text" class="verify-comment-input" data-sub-id="${esc(sub.id)}" placeholder="Leave a review comment…" maxlength="500">
+        <button class="btn btn-sm btn-secondary verify-comment-btn" data-sub-id="${esc(sub.id)}">Comment</button>
+      </div>
+
+      ${canAct ? `
+        <div class="verify-actions">
+          <button class="btn btn-primary verify-accept-btn" data-id="${esc(sub.id)}">✓ Accept App</button>
+          <button class="btn btn-warning verify-changes-btn" data-id="${esc(sub.id)}">↺ Ask Changes</button>
+          <button class="btn btn-danger verify-reject-btn" data-id="${esc(sub.id)}">✕ Reject</button>
+        </div>
+      ` : ""}
+    </div>`;
+  }).join("");
+}
+
+function attachVerifyHandlers() {
+  // Load comments for each card
+  document.querySelectorAll(".verify-card").forEach(card => {
+    loadVerifyComments(card.dataset.id);
+  });
+
+  // Comment
+  document.querySelectorAll(".verify-comment-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const input = document.querySelector(`.verify-comment-input[data-sub-id="${btn.dataset.subId}"]`);
+      const text = input?.value.trim();
+      if (!text) return;
+      btn.disabled = true;
+      try {
+        await addSubmissionComment(btn.dataset.subId, text, currentUser);
+        input.value = "";
+        loadVerifyComments(btn.dataset.subId);
+      } catch (err) { showToast(err.message); }
+      btn.disabled = false;
+    });
+  });
+
+  // Accept
+  document.querySelectorAll(".verify-accept-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      btn.textContent = "Accepting…";
+      try {
+        await approveSubmission(btn.dataset.id, currentUser.uid);
+        showToast("App accepted & published!");
+        await loadApps();
+        showVerifySubmissions();
+      } catch (err) {
+        showToast(err.message);
+        btn.disabled = false;
+        btn.textContent = "✓ Accept App";
+      }
+    });
+  });
+
+  // Request Changes
+  document.querySelectorAll(".verify-changes-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const comment = prompt("Describe the changes needed for this submission:");
+      if (comment === null || !comment.trim()) return;
+      btn.disabled = true;
+      btn.textContent = "Sending…";
+      try {
+        await requestChangesOnSubmission(btn.dataset.id, currentUser.uid, comment.trim());
+        showToast("Changes requested — submitter will be notified");
+        showVerifySubmissions();
+      } catch (err) {
+        showToast(err.message);
+        btn.disabled = false;
+        btn.textContent = "↺ Ask Changes";
+      }
+    });
+  });
+
+  // Reject
+  document.querySelectorAll(".verify-reject-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const reason = prompt("Reason for rejection:");
+      if (reason === null) return;
+      btn.disabled = true;
+      btn.textContent = "Rejecting…";
+      try {
+        await rejectSubmission(btn.dataset.id, currentUser.uid, reason.trim());
+        showToast("Submission rejected");
+        showVerifySubmissions();
+      } catch (err) {
+        showToast(err.message);
+        btn.disabled = false;
+        btn.textContent = "✕ Reject";
+      }
+    });
+  });
+}
+
+async function loadVerifyComments(submissionId) {
+  const container = document.getElementById(`verify-comments-${submissionId}`);
+  if (!container) return;
+  try {
+    const comments = await getSubmissionComments(submissionId);
+    if (!comments.length) { container.innerHTML = ""; return; }
+    container.innerHTML = `<div class="verify-comments-list">${comments.map(c => {
+      const typeClass = c.type === "changes_requested" ? "comment-changes-requested" :
+                        c.type === "resubmission" ? "comment-resubmission" : "";
+      return `
+        <div class="er-comment ${typeClass}">
+          ${c.authorPhoto ? `<img class="er-avatar-sm" src="${esc(c.authorPhoto)}" alt="" referrerpolicy="no-referrer">` : ""}
+          <span class="er-comment-author">${esc(c.authorName)}</span>
+          <span class="er-comment-text">${esc(c.text)}</span>
+          <span class="er-comment-time">${new Date(c.createdAt).toLocaleDateString()}</span>
+        </div>`;
+    }).join("")}</div>`;
+  } catch (e) {
+    container.innerHTML = "";
+  }
+}
+
 // ── Admin Dashboard ──────────────────────────────────────────────────────────
 async function showAdminDashboard() {
-  const views = ["home-view", "detail-view", "rankings-view", "profile-view", "org-view"];
+  const views = ["home-view", "detail-view", "rankings-view", "profile-view", "org-view", "verify-view"];
   views.forEach(v => { const el = document.getElementById(v); if (el) el.style.display = "none"; });
   const adminView = document.getElementById("admin-view");
   adminView.style.display = "block";
@@ -1757,7 +2009,7 @@ async function loadSubComments(submissionId) {
 
 // ── Rankings Page ────────────────────────────────────────────────────────────
 function showRankings() {
-  const views = ["home-view", "detail-view", "profile-view", "org-view", "admin-view"];
+  const views = ["home-view", "detail-view", "profile-view", "org-view", "admin-view", "verify-view"];
   views.forEach(v => { const el = document.getElementById(v); if (el) el.style.display = "none"; });
   const rankView = document.getElementById("rankings-view");
   rankView.style.display = "block";
@@ -2250,6 +2502,9 @@ function handleRoute() {
   } else if (hash === "#/admin") {
     updatePageMeta({ title: "Admin — OpenLib", description: "Admin dashboard.", url: `${BASE_URL}#/admin` });
     showAdminDashboard();
+  } else if (hash === "#/verify") {
+    updatePageMeta({ title: "Verify Submissions — OpenLib", description: "Review and verify app submissions.", url: `${BASE_URL}#/verify` });
+    showVerifySubmissions();
   } else {
     updatePageMeta({
       title: "OpenLib — Open Source App Library",
@@ -2261,7 +2516,7 @@ function handleRoute() {
 }
 
 function showHome() {
-  const views = ["detail-view", "rankings-view", "profile-view", "org-view", "admin-view"];
+  const views = ["detail-view", "rankings-view", "profile-view", "org-view", "admin-view", "verify-view"];
   views.forEach(v => { const el = document.getElementById(v); if (el) el.style.display = "none"; });
   document.getElementById("home-view").style.display = "block";
   buildFilters();
@@ -2281,6 +2536,8 @@ function renderCurrentView() {
     showOrgView(hash.replace("#/org/", ""));
   } else if (hash === "#/admin") {
     showAdminDashboard();
+  } else if (hash === "#/verify") {
+    showVerifySubmissions();
   } else {
     buildFilters();
     renderGrid(getFiltered());
