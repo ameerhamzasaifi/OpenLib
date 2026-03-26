@@ -29,17 +29,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Create firebase-config.js from secret
-        env:
-          FIREBASE_CONFIG: ${{ secrets.FIREBASE_CONFIG }}
-        run: |
-          if [ -n "$FIREBASE_CONFIG" ]; then
-            echo "$FIREBASE_CONFIG" > firebase-config.js
-            echo "firebase-config.js created from secret."
-          else
-            echo "WARNING: FIREBASE_CONFIG secret not set — site will load without Firebase."
-          fi
-
       - name: Setup Pages
         uses: actions/configure-pages@v5
 

@@ -1,9 +1,6 @@
 # Dependencies
 node_modules/
 
-# Firebase config (created from secret during deploy)
-firebase-config.js
-
 # Server data (local file storage)
 data/
 
