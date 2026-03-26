@@ -97,11 +97,16 @@ For detailed setup → [GITHUB_PAGES_DEPLOYMENT.md](GITHUB_PAGES_DEPLOYMENT.md)
 
 ---
 
-## 📖 Documentation
+## �️ Team Review Panel
 
-- [**GITHUB_PAGES_DEPLOYMENT.md**](GITHUB_PAGES_DEPLOYMENT.md) — Complete deployment guide
-- [**FIREBASE_INTEGRATION.md**](FIREBASE_INTEGRATION.md) — Firestore collections, rules, and architecture
-- [**FIREBASE_SETUP.md**](FIREBASE_SETUP.md) — Firebase Console configuration steps
+Admin and OpenLib-team members can access the **Admin Dashboard** at `#/admin`:
+
+- **Submissions** — Approve, reject, or request changes on user-submitted apps
+- **Edit Requests** — Review, merge, or reject community edit suggestions
+- **Users** — Manage roles (user / contributor / maintainer / admin / openlib-team), verify accounts
+- **Add App** — Directly add apps to the library
+
+To access, sign in with an account that has the `admin` or `openlib-team` role.
 
 ---
 
@@ -116,24 +121,20 @@ cd openlib
 cp firebase-config.template.js firebase-config.js
 # Edit firebase-config.js with your Firebase project ID, API key, etc.
 
-# Install dependencies
-npm install
-
-# Start local dev server
-npm run dev
-
+# Open index.html directly or use any static server
+python3 -m http.server 3000
 # Visit http://localhost:3000
 ```
 
-### Build for Production
+### Deploy to GitHub Pages
 
-The site is static and works as-is. Push to main branch on GitHub to deploy:
+Push to main branch — GitHub Actions handles deployment automatically:
 
 ```bash
 git push origin main
 ```
 
-GitHub Pages automatically deploys from the `main` branch.
+The workflow creates `firebase-config.js` from the `FIREBASE_CONFIG` repository secret.
 
 ---
 
@@ -188,7 +189,7 @@ Each has ratings, vote counts, view counts, and contributor info.
 
 1. Fork this repository
 2. Make your changes
-3. Test locally (`npm run dev`)
+3. Test locally (open `index.html` or use a static server)
 4. Submit a pull request
 
 ---
