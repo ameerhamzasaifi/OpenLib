@@ -8,8 +8,7 @@ data/
 .env
 .env.*
 
-# Firebase — NEVER commit actual config with API keys
-firebase-config.js
+# Firebase
 .firebase/
 firebase-debug.log
 firebase-debug.*.log
