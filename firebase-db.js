@@ -1,3 +1,22 @@
+// Request changes on a submission (team review)
+export async function requestChangesOnSubmission(submissionId, adminUid, comment) {
+  if (!(await isAdminOrTeam(adminUid))) throw new Error("Unauthorized");
+  const now = new Date().toISOString();
+  await updateDoc(doc(db, "submissions", submissionId), {
+    status: "changes_requested",
+    reviewedBy: adminUid,
+    changesComment: comment,
+    reviewedAt: now
+  });
+  // Optionally, log this as a review comment
+  await addDoc(collection(db, "review_comments"), {
+    submissionId,
+    text: comment,
+    authorUid: adminUid,
+    type: "changes_requested",
+    createdAt: now
+  });
+}
 // ── Firebase Database Module ─────────────────────────────────────────────────
 // Extended Firestore operations: users, organizations, versions, recommendations, admin
 

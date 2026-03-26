@@ -1117,7 +1117,13 @@ async function showAdminDashboard() {
 
 function renderAdminSubmissions(submissions) {
   if (!submissions.length) return `<p class="admin-empty">No pending submissions.</p>`;
-  return submissions.map(sub => `
+  return submissions.map(sub => {
+    let statusHtml = '';
+    if (sub.status && sub.status !== 'pending') {
+      let color = sub.status === 'approved' ? 'green' : sub.status === 'rejected' ? 'red' : 'orange';
+      statusHtml = `<div class="admin-card-status" style="color:${color}"><b>Status:</b> ${esc(sub.status)}${sub.status === 'changes_requested' && sub.changesComment ? ` — <span class='admin-changes-comment'>${esc(sub.changesComment)}</span>` : ''}</div>`;
+    }
+    return `
     <div class="admin-card" data-id="${esc(sub.id)}">
       <div class="admin-card-header">
         <strong>${esc(sub.name)}</strong>
@@ -1129,12 +1135,15 @@ function renderAdminSubmissions(submissions) {
         <span>By: ${esc(sub.userId?.slice(0, 12))}…</span>
         <span>Download: <a href="${esc(sub.download)}" target="_blank" rel="noopener">${esc(sub.download)}</a></span>
       </div>
+      ${statusHtml}
       <div class="admin-card-actions">
         <button class="btn btn-primary btn-sm admin-approve-sub" data-id="${esc(sub.id)}">✓ Approve</button>
         <button class="btn btn-secondary btn-sm admin-reject-sub" data-id="${esc(sub.id)}">✕ Reject</button>
+        <button class="btn btn-warning btn-sm admin-request-changes-sub" data-id="${esc(sub.id)}">↺ Request Changes</button>
       </div>
     </div>
-  `).join("");
+    `;
+  }).join("");
 }
 
 function renderAdminEditRequests(editRequests) {
@@ -1238,6 +1247,19 @@ function renderAdminAddApp() {
 }
 
 function attachAdminHandlers(tab) {
+      document.querySelectorAll(".admin-request-changes-sub").forEach(btn => {
+        btn.addEventListener("click", async () => {
+          const comment = prompt("Describe the required changes for this submission:");
+          if (comment === null || !comment.trim()) return;
+          btn.disabled = true;
+          try {
+            await requestChangesOnSubmission(btn.dataset.id, currentUser.uid, comment);
+            btn.closest(".admin-card").remove();
+            showToast("Requested changes on submission");
+          } catch (err) { showToast(err.message); }
+          btn.disabled = false;
+        });
+      });
   if (tab === "submissions") {
     document.querySelectorAll(".admin-approve-sub").forEach(btn => {
       btn.addEventListener("click", async () => {
