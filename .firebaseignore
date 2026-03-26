@@ -1,0 +1,14 @@
+# Firebase deploy ignore (overrides .gitignore)
+.git
+.github
+.gitignore
+.firebaserc
+firebase.json
+firebase-config.template.js
+firestore.rules
+node_modules
+README.md
+LICENSE
+*.log
+.DS_Store
+Thumbs.db
