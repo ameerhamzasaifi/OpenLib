@@ -886,15 +886,46 @@ function debounce(fn, ms) {
   let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
 }
 
+// ── Meta helpers ─────────────────────────────────────────────────────────────
+const BASE_URL = "https://ameerhamzasaifi.github.io/OpenLib/";
+
+function updatePageMeta({ title, description, url }) {
+  document.title = title;
+  const setAttr = (id, attr, val) => { const el = document.getElementById(id); if (el) el.setAttribute(attr, val); };
+  setAttr("canonical-url", "href", url);
+  setAttr("og-url",         "content", url);
+  setAttr("og-title",       "content", title);
+  setAttr("og-description", "content", description);
+  setAttr("tw-title",       "content", title);
+  setAttr("tw-description", "content", description);
+  setAttr("tw-url",         "content", url);
+}
+
 // ── Router ───────────────────────────────────────────────────────────────────
 function handleRoute() {
   const hash = location.hash || "#/";
   if (hash.startsWith("#/app/")) {
     const appId = decodeURIComponent(hash.replace("#/app/", ""));
+    const app = apps.find(a => a.id === appId);
+    updatePageMeta({
+      title: app ? `${app.name} — OpenLib` : "App — OpenLib",
+      description: app ? app.description : "Open-source app details on OpenLib.",
+      url: `${BASE_URL}#/app/${encodeURIComponent(appId)}`
+    });
     showAppDetail(appId);
   } else if (hash === "#/rankings") {
+    updatePageMeta({
+      title: "Rankings — OpenLib",
+      description: "Top-rated open-source apps ranked by the OpenLib community.",
+      url: `${BASE_URL}#/rankings`
+    });
     showRankings();
   } else {
+    updatePageMeta({
+      title: "OpenLib — Open Source App Library",
+      description: "Discover free alternatives. Rate what you use. Own your software stack.",
+      url: BASE_URL
+    });
     showHome();
   }
 }
