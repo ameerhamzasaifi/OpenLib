@@ -749,6 +749,7 @@ export async function rejectSubmission(submissionId, adminUid, reason) {
 // Request changes on a submission (team review)
 export async function requestChangesOnSubmission(submissionId, adminUid, comment) {
   if (!(await isAdminOrTeam(adminUid))) throw new Error("Unauthorized");
+  const reviewer = await getUserRecord(adminUid);
   const now = new Date().toISOString();
   await updateDoc(doc(db, "submissions", submissionId), {
     status: "changes_requested",
@@ -760,7 +761,101 @@ export async function requestChangesOnSubmission(submissionId, adminUid, comment
     submissionId,
     text: comment,
     authorUid: adminUid,
+    authorName: reviewer?.displayName || "Reviewer",
+    authorPhoto: reviewer?.photoURL || "",
     type: "changes_requested",
     createdAt: now
   });
+}
+
+// Get all submissions with optional status filter (for admin queue)
+export async function getAllSubmissions(statusFilter) {
+  try {
+    let q;
+    if (statusFilter) {
+      q = query(collection(db, "submissions"), where("status", "==", statusFilter), orderBy("timestamp", "desc"));
+    } else {
+      q = query(collection(db, "submissions"), orderBy("timestamp", "desc"));
+    }
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (e) {
+    console.error("Error getting submissions:", e);
+    return [];
+  }
+}
+
+// Get submissions for a specific user
+export async function getUserSubmissions(uid) {
+  try {
+    const q = query(collection(db, "submissions"), where("userId", "==", uid), orderBy("timestamp", "desc"));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (e) {
+    console.error("Error getting user submissions:", e);
+    return [];
+  }
+}
+
+// User updates their submission after changes were requested
+export async function updateSubmission(submissionId, uid, updatedData) {
+  const subRef = doc(db, "submissions", submissionId);
+  const subSnap = await getDoc(subRef);
+  if (!subSnap.exists()) throw new Error("Submission not found");
+
+  const sub = subSnap.data();
+  if (sub.userId !== uid) throw new Error("Unauthorized: Not your submission");
+  if (!["changes_requested", "pending"].includes(sub.status)) {
+    throw new Error("Cannot update a submission that has been " + sub.status);
+  }
+
+  const allowed = ["name", "logo", "category", "description", "uses", "alternative", "download", "source", "maintainer", "platforms"];
+  const update = {};
+  allowed.forEach(k => { if (updatedData[k] !== undefined) update[k] = updatedData[k]; });
+  update.status = "pending";
+  update.updatedAt = new Date().toISOString();
+
+  await updateDoc(subRef, update);
+
+  await addDoc(collection(db, "review_comments"), {
+    submissionId,
+    text: "Resubmitted with updates",
+    authorUid: uid,
+    authorName: (await getUserRecord(uid))?.displayName || "User",
+    authorPhoto: (await getUserRecord(uid))?.photoURL || "",
+    type: "resubmission",
+    createdAt: update.updatedAt
+  });
+}
+
+// Get review comments for a submission
+export async function getSubmissionComments(submissionId) {
+  try {
+    const q = query(
+      collection(db, "review_comments"),
+      where("submissionId", "==", submissionId),
+      orderBy("createdAt", "asc")
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (e) {
+    console.error("Error getting submission comments:", e);
+    return [];
+  }
+}
+
+// Add a review comment on a submission
+export async function addSubmissionComment(submissionId, commentText, user) {
+  const now = new Date().toISOString();
+  const comment = {
+    submissionId,
+    text: commentText,
+    authorUid: user.uid,
+    authorName: user.displayName || "Anonymous",
+    authorPhoto: user.photoURL || "",
+    type: "comment",
+    createdAt: now
+  };
+  const ref = await addDoc(collection(db, "review_comments"), comment);
+  return { id: ref.id, ...comment };
 }

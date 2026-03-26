@@ -3045,6 +3045,210 @@ textarea:focus-visible {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════
+   SUBMISSION VERIFICATION UI
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+/* Submission Status Filters */
+.sub-filters {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.sub-filter-btn {
+  padding: 5px 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--surface);
+  color: var(--text-2);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.sub-filter-btn:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.sub-filter-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+/* Submission Review Cards */
+.sub-review-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sub-review-card {
+  padding: 16px;
+}
+
+.sub-status-badge {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+
+.sub-status-pending { background: rgba(255, 193, 7, 0.12); border-color: rgba(255, 193, 7, 0.3); color: #ffc107; }
+.sub-status-approved { background: rgba(76, 175, 80, 0.12); border-color: rgba(76, 175, 80, 0.3); color: #4caf50; }
+.sub-status-rejected { background: rgba(244, 67, 54, 0.12); border-color: rgba(244, 67, 54, 0.3); color: #f44336; }
+.sub-status-changes_requested { background: rgba(255, 152, 0, 0.12); border-color: rgba(255, 152, 0, 0.3); color: #ff9800; }
+
+/* Submission Detail View */
+.sub-review-details {
+  margin: 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  background: var(--bg-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.sub-review-row {
+  display: flex;
+  gap: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.sub-review-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-3);
+  min-width: 110px;
+  flex-shrink: 0;
+  padding-top: 1px;
+}
+
+.sub-review-value {
+  color: var(--text);
+  word-break: break-word;
+}
+
+.sub-review-value a {
+  color: var(--blue);
+  text-decoration: none;
+}
+
+.sub-review-value a:hover {
+  text-decoration: underline;
+}
+
+.sub-review-logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  object-fit: contain;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+
+.platform-tag {
+  display: inline-block;
+  padding: 1px 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  margin-right: 3px;
+}
+
+/* Submission Review Feedback */
+.sub-review-feedback {
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  background: rgba(255, 152, 0, 0.08);
+  border: 1px solid rgba(255, 152, 0, 0.25);
+  color: var(--text);
+  margin: 8px 0;
+}
+
+.sub-review-feedback.sub-review-rejected {
+  background: rgba(244, 67, 54, 0.08);
+  border-color: rgba(244, 67, 54, 0.25);
+}
+
+/* Submission Comments */
+.sub-comments-section {
+  margin: 8px 0;
+}
+
+.sub-comments-loading {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.sub-comment-form {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.sub-comment-input {
+  flex: 1;
+  padding: 6px 10px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+}
+
+.sub-comment-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* Comment type colors */
+.comment-changes-requested { border-left: 3px solid #ff9800; }
+.comment-resubmission { border-left: 3px solid var(--blue); }
+
+/* Resubmit Modal Feedback */
+.resubmit-feedback-box {
+  padding: 12px 16px;
+  background: rgba(255, 152, 0, 0.1);
+  border: 1px solid rgba(255, 152, 0, 0.3);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--text);
+  margin-bottom: 16px;
+}
+
+/* Profile Submission Feedback */
+.profile-list-feedback {
+  display: block;
+  font-size: 12px;
+  color: var(--text-3);
+  font-style: italic;
+  margin-top: 2px;
+}
+
+/* btn-danger for reject */
+.btn-danger {
+  background: #f44336;
+  color: #fff;
+  border: none;
+}
+.btn-danger:hover {
+  background: #d32f2f;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
    RESPONSIVE — New Views
    ═══════════════════════════════════════════════════════════════════════════════ */
 
@@ -3079,5 +3283,18 @@ textarea:focus-visible {
 
   .rec-grid {
     grid-template-columns: 1fr;
+  }
+
+  .sub-review-row {
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .sub-review-label {
+    min-width: auto;
+  }
+
+  .sub-filters {
+    flex-wrap: wrap;
   }
 }

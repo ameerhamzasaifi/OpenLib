@@ -18,7 +18,8 @@ import {
   computeRecommendations, trackActivity,
   isAdminOrTeam, adminAddApp, adminUpdateApp, adminRemoveApp,
   getAllPendingSubmissions, getAllEditRequests, approveSubmission, rejectSubmission,
-  requestChangesOnSubmission
+  requestChangesOnSubmission,
+  getAllSubmissions, getUserSubmissions, updateSubmission, getSubmissionComments, addSubmissionComment
 } from './firebase-db.js';
 
 // ── State ────────────────────────────────────────────────────────────────────
@@ -775,6 +776,7 @@ async function showProfile(uid) {
   const orgs = await getUserOrganizations(targetUid);
   const userApps = await getAppsByOwner(targetUid);
   const editReqs = await getUserEditRequests(targetUid);
+  const userSubs = isOwnProfile ? await getUserSubmissions(targetUid) : [];
 
   const avatarHtml = record.photoURL
     ? `<img class="profile-avatar" src="${esc(record.photoURL)}" alt="" referrerpolicy="no-referrer">`
@@ -877,6 +879,34 @@ async function showProfile(uid) {
           }).join("") : `<p class="profile-empty">No edit requests yet.</p>`}
         </div>
       </div>
+
+      ${isOwnProfile && userSubs.length ? `
+      <div class="profile-section">
+        <h3>My Submissions (${userSubs.length})</h3>
+        <div class="profile-list">
+          ${userSubs.map(sub => {
+            const statusIcon = sub.status === "pending" ? "🟡" : sub.status === "approved" ? "🟢" : sub.status === "rejected" ? "🔴" : sub.status === "changes_requested" ? "🟠" : "⚪";
+            const statusLabel = sub.status === "changes_requested" ? "Changes Requested" : sub.status.charAt(0).toUpperCase() + sub.status.slice(1);
+            return `
+              <div class="profile-list-item submission-item" data-sub-id="${esc(sub.id)}">
+                <span class="org-icon">${statusIcon}</span>
+                <div class="profile-list-info">
+                  <span class="profile-list-name">${esc(sub.name)}</span>
+                  <span class="profile-list-meta">${esc(statusLabel)} · ${esc(sub.category)} · ${new Date(sub.timestamp).toLocaleDateString()}</span>
+                  ${sub.status === "changes_requested" && sub.changesComment ? `<span class="profile-list-feedback">💬 "${esc(sub.changesComment)}"</span>` : ""}
+                  ${sub.status === "rejected" && sub.rejectReason ? `<span class="profile-list-feedback">❌ "${esc(sub.rejectReason)}"</span>` : ""}
+                </div>
+                ${sub.status === "changes_requested" ? `<button class="btn btn-sm btn-primary sub-edit-btn" data-sub-id="${esc(sub.id)}">Edit & Resubmit</button>` : ""}
+              </div>`;
+          }).join("")}
+        </div>
+      </div>
+      ` : isOwnProfile ? `
+      <div class="profile-section">
+        <h3>My Submissions (0)</h3>
+        <p class="profile-empty">No submissions yet. <a href="#/" class="link">Submit an app</a> to get started!</p>
+      </div>
+      ` : ""}
     </div>
   `;
 
@@ -902,6 +932,16 @@ async function showProfile(uid) {
 
     document.getElementById("create-org-btn")?.addEventListener("click", () => {
       document.getElementById("create-org-modal")?.classList.add("open");
+    });
+
+    // Edit & Resubmit handlers
+    profileView.querySelectorAll(".sub-edit-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const subId = btn.dataset.subId;
+        const sub = userSubs.find(s => s.id === subId);
+        if (!sub) return;
+        openResubmitModal(sub);
+      });
     });
   }
 }
@@ -1064,11 +1104,14 @@ async function showAdminDashboard() {
   adminView.innerHTML = `<div class="detail-loading">Loading admin dashboard…</div>`;
 
   const [submissions, editRequests, users, orgs] = await Promise.all([
-    getAllPendingSubmissions(),
+    getAllSubmissions(),
     getAllEditRequests("open"),
     getAllUsers(),
     getAllOrganizations()
   ]);
+
+  const pendingCount = submissions.filter(s => s.status === "pending").length;
+  const changesCount = submissions.filter(s => s.status === "changes_requested").length;
 
   adminView.innerHTML = `
     <div class="admin-page">
@@ -1076,7 +1119,8 @@ async function showAdminDashboard() {
       <h1 class="admin-title">⚙️ Admin Dashboard</h1>
 
       <div class="admin-stats">
-        <div class="admin-stat-card"><span class="stat-number">${submissions.length}</span><span class="stat-label">Pending Submissions</span></div>
+        <div class="admin-stat-card"><span class="stat-number">${pendingCount}</span><span class="stat-label">Pending Submissions</span></div>
+        <div class="admin-stat-card"><span class="stat-number">${changesCount}</span><span class="stat-label">Changes Requested</span></div>
         <div class="admin-stat-card"><span class="stat-number">${editRequests.length}</span><span class="stat-label">Open Edit Requests</span></div>
         <div class="admin-stat-card"><span class="stat-number">${users.length}</span><span class="stat-label">Users</span></div>
         <div class="admin-stat-card"><span class="stat-number">${orgs.length}</span><span class="stat-label">Organizations</span></div>
@@ -1117,34 +1161,108 @@ async function showAdminDashboard() {
 }
 
 function renderAdminSubmissions(submissions) {
-  if (!submissions.length) return `<p class="admin-empty">No pending submissions.</p>`;
-  return submissions.map(sub => {
-    let statusHtml = '';
-    if (sub.status && sub.status !== 'pending') {
-      let color = sub.status === 'approved' ? 'green' : sub.status === 'rejected' ? 'red' : 'orange';
-      statusHtml = `<div class="admin-card-status" style="color:${color}"><b>Status:</b> ${esc(sub.status)}${sub.status === 'changes_requested' && sub.changesComment ? ` — <span class='admin-changes-comment'>${esc(sub.changesComment)}</span>` : ''}</div>`;
-    }
+  if (!submissions.length) return `<p class="admin-empty">No submissions yet.</p>`;
+
+  const statusFilters = `
+    <div class="sub-filters">
+      <button class="sub-filter-btn active" data-filter="all">All (${submissions.length})</button>
+      <button class="sub-filter-btn" data-filter="pending">🟡 Pending (${submissions.filter(s => s.status === "pending").length})</button>
+      <button class="sub-filter-btn" data-filter="changes_requested">🟠 Changes Requested (${submissions.filter(s => s.status === "changes_requested").length})</button>
+      <button class="sub-filter-btn" data-filter="approved">🟢 Approved (${submissions.filter(s => s.status === "approved").length})</button>
+      <button class="sub-filter-btn" data-filter="rejected">🔴 Rejected (${submissions.filter(s => s.status === "rejected").length})</button>
+    </div>
+  `;
+
+  const cards = submissions.map(sub => {
+    const statusIcon = sub.status === "pending" ? "🟡" : sub.status === "approved" ? "🟢" : sub.status === "rejected" ? "🔴" : sub.status === "changes_requested" ? "🟠" : "⚪";
+    const statusLabel = sub.status === "changes_requested" ? "Changes Requested" : sub.status.charAt(0).toUpperCase() + sub.status.slice(1);
+    const isPending = sub.status === "pending";
+    const isChangesReq = sub.status === "changes_requested";
+    const canAct = isPending || isChangesReq;
+
     return `
-    <div class="admin-card" data-id="${esc(sub.id)}">
+    <div class="admin-card sub-review-card" data-id="${esc(sub.id)}" data-status="${esc(sub.status)}">
       <div class="admin-card-header">
         <strong>${esc(sub.name)}</strong>
         <span class="badge badge-role">${esc(sub.category)}</span>
+        <span class="sub-status-badge sub-status-${esc(sub.status)}">${statusIcon} ${statusLabel}</span>
         <span class="admin-card-date">${new Date(sub.timestamp).toLocaleDateString()}</span>
       </div>
-      <p class="admin-card-desc">${esc(sub.description)}</p>
-      <div class="admin-card-meta">
-        <span>By: ${esc(sub.userId?.slice(0, 12))}…</span>
-        <span>Download: <a href="${esc(sub.download)}" target="_blank" rel="noopener">${esc(sub.download)}</a></span>
+
+      <div class="sub-review-details">
+        <div class="sub-review-row">
+          <span class="sub-review-label">Description</span>
+          <span class="sub-review-value">${esc(sub.description)}</span>
+        </div>
+        <div class="sub-review-row">
+          <span class="sub-review-label">Uses</span>
+          <span class="sub-review-value">${esc(sub.uses || "—")}</span>
+        </div>
+        <div class="sub-review-row">
+          <span class="sub-review-label">Alternative of</span>
+          <span class="sub-review-value">${esc(sub.alternative || "—")}</span>
+        </div>
+        <div class="sub-review-row">
+          <span class="sub-review-label">Download</span>
+          <span class="sub-review-value"><a href="${esc(sub.download)}" target="_blank" rel="noopener">${esc(sub.download || "—")}</a></span>
+        </div>
+        <div class="sub-review-row">
+          <span class="sub-review-label">Source</span>
+          <span class="sub-review-value"><a href="${esc(sub.source)}" target="_blank" rel="noopener">${esc(sub.source || "—")}</a></span>
+        </div>
+        <div class="sub-review-row">
+          <span class="sub-review-label">Logo</span>
+          <span class="sub-review-value">${sub.logo ? `<img class="sub-review-logo" src="${esc(sub.logo)}" alt="" onerror="this.style.display='none'"> <a href="${esc(sub.logo)}" target="_blank" rel="noopener">URL</a>` : "—"}</span>
+        </div>
+        <div class="sub-review-row">
+          <span class="sub-review-label">Maintainer</span>
+          <span class="sub-review-value">${esc(sub.maintainer || "—")}</span>
+        </div>
+        <div class="sub-review-row">
+          <span class="sub-review-label">Platforms</span>
+          <span class="sub-review-value">${(sub.platforms || []).map(p => `<span class="platform-tag">${esc(p)}</span>`).join(" ") || "—"}</span>
+        </div>
+        <div class="sub-review-row">
+          <span class="sub-review-label">Submitted by</span>
+          <span class="sub-review-value">${esc(sub.userId?.slice(0, 16))}… ${sub.submitterEmail ? `(${esc(sub.submitterEmail)})` : ""}</span>
+        </div>
+        ${sub.updatedAt ? `<div class="sub-review-row"><span class="sub-review-label">Last updated</span><span class="sub-review-value">${new Date(sub.updatedAt).toLocaleString()}</span></div>` : ""}
       </div>
-      ${statusHtml}
-      <div class="admin-card-actions">
-        <button class="btn btn-primary btn-sm admin-approve-sub" data-id="${esc(sub.id)}">✓ Approve</button>
-        <button class="btn btn-secondary btn-sm admin-reject-sub" data-id="${esc(sub.id)}">✕ Reject</button>
-        <button class="btn btn-warning btn-sm admin-request-changes-sub" data-id="${esc(sub.id)}">↺ Request Changes</button>
+
+      ${sub.status === "changes_requested" && sub.changesComment ? `
+        <div class="sub-review-feedback">
+          <strong>💬 Requested changes:</strong> ${esc(sub.changesComment)}
+        </div>
+      ` : ""}
+      ${sub.status === "rejected" && sub.rejectReason ? `
+        <div class="sub-review-feedback sub-review-rejected">
+          <strong>❌ Rejection reason:</strong> ${esc(sub.rejectReason)}
+        </div>
+      ` : ""}
+
+      <div class="sub-comments-section" id="sub-comments-${esc(sub.id)}">
+        <div class="sub-comments-loading">Loading comments…</div>
       </div>
+
+      ${currentUser ? `
+        <div class="sub-comment-form">
+          <input type="text" class="sub-comment-input" data-sub-id="${esc(sub.id)}" placeholder="Add a review comment…" maxlength="500">
+          <button class="btn btn-sm btn-secondary sub-comment-btn" data-sub-id="${esc(sub.id)}">Comment</button>
+        </div>
+      ` : ""}
+
+      ${canAct ? `
+        <div class="admin-card-actions">
+          <button class="btn btn-primary btn-sm admin-approve-sub" data-id="${esc(sub.id)}">✓ Accept</button>
+          <button class="btn btn-danger btn-sm admin-reject-sub" data-id="${esc(sub.id)}">✕ Reject</button>
+          <button class="btn btn-warning btn-sm admin-request-changes-sub" data-id="${esc(sub.id)}">↺ Ask Changes</button>
+        </div>
+      ` : ""}
     </div>
     `;
   }).join("");
+
+  return statusFilters + `<div class="sub-review-list">${cards}</div>`;
 }
 
 function renderAdminEditRequests(editRequests) {
@@ -1249,6 +1367,43 @@ function renderAdminAddApp() {
 
 function attachAdminHandlers(tab) {
   if (tab === "submissions") {
+    // Status filter buttons
+    document.querySelectorAll(".sub-filter-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".sub-filter-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        const filter = btn.dataset.filter;
+        document.querySelectorAll(".sub-review-card").forEach(card => {
+          if (filter === "all" || card.dataset.status === filter) {
+            card.style.display = "";
+          } else {
+            card.style.display = "none";
+          }
+        });
+      });
+    });
+
+    // Load comments for each submission
+    document.querySelectorAll(".sub-review-card").forEach(card => {
+      loadSubComments(card.dataset.id);
+    });
+
+    // Comment form handlers
+    document.querySelectorAll(".sub-comment-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const input = document.querySelector(`.sub-comment-input[data-sub-id="${btn.dataset.subId}"]`);
+        const text = input?.value.trim();
+        if (!text) return;
+        btn.disabled = true;
+        try {
+          await addSubmissionComment(btn.dataset.subId, text, currentUser);
+          input.value = "";
+          loadSubComments(btn.dataset.subId);
+        } catch (err) { showToast(err.message); }
+        btn.disabled = false;
+      });
+    });
+
     document.querySelectorAll(".admin-request-changes-sub").forEach(btn => {
       btn.addEventListener("click", async () => {
         const comment = prompt("Describe the required changes for this submission:");
@@ -1577,6 +1732,29 @@ async function loadERComments(editRequestId) {
   }
 }
 
+async function loadSubComments(submissionId) {
+  const container = document.getElementById(`sub-comments-${submissionId}`);
+  if (!container) return;
+  try {
+    const comments = await getSubmissionComments(submissionId);
+    if (!comments.length) { container.innerHTML = ""; return; }
+    container.innerHTML = comments.map(c => {
+      const typeClass = c.type === "changes_requested" ? "comment-changes-requested" :
+                        c.type === "resubmission" ? "comment-resubmission" :
+                        c.type === "comment" ? "" : "";
+      return `
+        <div class="er-comment ${typeClass}">
+          ${c.authorPhoto ? `<img class="er-avatar-sm" src="${esc(c.authorPhoto)}" alt="" referrerpolicy="no-referrer">` : ""}
+          <span class="er-comment-author">${esc(c.authorName)}</span>
+          <span class="er-comment-text">${esc(c.text)}</span>
+          <span class="er-comment-time">${new Date(c.createdAt).toLocaleDateString()}</span>
+        </div>`;
+    }).join("");
+  } catch (e) {
+    container.innerHTML = "";
+  }
+}
+
 // ── Rankings Page ────────────────────────────────────────────────────────────
 function showRankings() {
   const views = ["home-view", "detail-view", "profile-view", "org-view", "admin-view"];
@@ -1804,6 +1982,81 @@ async function handleSubmitApp(e) {
   } finally {
     btn.disabled = false;
     btn.textContent = btn.getAttribute("data-original") || "Submit App";
+  }
+}
+
+// ── Resubmit Modal ───────────────────────────────────────────────────────────
+function openResubmitModal(sub) {
+  const modal = document.getElementById("resubmit-modal");
+  const feedback = document.getElementById("resubmit-feedback");
+
+  // Show feedback from reviewer
+  if (sub.changesComment) {
+    feedback.innerHTML = `<div class="resubmit-feedback-box"><strong>🟠 Reviewer feedback:</strong> ${esc(sub.changesComment)}</div>`;
+  } else {
+    feedback.innerHTML = "";
+  }
+
+  // Pre-fill form with current submission data
+  document.getElementById("resub-id").value = sub.id;
+  document.getElementById("resub-name").value = sub.name || "";
+  document.getElementById("resub-category").value = sub.category || "";
+  document.getElementById("resub-logo").value = sub.logo || "";
+  document.getElementById("resub-alternative").value = sub.alternative || "";
+  document.getElementById("resub-description").value = sub.description || "";
+  document.getElementById("resub-uses").value = sub.uses || "";
+  document.getElementById("resub-download").value = sub.download || "";
+  document.getElementById("resub-source").value = sub.source || "";
+  document.getElementById("resub-maintainer").value = sub.maintainer || "individual";
+
+  // Check platforms
+  document.querySelectorAll("input[name='resub-platforms']").forEach(cb => {
+    cb.checked = (sub.platforms || []).includes(cb.value);
+  });
+
+  clearFormMsg(document.getElementById("resubmit-form"));
+  modal.classList.add("open");
+}
+
+async function handleResubmit(e) {
+  e.preventDefault();
+  const form = e.target;
+  const btn = form.querySelector(".btn-submit");
+  const subId = document.getElementById("resub-id").value;
+  const platforms = [...form.querySelectorAll("input[name='resub-platforms']:checked")].map(el => el.value);
+
+  if (!platforms.length) { showFormError(form, "Select at least one platform."); return; }
+
+  const updatedData = {
+    name: document.getElementById("resub-name").value.trim(),
+    logo: document.getElementById("resub-logo").value.trim(),
+    category: document.getElementById("resub-category").value,
+    description: document.getElementById("resub-description").value.trim(),
+    uses: document.getElementById("resub-uses").value.trim(),
+    alternative: document.getElementById("resub-alternative").value.trim(),
+    download: document.getElementById("resub-download").value.trim(),
+    source: document.getElementById("resub-source").value.trim(),
+    maintainer: document.getElementById("resub-maintainer").value,
+    platforms
+  };
+
+  if (updatedData.name.length < 2) { showFormError(form, "App name must be at least 2 characters."); return; }
+  if (updatedData.description.length < 10) { showFormError(form, "Description must be at least 10 characters."); return; }
+
+  btn.disabled = true;
+  btn.textContent = "Resubmitting…";
+  try {
+    await updateSubmission(subId, currentUser.uid, updatedData);
+    showFormSuccess(form, "Resubmitted for review!");
+    setTimeout(() => {
+      closeModal("resubmit-modal");
+      showProfile(null);
+    }, 2000);
+  } catch (err) {
+    showFormError(form, err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Resubmit for Review";
   }
 }
 
@@ -2058,6 +2311,7 @@ async function init() {
   document.getElementById("report-form").addEventListener("submit", handleReportSubmit);
   document.getElementById("submit-form").addEventListener("submit", handleSubmitApp);
   document.getElementById("edit-request-form").addEventListener("submit", handleEditRequestSubmit);
+  document.getElementById("resubmit-form").addEventListener("submit", handleResubmit);
 
   // Grid events
   document.getElementById("app-grid").addEventListener("click", e => {

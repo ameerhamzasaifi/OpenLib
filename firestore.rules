@@ -61,7 +61,9 @@ service cloud.firestore {
       allow read: if isSignedIn()
         && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn();
-      allow update: if isAdmin();
+      allow update: if isAdmin()
+        || (isSignedIn() && resource.data.userId == request.auth.uid
+            && resource.data.status in ["pending", "changes_requested"]);
       allow delete: if isAdmin();
     }
 

@@ -375,6 +375,90 @@
     </div>
   </div>
 
+  <!-- ═══ MODAL: RESUBMIT APP (after changes requested) ═══ -->
+  <div class="modal-overlay" id="resubmit-modal" role="dialog" aria-modal="true" aria-labelledby="resubmit-title">
+    <div class="modal modal-wide">
+      <div class="modal-header">
+        <h2 class="modal-title" id="resubmit-title">Edit & Resubmit</h2>
+        <button class="modal-close" aria-label="Close modal">✕</button>
+      </div>
+      <div class="resubmit-feedback" id="resubmit-feedback"></div>
+      <form id="resubmit-form" novalidate>
+        <input type="hidden" id="resub-id">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="resub-name">App Name <span class="required">*</span></label>
+            <input type="text" id="resub-name" required maxlength="100">
+          </div>
+          <div class="form-group">
+            <label for="resub-category">Category <span class="required">*</span></label>
+            <select id="resub-category" required>
+              <option value="">— Pick one —</option>
+              <option value="Communication">Communication</option>
+              <option value="Design">Design</option>
+              <option value="Finance">Finance</option>
+              <option value="Media">Media</option>
+              <option value="Productivity">Productivity</option>
+              <option value="Security">Security</option>
+              <option value="Utility">Utility</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="resub-logo">Logo URL</label>
+            <input type="url" id="resub-logo">
+          </div>
+          <div class="form-group">
+            <label for="resub-alternative">Alternative of <span class="required">*</span></label>
+            <input type="text" id="resub-alternative" required maxlength="100">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="resub-description">Description <span class="required">*</span></label>
+          <textarea id="resub-description" rows="2" required maxlength="300"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="resub-uses">Uses <span class="required">*</span></label>
+          <textarea id="resub-uses" rows="2" required maxlength="300"></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="resub-download">Download URL <span class="required">*</span></label>
+            <input type="url" id="resub-download" required>
+          </div>
+          <div class="form-group">
+            <label for="resub-source">Source URL <span class="required">*</span></label>
+            <input type="url" id="resub-source" required>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="resub-maintainer">Maintainer type <span class="required">*</span></label>
+            <select id="resub-maintainer" required>
+              <option value="individual">Individual</option>
+              <option value="organization">Organization</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Platforms <span class="required">*</span></label>
+          <div class="checkbox-group">
+            <label class="checkbox-label"><input type="checkbox" name="resub-platforms" value="Linux"> 🐧 Linux</label>
+            <label class="checkbox-label"><input type="checkbox" name="resub-platforms" value="Windows"> 🪟 Windows</label>
+            <label class="checkbox-label"><input type="checkbox" name="resub-platforms" value="macOS"> 🍎 macOS</label>
+            <label class="checkbox-label"><input type="checkbox" name="resub-platforms" value="Android"> 🤖 Android</label>
+            <label class="checkbox-label"><input type="checkbox" name="resub-platforms" value="iOS"> 📱 iOS</label>
+            <label class="checkbox-label"><input type="checkbox" name="resub-platforms" value="Web"> 🌐 Web</label>
+          </div>
+        </div>
+        <div class="form-msg" role="alert"></div>
+        <button type="submit" class="btn btn-primary btn-submit">Resubmit for Review</button>
+      </form>
+    </div>
+  </div>
+
   <script type="module" src="script.js"></script>
 </body>
 </html>
