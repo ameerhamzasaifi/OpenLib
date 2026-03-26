@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Server data (local file storage)
+data/
+
+# Environment variables
+.env
+
+# Firebase config (contains project-specific keys)
+firebase-config.js
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*

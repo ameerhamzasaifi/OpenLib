@@ -7,19 +7,32 @@
   <meta name="theme-color" content="#0c0c0f">
   <title>OpenLib — Open Source App Library</title>
   <link rel="stylesheet" href="styles.css">
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23f0a500'/><text x='16' y='23' font-family='sans-serif' font-size='18' font-weight='900' fill='%230c0c0f' text-anchor='middle'>O</text></svg>">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
 </head>
 <body>
 
   <!-- ── Header ── -->
   <header>
     <div class="header-inner">
-      <a class="logo-group" href="#">
+      <a class="logo-group" href="#/">
         <div class="logo-icon">OL</div>
         <span class="logo-title">Open<span>Lib</span></span>
       </a>
       <div class="header-actions">
         <span class="count-badge" id="total-count">— apps</span>
+        <a href="#/rankings" class="nav-link" id="ranking-nav-link" title="Rankings">🏆 Rankings</a>
+
+        <!-- Auth Menu -->
+        <div class="auth-menu" id="auth-menu">
+          <button class="auth-btn" id="auth-trigger" aria-haspopup="true" aria-label="Account menu">
+            <span id="auth-icon">👤</span>
+            <span id="auth-label">Sign in</span>
+          </button>
+          <div class="auth-dropdown" id="auth-dropdown">
+            <div id="auth-content"></div>
+          </div>
+        </div>
+
         <button class="btn-submit-app" id="submit-app-btn" aria-label="Submit a new app (Alt+S)" title="Submit app (Alt+S)">+ Submit App</button>
         <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme" title="Toggle theme">
           <span id="theme-icon">☀️</span>
@@ -28,9 +41,8 @@
     </div>
   </header>
 
-  <main>
-
-    <!-- ── Controls ── -->
+  <!-- ═══ HOME VIEW ═══ -->
+  <main id="home-view">
     <section class="controls-section" aria-label="Search and filter">
       <div class="hero-text">
         <h1>The <em>open-source</em> app library</h1>
@@ -41,39 +53,36 @@
           <svg class="search-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
             <circle cx="9" cy="9" r="6"/><path d="m15 15 3.5 3.5"/>
           </svg>
-          <input
-            type="search"
-            id="search-input"
-            placeholder="Search apps, categories, alternatives…"
-            autocomplete="off"
-            spellcheck="false"
-            aria-label="Search apps (Alt+F)"
-            title="Search apps (Alt+F)"
-          >
+          <input type="search" id="search-input" placeholder="Search apps, categories, alternatives…" autocomplete="off" spellcheck="false" aria-label="Search apps (Alt+F)" title="Search apps (Alt+F)">
         </div>
         <div class="filters" id="filters-container" role="group" aria-label="Category filters"></div>
       </div>
     </section>
 
-    <!-- ── App Grid ── -->
     <section class="grid-section" aria-label="App listing">
       <div class="section-meta">
         <span class="results-count" id="results-count">Loading…</span>
       </div>
       <div id="app-grid" role="list"></div>
     </section>
-
   </main>
+
+  <!-- ═══ DETAIL VIEW ═══ -->
+  <div id="detail-view" style="display:none;" class="view-section"></div>
+
+  <!-- ═══ RANKINGS VIEW ═══ -->
+  <div id="rankings-view" style="display:none;" class="view-section"></div>
 
   <!-- ── Footer ── -->
   <footer>
     <div class="footer-inner">
       <div class="footer-left">
         <strong>OpenLib</strong> — A curated open-source app library<br>
-        Ratings are stored server-side. Reports and submissions go to <code>data/</code> on your server.<br>
+        All data is stored in Firestore. Reports and submissions are reviewed by the team.<br>
         MIT License &mdash; <a href="https://github.com/ameerhamzasaifi/openlib" target="_blank" rel="noopener">Contribute on GitHub</a>
       </div>
       <nav class="footer-right" aria-label="Footer links">
+        <a href="#/rankings" class="footer-link">Rankings</a>
         <a href="https://github.com/ameerhamzasaifi/openlib" target="_blank" rel="noopener" class="footer-link">GitHub</a>
         <a href="https://github.com/ameerhamzasaifi/openlib/blob/main/README.md" target="_blank" rel="noopener" class="footer-link">Docs</a>
       </nav>
@@ -83,9 +92,7 @@
   <!-- ── Toast ── -->
   <div id="toast" role="status" aria-live="polite"></div>
 
-  <!-- ═══════════════════════════════════════════════════════════════
-       MODAL: REPORT APP
-  ════════════════════════════════════════════════════════════════ -->
+  <!-- ═══ MODAL: REPORT APP ═══ -->
   <div class="modal-overlay" id="report-modal" role="dialog" aria-modal="true" aria-labelledby="report-title">
     <div class="modal">
       <div class="modal-header">
@@ -106,7 +113,7 @@
         </div>
         <div class="form-group">
           <label for="report-details">Additional details <span class="optional">(optional)</span></label>
-          <textarea id="report-details" rows="3" placeholder="Describe the issue…"></textarea>
+          <textarea id="report-details" rows="3" placeholder="Describe the issue…" maxlength="500"></textarea>
         </div>
         <div class="form-msg" role="alert"></div>
         <button type="submit" class="btn btn-primary btn-submit">Submit Report</button>
@@ -114,9 +121,7 @@
     </div>
   </div>
 
-  <!-- ═══════════════════════════════════════════════════════════════
-       MODAL: SUBMIT NEW APP
-  ════════════════════════════════════════════════════════════════ -->
+  <!-- ═══ MODAL: SUBMIT NEW APP ═══ -->
   <div class="modal-overlay" id="submit-modal" role="dialog" aria-modal="true" aria-labelledby="submit-title">
     <div class="modal modal-wide">
       <div class="modal-header">
@@ -127,7 +132,7 @@
         <div class="form-row">
           <div class="form-group">
             <label for="sub-name">App Name <span class="required">*</span></label>
-            <input type="text" id="sub-name" placeholder="e.g. Inkscape" required>
+            <input type="text" id="sub-name" placeholder="e.g. Inkscape" required maxlength="100">
           </div>
           <div class="form-group">
             <label for="sub-category">Category <span class="required">*</span></label>
@@ -144,7 +149,6 @@
             </select>
           </div>
         </div>
-
         <div class="form-row">
           <div class="form-group">
             <label for="sub-logo">Logo URL <span class="optional">(optional)</span></label>
@@ -152,20 +156,17 @@
           </div>
           <div class="form-group">
             <label for="sub-alternative">Alternative of <span class="required">*</span></label>
-            <input type="text" id="sub-alternative" placeholder="e.g. Adobe Photoshop" required>
+            <input type="text" id="sub-alternative" placeholder="e.g. Adobe Photoshop" required maxlength="100">
           </div>
         </div>
-
         <div class="form-group">
           <label for="sub-description">Description <span class="required">*</span></label>
-          <textarea id="sub-description" rows="2" placeholder="One-sentence description of what the app does." required></textarea>
+          <textarea id="sub-description" rows="2" placeholder="One-sentence description of what the app does." required maxlength="300"></textarea>
         </div>
-
         <div class="form-group">
           <label for="sub-uses">Uses / Problem it solves <span class="required">*</span></label>
-          <textarea id="sub-uses" rows="2" placeholder="What specific problem does this app solve for users?" required></textarea>
+          <textarea id="sub-uses" rows="2" placeholder="What specific problem does this app solve for users?" required maxlength="300"></textarea>
         </div>
-
         <div class="form-row">
           <div class="form-group">
             <label for="sub-download">Download URL <span class="required">*</span></label>
@@ -176,7 +177,6 @@
             <input type="url" id="sub-source" placeholder="https://github.com/…" required>
           </div>
         </div>
-
         <div class="form-row">
           <div class="form-group">
             <label for="sub-maintainer">Maintainer type <span class="required">*</span></label>
@@ -191,7 +191,6 @@
             <input type="email" id="sub-email" placeholder="you@example.com">
           </div>
         </div>
-
         <div class="form-group">
           <label>Supported Platforms <span class="required">*</span></label>
           <div class="checkbox-group">
@@ -203,13 +202,36 @@
             <label class="checkbox-label"><input type="checkbox" name="platforms" value="Web"> 🌐 Web</label>
           </div>
         </div>
-
         <div class="form-msg" role="alert"></div>
         <button type="submit" class="btn btn-primary btn-submit">Submit App</button>
       </form>
     </div>
   </div>
 
-  <script src="script.js"></script>
+  <!-- ═══ MODAL: LOGIN PROMPT ═══ -->
+  <div class="modal-overlay" id="login-prompt-modal" role="dialog" aria-modal="true" aria-labelledby="login-prompt-title">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title" id="login-prompt-title">Sign in Required</h2>
+        <button class="modal-close" aria-label="Close modal">✕</button>
+      </div>
+      <div class="login-prompt-body">
+        <p class="login-prompt-text">Sign in to continue</p>
+        <p class="login-prompt-sub">Browsing is free — sign in to download, view source, rate, and interact.</p>
+        <div class="login-prompt-buttons">
+          <button class="auth-option google" id="prompt-google-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+            Sign in with Google
+          </button>
+          <button class="auth-option github" id="prompt-github-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+            Sign in with GitHub
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="script.js"></script>
 </body>
 </html>
