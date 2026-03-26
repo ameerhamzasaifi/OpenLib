@@ -6,16 +6,31 @@ data/
 
 # Environment variables
 .env
+.env.*
+
+# Firebase — NEVER commit actual config with API keys
+firebase-config.js
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+.firebaserc
 
 # OS files
 .DS_Store
 Thumbs.db
+desktop.ini
 
 # Editor
 .vscode/
+.idea/
 *.swp
 *.swo
+*~
 
 # Logs
 *.log
 npm-debug.log*
+
+# Build output
+dist/
+build/
