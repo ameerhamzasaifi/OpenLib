@@ -455,14 +455,12 @@ async function showAppDetail(appId) {
       </ul>
     </div>` : "";
 
-  // Full description (expandable)
+  // Full description (expandable) — combines short + full description
   const fullDesc = app.fullDescription || "";
   const expandableDescHtml = fullDesc ? `
     <div class="detail-section expandable-desc">
-      <h3>Full Description</h3>
-      <div class="desc-content collapsed" id="full-desc-content">
-        <p>${esc(fullDesc)}</p>
-      </div>
+      <h3>About</h3>
+      <div class="desc-content collapsed" id="full-desc-content">${esc(fullDesc)}</div>
       <button class="desc-toggle-btn" id="desc-toggle">Show more ▼</button>
     </div>` : "";
 
@@ -607,84 +605,67 @@ async function showAppDetail(appId) {
             </div>
           </div>
         </div>
-      </div>
 
-      ${versionInfoHtml}
 
       ${tagsHtml ? `<div class="detail-tags">${tagsHtml}</div>` : ""}
 
       <div class="detail-body">
-        <div class="detail-section">
-          <h3>Description</h3>
-          <p>${esc(app.description)}</p>
-        </div>
+        ${expandableDescHtml || `<div class="detail-section"><h3>About</h3><p>${esc(app.description)}</p></div>`}
 
-        ${expandableDescHtml}
         ${featuresHtml}
         ${screenshotsHtml}
 
-        <div class="detail-section">
-          <h3>Uses</h3>
-          <p>${esc(app.uses)}</p>
-        </div>
-        <div class="detail-section">
-          <h3>Alternative to</h3>
-          <p class="alt-name">${esc(app.alternative)}</p>
+        <div class="detail-info-grid">
+          <div class="detail-section">
+            <h3>Uses</h3>
+            <p>${esc(app.uses)}</p>
+          </div>
+          <div class="detail-section">
+            <h3>Alternative to</h3>
+            <p class="alt-name">${esc(app.alternative)}</p>
+          </div>
+          <div class="detail-section">
+            <h3>Platforms</h3>
+            <div class="platforms-row">${plates}</div>
+          </div>
         </div>
 
         ${comparisonHtml}
-
-        <div class="detail-section">
-          <h3>Platforms</h3>
-          <div class="platforms-row">${plates}</div>
-        </div>
-
         ${installHtml}
         ${sysreqHtml}
         ${securityHtml}
 
-        <div class="detail-stats">
-          <div class="detail-stat-card">
-            <span class="stat-number">${app.views || 0}</span>
-            <span class="stat-label">Views</span>
+        <div class="detail-stats-actions">
+          <div class="detail-stats">
+            <div class="detail-stat-card"><span class="stat-number">${app.views || 0}</span><span class="stat-label">Views</span></div>
+            <div class="detail-stat-card"><span class="stat-number">${app.likes || 0}</span><span class="stat-label">Likes</span></div>
+            <div class="detail-stat-card"><span class="stat-number">${app.dislikes || 0}</span><span class="stat-label">Dislikes</span></div>
+            <div class="detail-stat-card"><span class="stat-number">${app.downloads || 0}</span><span class="stat-label">Downloads</span></div>
           </div>
-          <div class="detail-stat-card">
-            <span class="stat-number">${app.likes || 0}</span>
-            <span class="stat-label">Likes</span>
-          </div>
-          <div class="detail-stat-card">
-            <span class="stat-number">${app.dislikes || 0}</span>
-            <span class="stat-label">Dislikes</span>
-          </div>
-          <div class="detail-stat-card">
-            <span class="stat-number">${app.downloads || 0}</span>
-            <span class="stat-label">Downloads</span>
+
+          <div class="detail-actions-row">
+            <div class="vote-buttons">
+              <button class="vote-btn like-btn ${userVote === 'like' ? 'active' : ''}" data-app-id="${esc(appId)}" data-vote="like">
+                👍 Like <span class="vote-count" id="like-count-${esc(appId)}">${app.likes || 0}</span>
+              </button>
+              <button class="vote-btn dislike-btn ${userVote === 'dislike' ? 'active' : ''}" data-app-id="${esc(appId)}" data-vote="dislike">
+                👎 Dislike <span class="vote-count" id="dislike-count-${esc(appId)}">${app.dislikes || 0}</span>
+              </button>
+            </div>
+            <div class="detail-links">
+              <a href="${esc(app.download)}" class="btn btn-primary btn-lg download-track-link" target="_blank" rel="noopener" data-app-id="${esc(appId)}" data-app-name="${esc(app.name)}">⬇ Download</a>
+              ${app.website ? `<a href="${esc(app.website)}" class="btn btn-secondary btn-lg" target="_blank" rel="noopener">🌐 Website</a>` : ""}
+              <a href="${esc(app.source)}" class="btn btn-secondary btn-lg" target="_blank" rel="noopener" data-app-id="${esc(appId)}" data-app-name="${esc(app.name)}">&lt;/&gt; ${app.source?.includes("github.com") ? "GitHub" : app.source?.includes("gitlab") ? "GitLab" : app.source?.includes("bitbucket") ? "Bitbucket" : app.source?.includes("codeberg") ? "Codeberg" : app.source?.includes("sourceforge") ? "SourceForge" : "Source Code"}</a>
+              ${app.docs ? `<a href="${esc(app.docs)}" class="btn btn-secondary btn-lg" target="_blank" rel="noopener">📖 Docs</a>` : ""}
+            </div>
           </div>
         </div>
 
-        <div class="detail-actions">
-          <div class="vote-buttons">
-            <button class="vote-btn like-btn ${userVote === 'like' ? 'active' : ''}" data-app-id="${esc(appId)}" data-vote="like">
-              👍 Like <span class="vote-count" id="like-count-${esc(appId)}">${app.likes || 0}</span>
-            </button>
-            <button class="vote-btn dislike-btn ${userVote === 'dislike' ? 'active' : ''}" data-app-id="${esc(appId)}" data-vote="dislike">
-              👎 Dislike <span class="vote-count" id="dislike-count-${esc(appId)}">${app.dislikes || 0}</span>
-            </button>
-          </div>
-
-          <div class="detail-links">
-            <a href="${esc(app.download)}" class="btn btn-primary btn-lg download-track-link" target="_blank" rel="noopener" data-app-id="${esc(appId)}" data-app-name="${esc(app.name)}">⬇ Download</a>
-            ${app.website ? `<a href="${esc(app.website)}" class="btn btn-secondary btn-lg" target="_blank" rel="noopener">🌐 Visit Website</a>` : ""}
-            <a href="${esc(app.source)}" class="btn btn-secondary btn-lg" target="_blank" rel="noopener" data-app-id="${esc(appId)}" data-app-name="${esc(app.name)}">&lt;/&gt; ${app.source?.includes("github.com") ? "GitHub" : app.source?.includes("gitlab") ? "GitLab" : app.source?.includes("bitbucket") ? "Bitbucket" : app.source?.includes("codeberg") ? "Codeberg" : app.source?.includes("sourceforge") ? "SourceForge" : "Source Code"}</a>
-            ${app.docs ? `<a href="${esc(app.docs)}" class="btn btn-secondary btn-lg" target="_blank" rel="noopener">📖 View Docs</a>` : ""}
-          </div>
-
-          <div class="detail-secondary-actions">
+        <div class="detail-secondary-actions">
             <button class="report-btn detail-report" data-app-id="${esc(appId)}" data-app-name="${esc(app.name)}">⚑ Report this app</button>
             <button class="btn btn-edit-request" data-app-id="${esc(appId)}" data-app-name="${esc(app.name)}">✏️ Suggest Edit</button>
             ${canEdit ? `<button class="btn btn-direct-edit" data-app-id="${esc(appId)}" data-app-name="${esc(app.name)}">🔧 Edit App</button>` : ""}
           </div>
-        </div>
 
         <!-- Reviews Section -->
         <div class="detail-section reviews-section" id="reviews-section-${esc(appId)}">
