@@ -2006,7 +2006,9 @@ function renderAdminEditRequests(editRequests) {
         </div>
         <div class="er-card-changes">
           ${changedFields.map(f => `<span class="er-change-tag">${esc(f)}</span>`).join("")}
+          <button class="btn btn-sm btn-secondary er-diff-toggle" data-er-id="${esc(er.id)}" data-app-id="${esc(er.appId)}" data-changes='${JSON.stringify(er.changes || {}).replace(/'/g, "&#39;")}'>📋 View Changes</button>
         </div>
+        <div class="er-diff-container" id="er-diff-${esc(er.id)}"></div>
         ${er.changes?.reason ? `<p class="er-card-reason">"${esc(er.changes.reason)}"</p>` : ""}
         <div class="admin-card-actions">
           <button class="btn btn-primary btn-sm admin-merge-er" data-id="${esc(er.id)}">Merge</button>
@@ -2173,6 +2175,11 @@ function attachAdminHandlers(tab) {
   }
 
   if (tab === "edit-requests") {
+    document.querySelectorAll(".admin-card .er-diff-toggle").forEach(btn => {
+      btn.addEventListener("click", () => {
+        toggleDiffView(btn.dataset.erId, btn.dataset.appId, btn.dataset.changes, btn);
+      });
+    });
     document.querySelectorAll(".admin-merge-er").forEach(btn => {
       btn.addEventListener("click", async () => {
         btn.disabled = true;
@@ -2323,6 +2330,68 @@ async function loadVersionHistory(appId) {
 }
 
 // ── Enhanced Edit Request with Review Comments ───────────────────────────────
+/* ── Diff View Helper ── */
+function formatFieldValue(val) {
+  if (val == null || val === "") return '<span class="diff-empty">—</span>';
+  if (Array.isArray(val)) return val.length ? val.map(v => `<span class="diff-tag">${esc(String(v))}</span>`).join(" ") : '<span class="diff-empty">—</span>';
+  return esc(String(val));
+}
+
+const FIELD_LABELS = {
+  name: "Name", description: "Description", uses: "Uses", alternative: "Alternative To",
+  logo: "Logo URL", download: "Download URL", source: "Source URL", category: "Category",
+  website: "Website", docs: "Documentation", version: "Version", license: "License",
+  fileSize: "File Size", developer: "Developer", developerUrl: "Developer URL",
+  fullDescription: "Full Description", features: "Features", tags: "Tags",
+  screenshots: "Screenshots", installMethods: "Install Methods", platforms: "Platforms",
+  systemRequirements: "System Requirements"
+};
+
+function renderDiffTable(changes, originalApp) {
+  const fields = Object.keys(changes).filter(k => k !== "reason");
+  if (!fields.length) return '<p class="diff-empty-msg">No field changes.</p>';
+
+  return `
+    <div class="diff-table-wrap">
+      <table class="diff-table">
+        <thead><tr><th>Field</th><th class="diff-old">Current</th><th class="diff-new">Proposed</th></tr></thead>
+        <tbody>
+          ${fields.map(f => {
+            const oldVal = originalApp ? originalApp[f] : undefined;
+            const newVal = changes[f];
+            const isLong = typeof newVal === "string" && newVal.length > 120;
+            return `<tr class="${isLong ? "diff-row-long" : ""}">
+              <td class="diff-field-name">${esc(FIELD_LABELS[f] || f)}</td>
+              <td class="diff-cell diff-cell-old">${formatFieldValue(oldVal)}</td>
+              <td class="diff-cell diff-cell-new">${formatFieldValue(newVal)}</td>
+            </tr>`;
+          }).join("")}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+async function toggleDiffView(erId, appId, changesJson, toggleBtn) {
+  const diffEl = document.getElementById(`er-diff-${erId}`);
+  if (!diffEl) return;
+  if (diffEl.classList.contains("open")) {
+    diffEl.classList.remove("open");
+    diffEl.innerHTML = "";
+    toggleBtn.textContent = "📋 View Changes";
+    return;
+  }
+  diffEl.innerHTML = '<p class="diff-loading">Loading diff…</p>';
+  diffEl.classList.add("open");
+  toggleBtn.textContent = "▲ Hide Changes";
+  try {
+    const app = apps.find(a => a.id === appId) || await getAppFromFirestore(appId);
+    const changes = JSON.parse(changesJson);
+    diffEl.innerHTML = renderDiffTable(changes, app);
+  } catch (err) {
+    diffEl.innerHTML = '<p class="diff-empty-msg">Could not load diff.</p>';
+  }
+}
+
 async function loadEditRequestsForDetail(appId) {
   const listEl = document.getElementById(`er-list-${appId}`);
   if (!listEl) return;
@@ -2361,7 +2430,9 @@ async function loadEditRequestsForDetail(appId) {
           <div class="er-card-changes">
             <span class="er-changes-label">Changes:</span>
             ${changedFields.map(f => `<span class="er-change-tag">${esc(f)}</span>`).join("")}
+            <button class="btn btn-sm btn-secondary er-diff-toggle" data-er-id="${esc(er.id)}" data-app-id="${esc(appId)}" data-changes='${JSON.stringify(er.changes || {}).replace(/'/g, "&#39;")}'>📋 View Changes</button>
           </div>
+          <div class="er-diff-container" id="er-diff-${esc(er.id)}"></div>
           ${er.changes?.reason ? `<p class="er-card-reason">"${esc(er.changes.reason)}"</p>` : ""}
           <div class="er-comments-section" id="er-comments-${esc(er.id)}"></div>
           ${currentUser ? `
@@ -2385,6 +2456,13 @@ async function loadEditRequestsForDetail(appId) {
     for (const er of requests) {
       loadERComments(er.id);
     }
+
+    // Attach diff toggle handlers
+    listEl.querySelectorAll(".er-diff-toggle").forEach(btn => {
+      btn.addEventListener("click", () => {
+        toggleDiffView(btn.dataset.erId, btn.dataset.appId, btn.dataset.changes, btn);
+      });
+    });
 
     // Attach comment handlers
     listEl.querySelectorAll(".er-comment-btn").forEach(btn => {

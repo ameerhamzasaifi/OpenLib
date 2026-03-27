@@ -1424,23 +1424,29 @@ a.added-by-link:hover {
 
 .detail-actions-row {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 10px;
-  align-items: center;
 }
 
 .detail-actions-row .vote-buttons {
   display: flex;
-  flex-wrap: wrap;
   gap: 8px;
-  align-items: center;
+}
+
+.detail-actions-row .vote-buttons .vote-btn {
+  flex: 1;
+  justify-content: center;
 }
 
 .detail-actions-row .detail-links {
   display: flex;
-  flex-wrap: wrap;
   gap: 8px;
-  align-items: center;
+}
+
+.detail-actions-row .detail-links .btn-lg {
+  flex: 1;
+  text-align: center;
+  justify-content: center;
 }
 
 .detail-actions {
@@ -1506,9 +1512,8 @@ a.added-by-link:hover {
 }
 
 .btn-lg {
-  padding: 14px 24px;
-  font-size: 15px;
-  flex: 1;
+  padding: 12px 20px;
+  font-size: 14px;
 }
 
 .detail-report {
@@ -1830,40 +1835,37 @@ a.added-by-link:hover {
     gap: 8px;
   }
 
-  .vote-buttons {
-    flex-direction: row;
-    gap: 8px;
+  .detail-actions-row .vote-buttons {
     width: 100%;
   }
 
   .vote-btn {
-    flex: 1;
     padding: 8px 12px;
     font-size: 13px;
-    justify-content: center;
   }
 
-  .detail-links {
-    flex-direction: column;
-    gap: 8px;
+  .detail-actions-row .detail-links {
+    flex-wrap: wrap;
     width: 100%;
   }
 
-  .btn-lg {
-    padding: 10px 16px;
+  .detail-actions-row .detail-links .btn-lg {
+    padding: 10px 14px;
     font-size: 13px;
-    text-align: center;
-    justify-content: center;
   }
 
   .detail-secondary-actions {
-    gap: 8px;
     flex-wrap: wrap;
   }
 
-  .detail-secondary-actions button {
+  .detail-secondary-actions .report-btn,
+  .detail-secondary-actions .btn-edit-request,
+  .detail-secondary-actions .btn-direct-edit {
     font-size: 12px;
     padding: 6px 10px;
+    flex: 1;
+    text-align: center;
+    justify-content: center;
   }
 
   /* Reviews compact on mobile */
@@ -3361,6 +3363,150 @@ a.added-by-link:hover {
   border-top: 1px dashed var(--border);
 }
 
+/* ── Edit Request Diff View ── */
+.er-diff-toggle {
+  margin-left: auto;
+  white-space: nowrap;
+  font-size: 11px !important;
+  padding: 3px 10px !important;
+}
+
+.er-diff-container {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+}
+
+.er-diff-container.open {
+  max-height: 2000px;
+  overflow: auto;
+  margin-top: 10px;
+}
+
+.diff-loading {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-3);
+  padding: 8px;
+}
+
+.diff-empty-msg {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-3);
+  padding: 8px;
+}
+
+.diff-table-wrap {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: auto;
+  max-height: 500px;
+}
+
+.diff-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-body);
+  font-size: 13px;
+  table-layout: fixed;
+}
+
+.diff-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.diff-table th {
+  background: var(--surface-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.diff-table th:first-child { width: 22%; }
+.diff-table th.diff-old { width: 39%; }
+.diff-table th.diff-new { width: 39%; }
+
+.diff-table td {
+  padding: 8px 10px;
+  vertical-align: top;
+  border-bottom: 1px solid var(--border);
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.diff-table tr:last-child td { border-bottom: none; }
+
+.diff-table tr:hover td {
+  background: var(--surface);
+}
+
+.diff-field-name {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.diff-cell {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.diff-cell-old {
+  background: rgba(224, 92, 58, 0.04);
+}
+
+.diff-cell-new {
+  background: rgba(62, 207, 142, 0.04);
+}
+
+.diff-empty {
+  color: var(--text-3);
+  font-style: italic;
+  font-size: 12px;
+}
+
+.diff-tag {
+  display: inline-block;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  margin: 1px 2px;
+  color: var(--text-2);
+}
+
+.diff-row-long .diff-cell {
+  font-size: 12px;
+  line-height: 1.6;
+  max-height: 150px;
+  overflow: auto;
+}
+
+@media (max-width: 600px) {
+  .diff-table { font-size: 11px; }
+  .diff-table th { font-size: 10px; padding: 6px 6px; }
+  .diff-table td { padding: 6px 6px; }
+  .diff-table th:first-child { width: 25%; }
+  .diff-table th.diff-old { width: 37.5%; }
+  .diff-table th.diff-new { width: 37.5%; }
+  .diff-field-name { font-size: 10px; }
+  .diff-row-long .diff-cell { max-height: 100px; }
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════════
    VERIFY SUBMISSIONS SCREEN
    ═══════════════════════════════════════════════════════════════════════════════ */
@@ -4767,8 +4913,15 @@ a.added-by-link:hover {
 /* ── Detail Secondary Actions ── */
 .detail-secondary-actions {
   display: flex;
-  flex-wrap: wrap;
   gap: 8px;
+}
+
+.detail-secondary-actions .btn-edit-request,
+.detail-secondary-actions .btn-direct-edit {
+  flex: 1;
+  text-align: center;
+  justify-content: center;
+  margin-top: 0;
 }
 
 .btn-direct-edit {
