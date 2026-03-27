@@ -8,15 +8,6 @@ A curated open-source app library. Discover, rate, and explore free software alt
 
 ---
 
-## Setup
-
-```bash
-git clone https://github.com/ameerhamzasaifi/openlib.git
-cd openlib
-cp firebase-config.template.js firebase-config.js
-# Fill in your Firebase credentials from Firebase Console
-```
-
 ## Stack
 
 | Layer | Tech |

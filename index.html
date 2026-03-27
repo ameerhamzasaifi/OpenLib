@@ -183,23 +183,72 @@
             </select>
           </div>
         </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label for="sub-logo">Logo URL <span class="optional">(optional — .jpg, .jpeg, .png, .svg)</span></label>
-            <input type="url" id="sub-logo" placeholder="https://…/logo.png">
+        <div class="form-group">
+          <label for="sub-logo">Logo <span class="optional">(URL or upload — .jpg, .jpeg, .png, .svg)</span></label>
+          <div class="logo-input-group">
+            <input type="url" id="sub-logo" placeholder="https://…/logo.png" class="logo-url-input">
+            <span class="logo-or">or</span>
+            <label class="logo-upload-label" for="sub-logo-file">📁 Upload</label>
+            <input type="file" id="sub-logo-file" accept=".jpg,.jpeg,.png,.svg" class="logo-file-input" style="display:none;">
+            <span class="logo-file-name" id="sub-logo-filename"></span>
           </div>
+        </div>
+        <div class="form-row">
           <div class="form-group">
             <label for="sub-alternative">Alternative of <span class="required">*</span></label>
             <input type="text" id="sub-alternative" placeholder="e.g. Adobe Photoshop" required maxlength="100">
           </div>
+          <div class="form-group">
+            <label for="sub-license">License <span class="required">*</span></label>
+            <select id="sub-license" required>
+              <option value="">— Select —</option>
+              <option value="MIT">MIT</option>
+              <option value="GPL-3.0">GPL-3.0</option>
+              <option value="GPL-2.0">GPL-2.0</option>
+              <option value="Apache-2.0">Apache-2.0</option>
+              <option value="BSD-2-Clause">BSD-2-Clause</option>
+              <option value="BSD-3-Clause">BSD-3-Clause</option>
+              <option value="LGPL-3.0">LGPL-3.0</option>
+              <option value="MPL-2.0">MPL-2.0</option>
+              <option value="AGPL-3.0">AGPL-3.0</option>
+              <option value="Unlicense">Unlicense</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="sub-version">Version <span class="optional">(optional)</span></label>
+            <input type="text" id="sub-version" placeholder="e.g. v3.1.2" maxlength="30">
+          </div>
+          <div class="form-group">
+            <label for="sub-filesize">File Size <span class="optional">(optional)</span></label>
+            <input type="text" id="sub-filesize" placeholder="e.g. 85 MB" maxlength="20">
+          </div>
         </div>
         <div class="form-group">
-          <label for="sub-description">Description <span class="required">*</span></label>
+          <label for="sub-description">Short Description <span class="required">*</span></label>
           <textarea id="sub-description" rows="2" placeholder="One-sentence description of what the app does." required maxlength="300"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="sub-full-description">Full Description <span class="optional">(optional — supports features, highlights)</span></label>
+          <textarea id="sub-full-description" rows="4" placeholder="Detailed description with features, key highlights, who it's for…" maxlength="3000"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="sub-features">Key Features <span class="optional">(one per line)</span></label>
+          <textarea id="sub-features" rows="3" placeholder="🎥 Live streaming&#10;🎙 Audio mixing&#10;🖥 Multi-scene support" maxlength="1000"></textarea>
         </div>
         <div class="form-group">
           <label for="sub-uses">Uses / Problem it solves <span class="required">*</span></label>
           <textarea id="sub-uses" rows="2" placeholder="What specific problem does this app solve for users?" required maxlength="300"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="sub-tags">Tags <span class="optional">(comma separated)</span></label>
+          <input type="text" id="sub-tags" placeholder="streaming, recording, video editing" maxlength="200">
+        </div>
+        <div class="form-group">
+          <label for="sub-screenshots">Screenshot URLs <span class="optional">(one per line)</span></label>
+          <textarea id="sub-screenshots" rows="2" placeholder="https://…/screenshot1.png&#10;https://…/screenshot2.png" maxlength="1000"></textarea>
         </div>
         <div class="form-row">
           <div class="form-group">
@@ -213,6 +262,24 @@
         </div>
         <div class="form-row">
           <div class="form-group">
+            <label for="sub-website">Official Website <span class="optional">(optional)</span></label>
+            <input type="url" id="sub-website" placeholder="https://appname.org">
+          </div>
+          <div class="form-group">
+            <label for="sub-docs">Documentation URL <span class="optional">(optional)</span></label>
+            <input type="url" id="sub-docs" placeholder="https://docs.appname.org">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="sub-install-methods">Installation Methods <span class="optional">(one per line: label | command or URL)</span></label>
+          <textarea id="sub-install-methods" rows="3" placeholder="apt | sudo apt install obs-studio&#10;brew | brew install obs&#10;winget | winget install OBSProject.OBSStudio" maxlength="1000"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="sub-sysreq">System Requirements <span class="optional">(optional)</span></label>
+          <textarea id="sub-sysreq" rows="2" placeholder="OS: Windows 10+, macOS 11+, Ubuntu 20.04+&#10;RAM: 4 GB minimum&#10;GPU: OpenGL 3.3 compatible" maxlength="500"></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
             <label for="sub-maintainer">Maintainer type <span class="required">*</span></label>
             <select id="sub-maintainer" required>
               <option value="">— Select —</option>
@@ -221,8 +288,18 @@
             </select>
           </div>
           <div class="form-group">
+            <label for="sub-developer">Developer / Maintainer Name <span class="optional">(optional)</span></label>
+            <input type="text" id="sub-developer" placeholder="e.g. OBS Project" maxlength="100">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
             <label for="sub-email">Your email <span class="optional">(optional)</span></label>
             <input type="email" id="sub-email" placeholder="you@example.com">
+          </div>
+          <div class="form-group">
+            <label for="sub-developer-url">Developer Profile URL <span class="optional">(optional)</span></label>
+            <input type="url" id="sub-developer-url" placeholder="https://github.com/developer">
           </div>
         </div>
         <div class="form-group">

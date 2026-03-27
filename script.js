@@ -20,7 +20,10 @@ import {
   getAllPendingSubmissions, getAllEditRequests, approveSubmission, rejectSubmission,
   requestChangesOnSubmission,
   getAllSubmissions, getUserSubmissions, updateSubmission, getSubmissionComments, addSubmissionComment,
-  followUser, unfollowUser, isFollowing
+  followUser, unfollowUser, isFollowing,
+  addAppReview, getAppReviews, markReviewHelpful,
+  toggleBookmark, isBookmarked, getUserBookmarks,
+  trackDownload
 } from './firebase-db.js';
 
 // ── State ────────────────────────────────────────────────────────────────────
@@ -286,6 +289,8 @@ function buildCard(app) {
   const logoHtml = app.logo
     ? `<img class="app-logo" src="${esc(app.logo)}" alt="${esc(app.name)} logo" data-app-id="${esc(app.id)}">`
     : `<div class="app-logo-fallback">${esc(app.name.charAt(0))}</div>`;
+  const tags = (app.tags || []).slice(0, 3);
+  const tagsHtml = tags.length ? `<div class="card-tags">${tags.map(t => `<span class="card-tag">${esc(t)}</span>`).join("")}</div>` : "";
 
   return `
     <article class="app-card" data-id="${esc(app.id)}" data-category="${esc(app.category)}" role="listitem">
@@ -299,14 +304,18 @@ function buildCard(app) {
         <span class="maintainer-badge" data-type="${esc(app.maintainer)}">${esc(app.maintainer)}</span>
       </div>
       <p class="app-description">${esc(app.description)}</p>
+      ${app.version || app.license ? `<div class="card-meta-pills">${app.version ? `<span class="card-pill">${esc(app.version)}</span>` : ""}${app.license ? `<span class="card-pill">${esc(app.license)}</span>` : ""}</div>` : ""}
+      ${tagsHtml}
       <div class="app-stats-row">
         <span class="stat-item" title="Views">👁 ${app.views || 0}</span>
         <span class="stat-item like-stat" title="Likes">👍 ${app.likes || 0}</span>
         <span class="stat-item dislike-stat" title="Dislikes">👎 ${app.dislikes || 0}</span>
+        <span class="stat-item" title="Downloads">⬇ ${app.downloads || 0}</span>
         <span class="stat-item">${addedByBadge(app.addedBy)}</span>
       </div>
       <div class="platforms-row">${plates}</div>
       <div class="card-footer">
+        <button class="card-bookmark-btn" data-app-id="${esc(app.id)}" title="Save app">☆</button>
         <button class="report-btn" data-app-id="${esc(app.id)}" data-app-name="${esc(app.name)}"
           title="Report this app" aria-label="Report ${esc(app.name)}">⚑</button>
       </div>
@@ -404,15 +413,170 @@ async function showAppDetail(appId) {
 
   // Get user vote if logged in
   let userVote = null;
+  let bookmarked = false;
   if (currentUser) {
     userVote = await getUserVote(appId, currentUser.uid);
+    bookmarked = await isBookmarked(currentUser.uid, appId);
   }
 
   const rank = getAppRank(appId);
+  const prevRank = getAppPreviousRank(appId);
+  const rankMovement = prevRank ? prevRank - rank : 0;
   const plates = (app.platforms || []).map(p => `<span class="platform-tag">${platformIcon(p)} ${esc(p)}</span>`).join("");
   const logoHtml = app.logo
     ? `<img class="detail-logo" src="${esc(app.logo)}" alt="${esc(app.name)} logo" onerror="this.style.display='none'">`
     : `<div class="detail-logo-fallback">${esc(app.name.charAt(0))}</div>`;
+
+  // Generate tags HTML
+  const tags = app.tags || [];
+  const tagsHtml = tags.length ? tags.map(t => `<a href="#/" class="detail-tag" data-tag="${esc(t)}">${esc(t)}</a>`).join("") : "";
+
+  // Screenshots gallery
+  const screenshots = app.screenshots || [];
+  const screenshotsHtml = screenshots.length ? `
+    <div class="detail-section">
+      <h3>Screenshots</h3>
+      <div class="screenshots-gallery">
+        ${screenshots.map((url, i) => `<img class="screenshot-thumb" src="${esc(url)}" alt="Screenshot ${i+1}" data-full="${esc(url)}" loading="lazy">`).join("")}
+      </div>
+    </div>` : "";
+
+  // Features list
+  const features = app.features || [];
+  const featuresHtml = features.length ? `
+    <div class="detail-section">
+      <h3>Key Features</h3>
+      <ul class="features-list">
+        ${features.map(f => `<li>${esc(f)}</li>`).join("")}
+      </ul>
+    </div>` : "";
+
+  // Full description (expandable)
+  const fullDesc = app.fullDescription || "";
+  const expandableDescHtml = fullDesc ? `
+    <div class="detail-section expandable-desc">
+      <h3>Full Description</h3>
+      <div class="desc-content collapsed" id="full-desc-content">
+        <p>${esc(fullDesc)}</p>
+      </div>
+      <button class="desc-toggle-btn" id="desc-toggle">Show more ▼</button>
+    </div>` : "";
+
+  // Installation methods
+  const installs = app.installMethods || [];
+  const installHtml = installs.length ? `
+    <div class="detail-section">
+      <h3>Installation Methods</h3>
+      <div class="install-methods">
+        ${installs.map(m => `
+          <div class="install-method">
+            <span class="install-label">${esc(m.label)}</span>
+            <code class="install-cmd">${esc(m.command)}</code>
+            <button class="copy-cmd-btn" data-cmd="${esc(m.command)}" title="Copy">📋</button>
+          </div>
+        `).join("")}
+      </div>
+    </div>` : "";
+
+  // System requirements
+  const sysreq = app.systemRequirements || "";
+  const sysreqHtml = sysreq ? `
+    <div class="detail-section">
+      <h3>System Requirements</h3>
+      <pre class="sysreq-block">${esc(sysreq)}</pre>
+    </div>` : "";
+
+  // Comparison table
+  const comparisonHtml = app.alternative ? `
+    <div class="detail-section">
+      <h3>Comparison</h3>
+      <table class="comparison-table">
+        <thead><tr><th>Feature</th><th>${esc(app.name)}</th><th>${esc(app.alternative)}</th></tr></thead>
+        <tbody>
+          <tr><td>Free</td><td class="comp-yes">✅</td><td class="comp-no">❌</td></tr>
+          <tr><td>Open Source</td><td class="comp-yes">✅</td><td class="comp-no">❌</td></tr>
+          <tr><td>Cross-Platform</td><td class="comp-yes">${(app.platforms || []).length > 1 ? "✅" : "—"}</td><td>—</td></tr>
+          <tr><td>License</td><td>${esc(app.license || "Open Source")}</td><td>Proprietary</td></tr>
+        </tbody>
+      </table>
+    </div>` : "";
+
+  // Security badges
+  const securityHtml = `
+    <div class="detail-section security-badges">
+      <h3>Security & Trust</h3>
+      <div class="trust-badges">
+        ${app.source ? '<span class="trust-badge trust-verified">✅ Open Source Verified</span>' : ''}
+        ${app.addedBy?.type === "openlib-team" ? '<span class="trust-badge trust-team">🛡️ OpenLib Reviewed</span>' : ''}
+        <span class="trust-badge trust-source">🔗 ${app.source?.includes("github.com") ? "GitHub" : app.source?.includes("gitlab") ? "GitLab" : "Official"} Source</span>
+      </div>
+    </div>`;
+
+  // Changelog / Version info
+  const versionInfoHtml = `
+    <div class="detail-meta-bar">
+      ${app.version ? `<span class="meta-pill">📦 ${esc(app.version)}</span>` : ""}
+      ${app.license ? `<span class="meta-pill">📄 ${esc(app.license)}</span>` : ""}
+      ${app.fileSize ? `<span class="meta-pill">💾 ${esc(app.fileSize)}</span>` : ""}
+      ${app.updatedAt ? `<span class="meta-pill">🕐 Updated ${new Date(app.updatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>` : ""}
+      ${app.developer ? `<span class="meta-pill dev-pill">${app.developerUrl ? `<a href="${esc(app.developerUrl)}" target="_blank" rel="noopener">` : ""}👤 ${esc(app.developer)}${app.developerUrl ? "</a>" : ""}</span>` : ""}
+    </div>`;
+
+  // Share button data
+  const shareUrl = `${location.origin}${location.pathname}#/app/${encodeURIComponent(appId)}`;
+
+  // Similar apps
+  const similarApps = getSimilarApps(app);
+  const similarHtml = similarApps.length ? `
+    <div class="detail-section similar-section">
+      <h3>You May Also Like</h3>
+      <div class="similar-grid">
+        ${similarApps.map(sa => {
+          const saLogo = sa.logo
+            ? `<img class="similar-logo" src="${esc(sa.logo)}" alt="" onerror="this.style.display='none'">`
+            : `<div class="similar-logo-fallback">${esc(sa.name.charAt(0))}</div>`;
+          return `
+            <a href="#/app/${esc(sa.id)}" class="similar-card">
+              ${saLogo}
+              <div class="similar-info">
+                <span class="similar-name">${esc(sa.name)}</span>
+                <span class="similar-cat">${esc(sa.category)}</span>
+              </div>
+              <span class="similar-likes">👍 ${sa.likes || 0}</span>
+            </a>`;
+        }).join("")}
+      </div>
+    </div>` : "";
+
+  // Fetch creator profile
+  let creatorHtml = "";
+  if (app.addedBy?.uid) {
+    const creator = await getUserRecord(app.addedBy.uid);
+    if (creator) {
+      const creatorAvatar = creator.photoURL
+        ? `<img class="creator-card-avatar" src="${esc(creator.photoURL)}" alt="" referrerpolicy="no-referrer">`
+        : `<div class="creator-card-avatar-fallback">${esc((creator.displayName || "U").charAt(0))}</div>`;
+      creatorHtml = `
+        <div class="detail-section creator-section">
+          <h3>Added By</h3>
+          <a href="#/profile/${esc(app.addedBy.uid)}" class="creator-card">
+            ${creatorAvatar}
+            <div class="creator-card-info">
+              <span class="creator-card-name">${esc(creator.displayName || "User")} ${verifiedBadge(creator)} ${roleBadge(creator.role)}</span>
+              ${creator.bio ? `<span class="creator-card-bio">${esc(creator.bio)}</span>` : ""}
+              <span class="creator-card-joined">Joined ${new Date(creator.createdAt).toLocaleDateString("en-US", { month: "long", year: "numeric" })}</span>
+            </div>
+          </a>
+        </div>`;
+    }
+  }
+
+  // Check if current user can edit (owner, admin, or openlib team)
+  const canEdit = currentUser && (
+    app.addedBy?.uid === currentUser.uid ||
+    app.ownerId === currentUser.uid ||
+    isAdmin
+  );
 
   detailView.innerHTML = `
     <div class="detail-page">
@@ -420,18 +584,41 @@ async function showAppDetail(appId) {
       <div class="detail-header">
         ${logoHtml}
         <div class="detail-header-text">
-          <h1 class="detail-name">${esc(app.name)} ${rank ? `<span class="rank-badge rank-lg">#${rank}</span>` : ""}</h1>
+          <h1 class="detail-name">${esc(app.name)} ${rank ? `<span class="rank-badge rank-lg">#${rank}</span>` : ""} ${rankMovement > 0 ? `<span class="rank-move rank-up">↑${rankMovement}</span>` : rankMovement < 0 ? `<span class="rank-move rank-down">↓${Math.abs(rankMovement)}</span>` : ""}</h1>
           <span class="app-category">${esc(app.category)}</span>
           <span class="maintainer-badge" data-type="${esc(app.maintainer)}">${esc(app.maintainer)}</span>
           ${addedByBadge(app.addedBy)}
         </div>
+        <div class="detail-header-actions">
+          <button class="bookmark-btn ${bookmarked ? 'bookmarked' : ''}" id="bookmark-btn" data-app-id="${esc(appId)}" title="${bookmarked ? 'Remove bookmark' : 'Save app'}">
+            ${bookmarked ? '★' : '☆'}
+          </button>
+          <div class="share-dropdown-wrap">
+            <button class="share-btn" id="share-btn" title="Share">🔗 Share</button>
+            <div class="share-dropdown" id="share-dropdown">
+              <button class="share-option" data-action="copy" data-url="${esc(shareUrl)}">📋 Copy Link</button>
+              <a class="share-option" href="https://twitter.com/intent/tweet?text=${encodeURIComponent(app.name + ' — Open source alternative to ' + (app.alternative || '') + '. Check it out on OpenLib!')}&url=${encodeURIComponent(shareUrl)}" target="_blank" rel="noopener">🐦 Twitter</a>
+              <a class="share-option" href="https://wa.me/?text=${encodeURIComponent(app.name + ' — ' + shareUrl)}" target="_blank" rel="noopener">💬 WhatsApp</a>
+              <a class="share-option" href="https://reddit.com/submit?url=${encodeURIComponent(shareUrl)}&title=${encodeURIComponent(app.name + ' — Open Source Alternative to ' + (app.alternative || ''))}" target="_blank" rel="noopener">🔴 Reddit</a>
+            </div>
+          </div>
+        </div>
       </div>
+
+      ${versionInfoHtml}
+
+      ${tagsHtml ? `<div class="detail-tags">${tagsHtml}</div>` : ""}
 
       <div class="detail-body">
         <div class="detail-section">
           <h3>Description</h3>
           <p>${esc(app.description)}</p>
         </div>
+
+        ${expandableDescHtml}
+        ${featuresHtml}
+        ${screenshotsHtml}
+
         <div class="detail-section">
           <h3>Uses</h3>
           <p>${esc(app.uses)}</p>
@@ -440,10 +627,17 @@ async function showAppDetail(appId) {
           <h3>Alternative to</h3>
           <p class="alt-name">${esc(app.alternative)}</p>
         </div>
+
+        ${comparisonHtml}
+
         <div class="detail-section">
           <h3>Platforms</h3>
           <div class="platforms-row">${plates}</div>
         </div>
+
+        ${installHtml}
+        ${sysreqHtml}
+        ${securityHtml}
 
         <div class="detail-stats">
           <div class="detail-stat-card">
@@ -458,6 +652,10 @@ async function showAppDetail(appId) {
             <span class="stat-number">${app.dislikes || 0}</span>
             <span class="stat-label">Dislikes</span>
           </div>
+          <div class="detail-stat-card">
+            <span class="stat-number">${app.downloads || 0}</span>
+            <span class="stat-label">Downloads</span>
+          </div>
         </div>
 
         <div class="detail-actions">
@@ -471,12 +669,47 @@ async function showAppDetail(appId) {
           </div>
 
           <div class="detail-links">
-            <a href="${esc(app.download)}" class="btn btn-primary btn-lg auth-gate-link" data-action="download" data-app-id="${esc(appId)}" data-app-name="${esc(app.name)}">⬇ Download</a>
-            <a href="${esc(app.source)}" class="btn btn-secondary btn-lg auth-gate-link" data-action="source" data-app-id="${esc(appId)}" data-app-name="${esc(app.name)}">&lt;/&gt; Source Code</a>
+            <a href="${esc(app.download)}" class="btn btn-primary btn-lg auth-gate-link download-track-link" data-action="download" data-app-id="${esc(appId)}" data-app-name="${esc(app.name)}">⬇ Download</a>
+            ${app.website ? `<a href="${esc(app.website)}" class="btn btn-secondary btn-lg" target="_blank" rel="noopener">🌐 Visit Website</a>` : ""}
+            <a href="${esc(app.source)}" class="btn btn-secondary btn-lg auth-gate-link" data-action="source" data-app-id="${esc(appId)}" data-app-name="${esc(app.name)}">&lt;/&gt; GitHub Repo</a>
+            ${app.docs ? `<a href="${esc(app.docs)}" class="btn btn-secondary btn-lg" target="_blank" rel="noopener">📖 View Docs</a>` : ""}
           </div>
 
-          <button class="report-btn detail-report" data-app-id="${esc(appId)}" data-app-name="${esc(app.name)}">⚑ Report this app</button>
-          <button class="btn btn-edit-request" data-app-id="${esc(appId)}" data-app-name="${esc(app.name)}">✏️ Suggest Edit</button>
+          <div class="detail-secondary-actions">
+            <button class="report-btn detail-report" data-app-id="${esc(appId)}" data-app-name="${esc(app.name)}">⚑ Report this app</button>
+            <button class="btn btn-edit-request" data-app-id="${esc(appId)}" data-app-name="${esc(app.name)}">✏️ Suggest Edit</button>
+            ${canEdit ? `<button class="btn btn-direct-edit" data-app-id="${esc(appId)}" data-app-name="${esc(app.name)}">🔧 Edit App</button>` : ""}
+          </div>
+        </div>
+
+        <!-- Reviews Section -->
+        <div class="detail-section reviews-section" id="reviews-section-${esc(appId)}">
+          <div class="reviews-header">
+            <h3>Reviews</h3>
+            <div class="review-sort-btns">
+              <button class="review-sort-btn active" data-sort="latest">Latest</button>
+              <button class="review-sort-btn" data-sort="top">Top</button>
+              <button class="review-sort-btn" data-sort="helpful">Helpful</button>
+            </div>
+          </div>
+          ${currentUser ? `
+          <form class="review-form" id="review-form-${esc(appId)}">
+            <div class="review-rating-input">
+              <span class="review-star" data-star="1">★</span>
+              <span class="review-star" data-star="2">★</span>
+              <span class="review-star" data-star="3">★</span>
+              <span class="review-star" data-star="4">★</span>
+              <span class="review-star" data-star="5">★</span>
+              <input type="hidden" id="review-rating-${esc(appId)}" value="5">
+            </div>
+            <input type="text" class="review-title-input" id="review-title-${esc(appId)}" placeholder="Review title (optional)" maxlength="120">
+            <textarea class="review-text-input" id="review-text-${esc(appId)}" rows="3" placeholder="Share your experience with this app…" maxlength="2000" required></textarea>
+            <button type="submit" class="btn btn-primary btn-sm">Submit Review</button>
+            <div class="form-msg review-msg" role="alert"></div>
+          </form>` : `<p class="review-signin-hint">Sign in to write a review.</p>`}
+          <div class="reviews-list" id="reviews-list-${esc(appId)}">
+            <p class="er-loading">Loading reviews…</p>
+          </div>
         </div>
 
         <div class="edit-requests-section" id="edit-requests-${esc(appId)}">
@@ -492,6 +725,9 @@ async function showAppDetail(appId) {
             <p class="er-loading">Loading history…</p>
           </div>
         </div>
+
+        ${creatorHtml}
+        ${similarHtml}
       </div>
     </div>
   `;
@@ -502,6 +738,12 @@ async function showAppDetail(appId) {
   });
   detailView.querySelectorAll(".auth-gate-link").forEach(link => {
     link.addEventListener("click", handleAuthGateClick);
+  });
+  // Track downloads
+  detailView.querySelectorAll(".download-track-link").forEach(link => {
+    link.addEventListener("click", () => {
+      trackDownload(appId, currentUser?.uid);
+    });
   });
   detailView.querySelector(".detail-report")?.addEventListener("click", e => {
     const rb = e.currentTarget;
@@ -514,13 +756,220 @@ async function showAppDetail(appId) {
     openEditRequestModal(btn.dataset.appId, btn.dataset.appName, app);
   });
 
+  // Direct edit button (for owners/admins)
+  detailView.querySelector(".btn-direct-edit")?.addEventListener("click", e => {
+    const btn = e.currentTarget;
+    openEditRequestModal(btn.dataset.appId, btn.dataset.appName, app, true);
+  });
+
+  // Bookmark button
+  detailView.querySelector("#bookmark-btn")?.addEventListener("click", async e => {
+    if (!currentUser) { showToast("Sign in to save apps"); return; }
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    try {
+      const saved = await toggleBookmark(currentUser.uid, appId);
+      btn.classList.toggle("bookmarked", saved);
+      btn.textContent = saved ? "★" : "☆";
+      btn.title = saved ? "Remove bookmark" : "Save app";
+      showToast(saved ? "App saved to your library!" : "Removed from library");
+    } catch (err) { showToast("Failed to save"); }
+    btn.disabled = false;
+  });
+
+  // Share dropdown
+  const shareBtn = detailView.querySelector("#share-btn");
+  const shareDropdown = detailView.querySelector("#share-dropdown");
+  shareBtn?.addEventListener("click", e => {
+    e.stopPropagation();
+    shareDropdown.classList.toggle("open");
+  });
+  detailView.querySelector("[data-action='copy']")?.addEventListener("click", e => {
+    navigator.clipboard.writeText(e.currentTarget.dataset.url);
+    showToast("Link copied!");
+    shareDropdown.classList.remove("open");
+  });
+  document.addEventListener("click", () => shareDropdown?.classList.remove("open"), { once: true });
+
+  // Screenshots lightbox
+  detailView.querySelectorAll(".screenshot-thumb").forEach(img => {
+    img.addEventListener("click", () => openScreenshotLightbox(img.dataset.full));
+  });
+
+  // Expandable description
+  detailView.querySelector("#desc-toggle")?.addEventListener("click", () => {
+    const content = detailView.querySelector("#full-desc-content");
+    const btn = detailView.querySelector("#desc-toggle");
+    content.classList.toggle("collapsed");
+    btn.textContent = content.classList.contains("collapsed") ? "Show more ▼" : "Show less ▲";
+  });
+
+  // Copy install commands
+  detailView.querySelectorAll(".copy-cmd-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      navigator.clipboard.writeText(btn.dataset.cmd);
+      showToast("Command copied!");
+    });
+  });
+
+  // Tag click handler
+  detailView.querySelectorAll(".detail-tag").forEach(tag => {
+    tag.addEventListener("click", e => {
+      e.preventDefault();
+      document.getElementById("search-input").value = tag.dataset.tag;
+      location.hash = "#/";
+    });
+  });
+
+  // Reviews
+  loadAppReviews(appId, "latest");
+  setupReviewForm(appId);
+  detailView.querySelectorAll(".review-sort-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      detailView.querySelectorAll(".review-sort-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      loadAppReviews(appId, btn.dataset.sort);
+    });
+  });
+
   // Load edit requests and version history for this app
   loadEditRequestsForDetail(appId);
   loadVersionHistory(appId);
 }
 
 // ── Edit Request (PR-style) ──────────────────────────────────────────────────
-function openEditRequestModal(appId, appName, app) {
+
+// ── Similar Apps ─────────────────────────────────────────────────────────────
+function getSimilarApps(app) {
+  return apps
+    .filter(a => a.id !== app.id && (a.category === app.category || (app.tags || []).some(t => (a.tags || []).includes(t))))
+    .sort((a, b) => (b.likes || 0) - (a.likes || 0))
+    .slice(0, 6);
+}
+
+// ── Previous Rank (for rank movement indicator) ──────────────────────────────
+function getAppPreviousRank(appId) {
+  // Simple heuristic: use score without most recent view changes
+  return null; // Would need historical data; returns null for now
+}
+
+// ── Screenshot Lightbox ──────────────────────────────────────────────────────
+function openScreenshotLightbox(src) {
+  const overlay = document.createElement("div");
+  overlay.className = "lightbox-overlay";
+  overlay.innerHTML = `
+    <div class="lightbox-content">
+      <img src="${esc(src)}" alt="Screenshot" class="lightbox-img">
+      <button class="lightbox-close">✕</button>
+    </div>
+  `;
+  overlay.addEventListener("click", e => {
+    if (e.target === overlay || e.target.closest(".lightbox-close")) overlay.remove();
+  });
+  document.body.appendChild(overlay);
+}
+
+// ── Reviews ──────────────────────────────────────────────────────────────────
+async function loadAppReviews(appId, sortBy = "latest") {
+  const container = document.getElementById(`reviews-list-${appId}`);
+  if (!container) return;
+  try {
+    const reviews = await getAppReviews(appId, sortBy);
+    if (!reviews.length) {
+      container.innerHTML = `<p class="er-empty">No reviews yet. Be the first to review!</p>`;
+      return;
+    }
+    container.innerHTML = reviews.map(r => {
+      const stars = "★".repeat(r.rating) + "☆".repeat(5 - r.rating);
+      const date = new Date(r.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+      return `
+        <div class="review-card">
+          <div class="review-card-header">
+            <div class="review-author">
+              ${r.authorPhoto ? `<img class="review-avatar" src="${esc(r.authorPhoto)}" alt="" referrerpolicy="no-referrer">` : `<div class="review-avatar-fallback">${esc((r.authorName || "U").charAt(0))}</div>`}
+              <span class="review-author-name">${esc(r.authorName)}</span>
+              <span class="review-date">${date}</span>
+            </div>
+            <span class="review-stars">${stars}</span>
+          </div>
+          ${r.title ? `<h4 class="review-title">${esc(r.title)}</h4>` : ""}
+          <p class="review-text">${esc(r.text)}</p>
+          <div class="review-actions">
+            <button class="review-helpful-btn" data-review-id="${esc(r.id)}" data-helpful="true">👍 Helpful (${r.helpful || 0})</button>
+            <button class="review-helpful-btn" data-review-id="${esc(r.id)}" data-helpful="false">👎 (${r.unhelpful || 0})</button>
+          </div>
+        </div>`;
+    }).join("");
+
+    // Helpful buttons
+    container.querySelectorAll(".review-helpful-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        if (!currentUser) { showToast("Sign in to rate reviews"); return; }
+        btn.disabled = true;
+        await markReviewHelpful(btn.dataset.reviewId, btn.dataset.helpful === "true");
+        showToast("Thanks for your feedback!");
+        loadAppReviews(appId, sortBy);
+      });
+    });
+  } catch (e) {
+    container.innerHTML = `<p class="er-empty">Could not load reviews.</p>`;
+  }
+}
+
+function setupReviewForm(appId) {
+  const form = document.getElementById(`review-form-${appId}`);
+  if (!form) return;
+
+  // Star rating
+  const stars = form.querySelectorAll(".review-star");
+  const ratingInput = document.getElementById(`review-rating-${appId}`);
+  let selectedRating = 5;
+
+  function updateStars(rating) {
+    stars.forEach((s, i) => s.classList.toggle("selected", i < rating));
+  }
+  updateStars(5);
+
+  stars.forEach(star => {
+    star.addEventListener("click", () => {
+      selectedRating = parseInt(star.dataset.star);
+      ratingInput.value = selectedRating;
+      updateStars(selectedRating);
+    });
+    star.addEventListener("mouseenter", () => updateStars(parseInt(star.dataset.star)));
+    star.addEventListener("mouseleave", () => updateStars(selectedRating));
+  });
+
+  form.addEventListener("submit", async e => {
+    e.preventDefault();
+    const title = document.getElementById(`review-title-${appId}`).value.trim();
+    const text = document.getElementById(`review-text-${appId}`).value.trim();
+    const msg = form.querySelector(".review-msg");
+
+    if (!text) { msg.textContent = "Please write a review."; msg.className = "form-msg review-msg error"; return; }
+
+    const btn = form.querySelector("button[type=submit]");
+    btn.disabled = true;
+    btn.textContent = "Submitting…";
+    try {
+      await addAppReview(appId, { rating: selectedRating, title, text }, currentUser);
+      msg.textContent = "Review submitted!";
+      msg.className = "form-msg review-msg success";
+      form.reset();
+      updateStars(5);
+      selectedRating = 5;
+      loadAppReviews(appId, "latest");
+    } catch (err) {
+      msg.textContent = err.message;
+      msg.className = "form-msg review-msg error";
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Submit Review";
+    }
+  });
+}
+
+function openEditRequestModal(appId, appName, app, directEdit = false) {
   if (!currentUser) {
     showToast("Sign in to suggest edits");
     return;
@@ -2171,16 +2620,48 @@ async function handleSubmitApp(e) {
   const logo = form.querySelector("#sub-logo").value.trim();
   if (logo && !isValidLogoURL(logo)) { showFormError(form, "Logo URL must end in .jpg, .jpeg, .png, or .svg"); return; }
 
+  // Parse features (one per line)
+  const featuresRaw = (form.querySelector("#sub-features")?.value || "").trim();
+  const features = featuresRaw ? featuresRaw.split("\n").map(f => f.trim()).filter(Boolean) : [];
+
+  // Parse tags (comma separated)
+  const tagsRaw = (form.querySelector("#sub-tags")?.value || "").trim();
+  const tags = tagsRaw ? tagsRaw.split(",").map(t => t.trim().toLowerCase()).filter(Boolean) : [];
+
+  // Parse screenshots (one URL per line)
+  const screenshotsRaw = (form.querySelector("#sub-screenshots")?.value || "").trim();
+  const screenshots = screenshotsRaw ? screenshotsRaw.split("\n").map(s => s.trim()).filter(Boolean) : [];
+
+  // Parse install methods (label | command, one per line)
+  const installRaw = (form.querySelector("#sub-install-methods")?.value || "").trim();
+  const installMethods = installRaw ? installRaw.split("\n").map(line => {
+    const parts = line.split("|").map(p => p.trim());
+    return parts.length >= 2 ? { label: parts[0], command: parts[1] } : null;
+  }).filter(Boolean) : [];
+
   const payload = {
     name,
     logo,
     category: form.querySelector("#sub-category").value,
     description,
+    fullDescription: (form.querySelector("#sub-full-description")?.value || "").trim(),
+    features,
     uses,
     alternative: form.querySelector("#sub-alternative").value.trim(),
     download: form.querySelector("#sub-download").value.trim(),
     source: form.querySelector("#sub-source").value.trim(),
+    website: (form.querySelector("#sub-website")?.value || "").trim(),
+    docs: (form.querySelector("#sub-docs")?.value || "").trim(),
     maintainer: form.querySelector("#sub-maintainer").value,
+    developer: (form.querySelector("#sub-developer")?.value || "").trim(),
+    developerUrl: (form.querySelector("#sub-developer-url")?.value || "").trim(),
+    license: (form.querySelector("#sub-license")?.value || ""),
+    version: (form.querySelector("#sub-version")?.value || "").trim(),
+    fileSize: (form.querySelector("#sub-filesize")?.value || "").trim(),
+    tags,
+    screenshots,
+    installMethods,
+    systemRequirements: (form.querySelector("#sub-sysreq")?.value || "").trim(),
     platforms,
     submitterEmail: form.querySelector("#sub-email").value.trim(),
   };
@@ -2539,13 +3020,37 @@ async function init() {
   document.getElementById("submit-app-btn").addEventListener("click", openSubmitModal);
   document.getElementById("report-form").addEventListener("submit", handleReportSubmit);
   document.getElementById("submit-form").addEventListener("submit", handleSubmitApp);
+  // Logo file upload → fill the URL input with a data URL
+  document.getElementById("sub-logo-file")?.addEventListener("change", e => {
+    const file = e.target.files[0];
+    const nameEl = document.getElementById("sub-logo-filename");
+    if (!file) { if (nameEl) nameEl.textContent = ""; return; }
+    if (nameEl) nameEl.textContent = file.name;
+    const reader = new FileReader();
+    reader.onload = () => { document.getElementById("sub-logo").value = reader.result; };
+    reader.readAsDataURL(file);
+  });
   document.getElementById("edit-request-form").addEventListener("submit", handleEditRequestSubmit);
   document.getElementById("resubmit-form").addEventListener("submit", handleResubmit);
 
   // Grid events
-  document.getElementById("app-grid").addEventListener("click", e => {
+  document.getElementById("app-grid").addEventListener("click", async e => {
     const rb = e.target.closest(".report-btn");
     if (rb) openReportModal(rb.dataset.appId, rb.dataset.appName);
+
+    // Card bookmark button
+    const bkBtn = e.target.closest(".card-bookmark-btn");
+    if (bkBtn) {
+      e.stopPropagation();
+      if (!currentUser) { showToast("Sign in to bookmark apps."); return; }
+      const appId = bkBtn.dataset.appId;
+      try {
+        const nowBookmarked = await toggleBookmark(currentUser.uid, appId);
+        bkBtn.textContent = nowBookmarked ? "★" : "☆";
+        bkBtn.classList.toggle("bookmarked", nowBookmarked);
+      } catch (err) { showToast("Bookmark failed."); }
+      return;
+    }
 
     // Make entire card clickable to open detail view
     if (e.target.closest("a, button, .report-btn")) return;

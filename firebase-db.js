@@ -911,3 +911,128 @@ export async function getFollowingCount(uid) {
   const snap = await getDocs(q);
   return snap.size;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  WRITTEN REVIEWS — Collection: app_reviews/{id}
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export async function addAppReview(appId, reviewData, user) {
+  // One review per user per app
+  const existing = await getDocs(query(
+    collection(db, "app_reviews"),
+    where("appId", "==", appId),
+    where("authorUid", "==", user.uid)
+  ));
+  if (!existing.empty) throw new Error("You have already reviewed this app. Edit your existing review instead.");
+
+  const now = new Date().toISOString();
+  const review = {
+    appId,
+    rating: Math.min(5, Math.max(1, parseInt(reviewData.rating) || 5)),
+    title: (reviewData.title || "").slice(0, 120),
+    text: (reviewData.text || "").slice(0, 2000),
+    authorUid: user.uid,
+    authorName: user.displayName || "Anonymous",
+    authorPhoto: user.photoURL || "",
+    helpful: 0,
+    unhelpful: 0,
+    createdAt: now,
+    updatedAt: now
+  };
+  const ref = await addDoc(collection(db, "app_reviews"), review);
+  await incrementActivity(user.uid, "reviewsDone");
+  return { id: ref.id, ...review };
+}
+
+export async function getAppReviews(appId, sortBy = "latest") {
+  try {
+    let q;
+    if (sortBy === "top") {
+      q = query(collection(db, "app_reviews"), where("appId", "==", appId), orderBy("rating", "desc"), limit(50));
+    } else if (sortBy === "helpful") {
+      q = query(collection(db, "app_reviews"), where("appId", "==", appId), orderBy("helpful", "desc"), limit(50));
+    } else {
+      q = query(collection(db, "app_reviews"), where("appId", "==", appId), orderBy("createdAt", "desc"), limit(50));
+    }
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (e) {
+    console.error("Error getting reviews:", e);
+    return [];
+  }
+}
+
+export async function markReviewHelpful(reviewId, helpful = true) {
+  try {
+    const field = helpful ? "helpful" : "unhelpful";
+    await updateDoc(doc(db, "app_reviews", reviewId), { [field]: increment(1) });
+  } catch (e) {
+    console.error("Error marking review:", e);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  BOOKMARKS — Collection: bookmarks/{userId_appId}
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export async function toggleBookmark(userId, appId) {
+  const docId = `${userId}_${appId}`;
+  const ref = doc(db, "bookmarks", docId);
+  const snap = await getDoc(ref);
+  if (snap.exists()) {
+    await deleteDoc(ref);
+    return false; // removed
+  } else {
+    await setDoc(ref, { userId, appId, createdAt: new Date().toISOString() });
+    return true; // added
+  }
+}
+
+export async function isBookmarked(userId, appId) {
+  const ref = doc(db, "bookmarks", `${userId}_${appId}`);
+  const snap = await getDoc(ref);
+  return snap.exists();
+}
+
+export async function getUserBookmarks(userId) {
+  try {
+    const q = query(collection(db, "bookmarks"), where("userId", "==", userId), orderBy("createdAt", "desc"));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(d => d.data().appId);
+  } catch (e) {
+    console.error("Error getting bookmarks:", e);
+    return [];
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  DOWNLOAD TRACKING — Collection: app_downloads/{id}
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export async function trackDownload(appId, userId) {
+  try {
+    await addDoc(collection(db, "app_downloads"), {
+      appId,
+      userId: userId || "anonymous",
+      timestamp: new Date().toISOString()
+    });
+    await updateDoc(doc(db, "apps", appId), { downloads: increment(1) });
+  } catch (e) {
+    console.error("Error tracking download:", e);
+  }
+}
+
+export async function getWeeklyDownloads(appId) {
+  try {
+    const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const q = query(
+      collection(db, "app_downloads"),
+      where("appId", "==", appId),
+      where("timestamp", ">", oneWeekAgo)
+    );
+    const snap = await getDocs(q);
+    return snap.size;
+  } catch (e) {
+    return 0;
+  }
+}
