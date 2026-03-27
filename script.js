@@ -415,8 +415,12 @@ async function showAppDetail(appId) {
   let userVote = null;
   let bookmarked = false;
   if (currentUser) {
-    userVote = await getUserVote(appId, currentUser.uid);
-    bookmarked = await isBookmarked(currentUser.uid, appId);
+    try {
+      userVote = await getUserVote(appId, currentUser.uid);
+      bookmarked = await isBookmarked(currentUser.uid, appId);
+    } catch (err) {
+      console.warn("Error loading user data for detail page:", err);
+    }
   }
 
   const rank = getAppRank(appId);
