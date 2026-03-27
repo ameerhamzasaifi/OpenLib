@@ -3,26 +3,48 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="OpenLib — A curated open-source app library. Discover, rate, and explore the best free and open-source software.">
+  <meta name="description" id="meta-description" content="OpenLib — A curated open-source app library. Discover, rate, and explore the best free and open-source software alternatives.">
   <meta name="theme-color" content="#0c0c0f">
+  <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large">
+  <meta name="keywords" content="open source, free software, FOSS, app library, software alternatives, open-source apps, Linux apps, free alternatives">
+  <meta name="author" content="OpenLib Team">
   <title>OpenLib — Open Source App Library</title>
 
   <!-- Canonical URL -->
-  <link rel="canonical" id="canonical-url" href="/">
+  <link rel="canonical" id="canonical-url" href="https://openlib-f7bf1.web.app/">
 
   <!-- Open Graph -->
   <meta property="og:type" content="website" id="og-type">
   <meta property="og:site_name" content="OpenLib">
-  <meta property="og:url" content="/" id="og-url">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:url" content="https://openlib-f7bf1.web.app/" id="og-url">
   <meta property="og:title" content="OpenLib — Open Source App Library" id="og-title">
   <meta property="og:description" content="Discover free alternatives. Rate what you use. Own your software stack." id="og-description">
-  <meta property="og:image" content="https://ameerhamzasaifi.github.io/OpenLib/favicon.svg" id="og-image">
+  <meta property="og:image" content="https://openlib-f7bf1.web.app/favicon.svg" id="og-image">
+  <meta property="og:image:alt" content="OpenLib — Open Source App Library">
 
   <!-- Twitter Card -->
-  <meta name="twitter:card" content="summary">
+  <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="OpenLib — Open Source App Library" id="tw-title">
   <meta name="twitter:description" content="Discover free alternatives. Rate what you use. Own your software stack." id="tw-description">
-  <meta name="twitter:url" content="/" id="tw-url">
+  <meta name="twitter:url" content="https://openlib-f7bf1.web.app/" id="tw-url">
+  <meta name="twitter:image" content="https://openlib-f7bf1.web.app/favicon.svg">
+
+  <!-- Structured Data (JSON-LD) -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "OpenLib",
+    "url": "https://openlib-f7bf1.web.app",
+    "description": "A curated open-source app library. Discover, rate, and explore the best free and open-source software alternatives.",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "All",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "author": { "@type": "Organization", "name": "OpenLib Team", "url": "https://github.com/ameerhamzasaifi/openlib" }
+  }
+  </script>
+
   <link rel="stylesheet" href="styles.css">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
 </head>
@@ -31,15 +53,15 @@
   <!-- ── Header ── -->
   <header>
     <div class="header-inner">
-      <a class="logo-group" href="#/">
+      <a class="logo-group" href="/">
         <div class="logo-icon">OL</div>
         <span class="logo-title">Open<span>Lib</span></span>
       </a>
       <div class="header-actions">
         <span class="count-badge" id="total-count">— apps</span>
-        <a href="#/rankings" class="nav-link" id="ranking-nav-link" title="Rankings">🏆 Rankings</a>
-        <a href="#/profile" class="nav-link" id="profile-nav-link" title="Profile" style="display:none;">👤 Profile</a>
-        <a href="#/admin" class="nav-link nav-link-admin" id="admin-nav-link" title="Admin" style="display:none;">⚙️ Admin</a>
+        <a href="/rankings" class="nav-link" id="ranking-nav-link" title="Rankings">🏆 Rankings</a>
+        <a href="/profile" class="nav-link" id="profile-nav-link" title="Profile" style="display:none;">👤 Profile</a>
+        <a href="/admin" class="nav-link nav-link-admin" id="admin-nav-link" title="Admin" style="display:none;">⚙️ Admin</a>
 
         <!-- Auth Menu -->
         <div class="auth-menu" id="auth-menu">
@@ -116,7 +138,7 @@
         MIT License &mdash; <a href="https://github.com/ameerhamzasaifi/openlib" target="_blank" rel="noopener">Contribute on GitHub</a>
       </div>
       <nav class="footer-right" aria-label="Footer links">
-        <a href="#/rankings" class="footer-link">Rankings</a>
+        <a href="/rankings" class="footer-link">Rankings</a>
         <a href="https://github.com/ameerhamzasaifi/openlib" target="_blank" rel="noopener" class="footer-link">GitHub</a>
         <a href="https://github.com/ameerhamzasaifi/openlib/blob/main/README.md" target="_blank" rel="noopener" class="footer-link">Docs</a>
       </nav>

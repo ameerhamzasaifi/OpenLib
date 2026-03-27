@@ -279,7 +279,7 @@ function addedByBadge(addedBy) {
   if (addedBy.type === "openlib-team") {
     return '<span class="added-by-badge team">OpenLib Team</span>';
   }
-  const profileLink = addedBy.uid ? `href="#/profile/${esc(addedBy.uid)}"` : "";
+  const profileLink = addedBy.uid ? `href="/profile/${esc(addedBy.uid)}"` : "";
   return `<a ${profileLink} class="added-by-badge user added-by-link">👤 ${esc(addedBy.name || "User")}</a>`;
 }
 
@@ -298,7 +298,7 @@ function buildCard(app) {
         ${rank ? `<span class="rank-badge">#${rank}</span>` : ""}
         ${logoHtml}
         <div class="app-header-text">
-          <a class="app-name app-link" href="#/app/${esc(app.id)}">${esc(app.name)}</a>
+          <a class="app-name app-link" href="/app/${esc(app.id)}">${esc(app.name)}</a>
           <span class="app-category">${esc(app.category)}</span>
         </div>
         <span class="maintainer-badge" data-type="${esc(app.maintainer)}">${esc(app.maintainer)}</span>
@@ -400,7 +400,7 @@ async function showAppDetail(appId) {
     app = await getAppFromFirestore(appId);
   }
   if (!app) {
-    detailView.innerHTML = `<div class="empty-state"><h3>App not found</h3><p><a href="#/">← Back to library</a></p></div>`;
+    detailView.innerHTML = `<div class="empty-state"><h3>App not found</h3><p><a href="/">← Back to library</a></p></div>`;
     return;
   }
 
@@ -433,7 +433,7 @@ async function showAppDetail(appId) {
 
   // Generate tags HTML
   const tags = app.tags || [];
-  const tagsHtml = tags.length ? tags.map(t => `<a href="#/" class="detail-tag" data-tag="${esc(t)}">${esc(t)}</a>`).join("") : "";
+  const tagsHtml = tags.length ? tags.map(t => `<a href="/" class="detail-tag" data-tag="${esc(t)}">${esc(t)}</a>`).join("") : "";
 
   // Screenshots gallery
   const screenshots = app.screenshots || [];
@@ -525,7 +525,7 @@ async function showAppDetail(appId) {
     </div>`;
 
   // Share button data
-  const shareUrl = `${location.origin}${location.pathname}#/app/${encodeURIComponent(appId)}`;
+  const shareUrl = `${location.origin}/app/${encodeURIComponent(appId)}`;
 
   // Similar apps
   const similarApps = getSimilarApps(app);
@@ -538,7 +538,7 @@ async function showAppDetail(appId) {
             ? `<img class="similar-logo" src="${esc(sa.logo)}" alt="" onerror="this.style.display='none'">`
             : `<div class="similar-logo-fallback">${esc(sa.name.charAt(0))}</div>`;
           return `
-            <a href="#/app/${esc(sa.id)}" class="similar-card">
+            <a href="/app/${esc(sa.id)}" class="similar-card">
               ${saLogo}
               <div class="similar-info">
                 <span class="similar-name">${esc(sa.name)}</span>
@@ -561,7 +561,7 @@ async function showAppDetail(appId) {
       creatorHtml = `
         <div class="detail-section creator-section">
           <h3>Added By</h3>
-          <a href="#/profile/${esc(app.addedBy.uid)}" class="creator-card">
+          <a href="/profile/${esc(app.addedBy.uid)}" class="creator-card">
             ${creatorAvatar}
             <div class="creator-card-info">
               <span class="creator-card-name">${esc(creator.displayName || "User")} ${verifiedBadge(creator)} ${roleBadge(creator.role)}</span>
@@ -582,7 +582,7 @@ async function showAppDetail(appId) {
 
   detailView.innerHTML = `
     <div class="detail-page">
-      <a href="#/" class="back-link">← Back to library</a>
+      <a href="/" class="back-link">← Back to library</a>
       <div class="detail-header">
         ${logoHtml}
         <div class="detail-header-text">
@@ -800,7 +800,7 @@ async function showAppDetail(appId) {
     tag.addEventListener("click", e => {
       e.preventDefault();
       document.getElementById("search-input").value = tag.dataset.tag;
-      location.hash = "#/";
+      navigateTo("/");
     });
   });
 
@@ -1149,7 +1149,7 @@ function renderRecommendations() {
           ? `<img class="rec-logo" src="${esc(app.logo)}" alt="" onerror="this.style.display='none'">`
           : `<div class="rec-logo-fallback">${esc(app.name.charAt(0))}</div>`;
         return `
-          <a href="#/app/${esc(app.id)}" class="rec-card">
+          <a href="/app/${esc(app.id)}" class="rec-card">
             ${logoHtml}
             <div class="rec-info">
               <span class="rec-name">${esc(app.name)}</span>
@@ -1173,13 +1173,13 @@ async function showProfile(uid) {
   const isOwnProfile = !uid || uid === currentUser?.uid;
   const targetUid = uid || currentUser?.uid;
   if (!targetUid) {
-    profileView.innerHTML = `<div class="empty-state"><h3>Sign in to view your profile</h3><a href="#/">← Back</a></div>`;
+    profileView.innerHTML = `<div class="empty-state"><h3>Sign in to view your profile</h3><a href="/">← Back</a></div>`;
     return;
   }
 
   const record = isOwnProfile ? (userRecord || await getUserRecord(targetUid)) : await getUserRecord(targetUid);
   if (!record) {
-    profileView.innerHTML = `<div class="empty-state"><h3>Profile not found</h3><a href="#/">← Back</a></div>`;
+    profileView.innerHTML = `<div class="empty-state"><h3>Profile not found</h3><a href="/">← Back</a></div>`;
     return;
   }
 
@@ -1204,7 +1204,7 @@ async function showProfile(uid) {
 
   profileView.innerHTML = `
     <div class="profile-page">
-      <a href="#/" class="back-link">← Back to library</a>
+      <a href="/" class="back-link">← Back to library</a>
       <div class="profile-header">
         ${avatarHtml}
         <div class="profile-header-text">
@@ -1234,7 +1234,7 @@ async function showProfile(uid) {
 
       ${isOwnProfile && ["admin", "openlib-team"].includes(record.role) ? `
         <div class="profile-team-actions">
-          <a href="#/verify" class="btn btn-primary btn-verify-submissions" id="verify-submissions-btn">🛡️ Verify App Submissions</a>
+          <a href="/verify" class="btn btn-primary btn-verify-submissions" id="verify-submissions-btn">🛡️ Verify App Submissions</a>
         </div>
       ` : ""}
 
@@ -1271,7 +1271,7 @@ async function showProfile(uid) {
         ${isOwnProfile ? `<button class="btn btn-secondary btn-sm" id="create-org-btn">+ Create Organization</button>` : ""}
         <div class="profile-list">
           ${orgs.length ? orgs.map(org => `
-            <a href="#/org/${esc(org.id)}" class="profile-list-item">
+            <a href="/org/${esc(org.id)}" class="profile-list-item">
               <span class="org-icon">🏢</span>
               <div class="profile-list-info">
                 <span class="profile-list-name">${esc(org.name)} ${org.verified ? '<span class="badge badge-verified">✓</span>' : ""}</span>
@@ -1287,7 +1287,7 @@ async function showProfile(uid) {
         <h3>Apps (${userApps.length})</h3>
         <div class="profile-list">
           ${userApps.length ? userApps.map(app => `
-            <a href="#/app/${esc(app.id)}" class="profile-list-item">
+            <a href="/app/${esc(app.id)}" class="profile-list-item">
               <span class="org-icon">📦</span>
               <div class="profile-list-info">
                 <span class="profile-list-name">${esc(app.name)}</span>
@@ -1320,7 +1320,7 @@ async function showProfile(uid) {
         <h3>Saved Apps (${bookmarkedApps.length})</h3>
         <div class="profile-list">
           ${bookmarkedApps.length ? bookmarkedApps.map(app => `
-            <a href="#/app/${esc(app.id)}" class="profile-list-item">
+            <a href="/app/${esc(app.id)}" class="profile-list-item">
               <span class="org-icon">★</span>
               <div class="profile-list-info">
                 <span class="profile-list-name">${esc(app.name)}</span>
@@ -1356,7 +1356,7 @@ async function showProfile(uid) {
       ` : isOwnProfile ? `
       <div class="profile-section">
         <h3>My Submissions (0)</h3>
-        <p class="profile-empty">No submissions yet. <a href="#/" class="link">Submit an app</a> to get started!</p>
+        <p class="profile-empty">No submissions yet. <a href="/" class="link">Submit an app</a> to get started!</p>
       </div>
       ` : ""}
     </div>
@@ -1438,7 +1438,7 @@ async function showOrgView(orgId) {
 
   const org = await getOrganization(orgId);
   if (!org) {
-    orgView.innerHTML = `<div class="empty-state"><h3>Organization not found</h3><a href="#/">← Back</a></div>`;
+    orgView.innerHTML = `<div class="empty-state"><h3>Organization not found</h3><a href="/">← Back</a></div>`;
     return;
   }
 
@@ -1450,7 +1450,7 @@ async function showOrgView(orgId) {
 
   orgView.innerHTML = `
     <div class="org-page">
-      <a href="#/" class="back-link">← Back to library</a>
+      <a href="/" class="back-link">← Back to library</a>
       <div class="org-header">
         ${org.logoURL ? `<img class="org-logo" src="${esc(org.logoURL)}" alt="" onerror="this.style.display='none'">` : `<div class="org-logo-fallback">🏢</div>`}
         <div class="org-header-text">
@@ -1515,7 +1515,7 @@ async function showOrgView(orgId) {
         <h3>Apps (${orgApps.length})</h3>
         <div class="profile-list">
           ${orgApps.length ? orgApps.map(app => `
-            <a href="#/app/${esc(app.id)}" class="profile-list-item">
+            <a href="/app/${esc(app.id)}" class="profile-list-item">
               <span class="org-icon">📦</span>
               <div class="profile-list-info">
                 <span class="profile-list-name">${esc(app.name)}</span>
@@ -1581,7 +1581,7 @@ async function showVerifySubmissions() {
   // Access check — only team / admin
   const isTeam = userRecord && ["admin", "openlib-team"].includes(userRecord.role);
   if (!currentUser || !isTeam) {
-    verifyView.innerHTML = `<div class="empty-state"><h3>Access Denied</h3><p>Only OpenLib team members can verify submissions.</p><a href="#/">← Back to library</a></div>`;
+    verifyView.innerHTML = `<div class="empty-state"><h3>Access Denied</h3><p>Only OpenLib team members can verify submissions.</p><a href="/">← Back to library</a></div>`;
     return;
   }
 
@@ -1595,7 +1595,7 @@ async function showVerifySubmissions() {
 
   verifyView.innerHTML = `
     <div class="verify-page">
-      <a href="#/profile" class="back-link">← Back to profile</a>
+      <a href="/profile" class="back-link">← Back to profile</a>
       <h1 class="verify-title">🛡️ Verify App Submissions</h1>
       <p class="verify-subtitle">Review, accept, reject, or request changes on submitted apps.</p>
 
@@ -1825,7 +1825,7 @@ async function showAdminDashboard() {
   adminView.style.display = "block";
 
   if (!currentUser || !isAdmin) {
-    adminView.innerHTML = `<div class="empty-state"><h3>Access Denied</h3><p>Admin access required.</p><a href="#/">← Back</a></div>`;
+    adminView.innerHTML = `<div class="empty-state"><h3>Access Denied</h3><p>Admin access required.</p><a href="/">← Back</a></div>`;
     return;
   }
 
@@ -1843,7 +1843,7 @@ async function showAdminDashboard() {
 
   adminView.innerHTML = `
     <div class="admin-page">
-      <a href="#/" class="back-link">← Back to library</a>
+      <a href="/" class="back-link">← Back to library</a>
       <h1 class="admin-title">⚙️ Admin Dashboard</h1>
 
       <div class="admin-stats">
@@ -2575,7 +2575,7 @@ function showRankings() {
 
   rankView.innerHTML = `
     <div class="rankings-page">
-      <a href="#/" class="back-link">← Back to library</a>
+      <a href="/" class="back-link">← Back to library</a>
       <h1 class="rankings-title">🏆 App Rankings</h1>
       <p class="rankings-subtitle">Ranked by community likes and popularity</p>
       <div class="rankings-list">
@@ -2585,7 +2585,7 @@ function showRankings() {
             ? `<img class="rank-logo" src="${esc(app.logo)}" alt="" onerror="this.style.display='none'">`
             : `<div class="rank-logo-fallback">${esc(app.name.charAt(0))}</div>`;
           return `
-            <a href="#/app/${esc(app.id)}" class="ranking-item ${i < 3 ? 'top-' + (i+1) : ''}">
+            <a href="/app/${esc(app.id)}" class="ranking-item ${i < 3 ? 'top-' + (i+1) : ''}">
               <span class="ranking-pos">${i + 1}</span>
               ${logoHtml}
               <div class="ranking-info">
@@ -2969,7 +2969,7 @@ async function updateAuthUI(user) {
         <div class="user-provider">Signed in via ${esc(providerName)}</div>
         <div class="user-role">${roleBadge(userRecord?.role || "user")}</div>
       </div>
-      <a href="#/profile" class="auth-option profile-link">👤 My Profile</a>
+      <a href="/profile" class="auth-option profile-link">👤 My Profile</a>
       <button class="auth-option signout" id="signout-btn">← Sign Out</button>
     `;
   } else {
@@ -3059,11 +3059,17 @@ function debounce(fn, ms) {
 }
 
 // ── Meta helpers ─────────────────────────────────────────────────────────────
-const BASE_URL = `${location.origin}${location.pathname}`;
+const BASE_URL = location.origin;
+
+function navigateTo(path) {
+  history.pushState(null, "", path);
+  handleRoute();
+}
 
 function updatePageMeta({ title, description, url }) {
   document.title = title;
   const setAttr = (id, attr, val) => { const el = document.getElementById(id); if (el) el.setAttribute(attr, val); };
+  setAttr("meta-description", "content", description);
   setAttr("canonical-url", "href", url);
   setAttr("og-url",         "content", url);
   setAttr("og-title",       "content", title);
@@ -3075,36 +3081,36 @@ function updatePageMeta({ title, description, url }) {
 
 // ── Router ───────────────────────────────────────────────────────────────────
 function handleRoute() {
-  const hash = location.hash || "#/";
-  if (hash.startsWith("#/app/")) {
-    const appId = decodeURIComponent(hash.replace("#/app/", ""));
+  const path = location.pathname || "/";
+  if (path.startsWith("/app/")) {
+    const appId = decodeURIComponent(path.replace("/app/", ""));
     const app = apps.find(a => a.id === appId);
     updatePageMeta({
       title: app ? `${app.name} — OpenLib` : "App — OpenLib",
       description: app ? app.description : "Open-source app details on OpenLib.",
-      url: `${BASE_URL}#/app/${encodeURIComponent(appId)}`
+      url: `${BASE_URL}/app/${encodeURIComponent(appId)}`
     });
     showAppDetail(appId);
-  } else if (hash === "#/rankings") {
+  } else if (path === "/rankings") {
     updatePageMeta({
       title: "Rankings — OpenLib",
       description: "Top-rated open-source apps ranked by the OpenLib community.",
-      url: `${BASE_URL}#/rankings`
+      url: `${BASE_URL}/rankings`
     });
     showRankings();
-  } else if (hash === "#/profile" || hash.startsWith("#/profile/")) {
-    const uid = hash === "#/profile" ? null : decodeURIComponent(hash.replace("#/profile/", ""));
-    updatePageMeta({ title: "Profile — OpenLib", description: "User profile on OpenLib.", url: `${BASE_URL}${hash}` });
+  } else if (path === "/profile" || path.startsWith("/profile/")) {
+    const uid = path === "/profile" ? null : decodeURIComponent(path.replace("/profile/", ""));
+    updatePageMeta({ title: "Profile — OpenLib", description: "User profile on OpenLib.", url: `${BASE_URL}${path}` });
     showProfile(uid);
-  } else if (hash.startsWith("#/org/")) {
-    const orgId = decodeURIComponent(hash.replace("#/org/", ""));
-    updatePageMeta({ title: "Organization — OpenLib", description: "Organization on OpenLib.", url: `${BASE_URL}${hash}` });
+  } else if (path.startsWith("/org/")) {
+    const orgId = decodeURIComponent(path.replace("/org/", ""));
+    updatePageMeta({ title: "Organization — OpenLib", description: "Organization on OpenLib.", url: `${BASE_URL}${path}` });
     showOrgView(orgId);
-  } else if (hash === "#/admin") {
-    updatePageMeta({ title: "Admin — OpenLib", description: "Admin dashboard.", url: `${BASE_URL}#/admin` });
+  } else if (path === "/admin") {
+    updatePageMeta({ title: "Admin — OpenLib", description: "Admin dashboard.", url: `${BASE_URL}/admin` });
     showAdminDashboard();
-  } else if (hash === "#/verify") {
-    updatePageMeta({ title: "Verify Submissions — OpenLib", description: "Review and verify app submissions.", url: `${BASE_URL}#/verify` });
+  } else if (path === "/verify") {
+    updatePageMeta({ title: "Verify Submissions — OpenLib", description: "Review and verify app submissions.", url: `${BASE_URL}/verify` });
     showVerifySubmissions();
   } else {
     updatePageMeta({
@@ -3126,18 +3132,18 @@ function showHome() {
 }
 
 function renderCurrentView() {
-  const hash = location.hash || "#/";
-  if (hash.startsWith("#/app/")) {
-    showAppDetail(hash.replace("#/app/", ""));
-  } else if (hash === "#/rankings") {
+  const path = location.pathname || "/";
+  if (path.startsWith("/app/")) {
+    showAppDetail(path.replace("/app/", ""));
+  } else if (path === "/rankings") {
     showRankings();
-  } else if (hash === "#/profile" || hash.startsWith("#/profile/")) {
-    showProfile(hash === "#/profile" ? null : hash.replace("#/profile/", ""));
-  } else if (hash.startsWith("#/org/")) {
-    showOrgView(hash.replace("#/org/", ""));
-  } else if (hash === "#/admin") {
+  } else if (path === "/profile" || path.startsWith("/profile/")) {
+    showProfile(path === "/profile" ? null : path.replace("/profile/", ""));
+  } else if (path.startsWith("/org/")) {
+    showOrgView(path.replace("/org/", ""));
+  } else if (path === "/admin") {
     showAdminDashboard();
-  } else if (hash === "#/verify") {
+  } else if (path === "/verify") {
     showVerifySubmissions();
   } else {
     buildFilters();
@@ -3148,6 +3154,12 @@ function renderCurrentView() {
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 async function init() {
+  // Redirect legacy hash URLs to clean paths
+  if (location.hash && location.hash.startsWith("#/")) {
+    const cleanPath = location.hash.slice(1); // "#/app/x" → "/app/x"
+    history.replaceState(null, "", cleanPath);
+  }
+
   initTheme();
   initAuth();
 
@@ -3159,7 +3171,19 @@ async function init() {
 
   // Route
   handleRoute();
-  window.addEventListener("hashchange", handleRoute);
+  window.addEventListener("popstate", handleRoute);
+
+  // Intercept internal link clicks for SPA navigation
+  document.addEventListener("click", e => {
+    const anchor = e.target.closest("a[href]");
+    if (!anchor) return;
+    const href = anchor.getAttribute("href");
+    if (!href || href.startsWith("http") || href.startsWith("mailto:") || anchor.hasAttribute("target")) return;
+    if (href.startsWith("/") || href === "/") {
+      e.preventDefault();
+      navigateTo(href);
+    }
+  });
 
   // Event listeners
   document.getElementById("theme-toggle").addEventListener("click", toggleTheme);
@@ -3204,7 +3228,7 @@ async function init() {
     const card = e.target.closest(".app-card");
     if (card) {
       const appId = card.dataset.id;
-      if (appId) location.hash = `#/app/${appId}`;
+      if (appId) navigateTo(`/app/${appId}`);
     }
   });
 
@@ -3236,7 +3260,7 @@ async function init() {
   // Ranking nav link
   document.getElementById("ranking-nav-link")?.addEventListener("click", e => {
     e.preventDefault();
-    location.hash = "#/rankings";
+    navigateTo("/rankings");
   });
 
   // Modal interactions
@@ -3272,8 +3296,8 @@ async function init() {
   });
 
   // Nav links
-  document.getElementById("profile-nav-link")?.addEventListener("click", e => { e.preventDefault(); location.hash = "#/profile"; });
-  document.getElementById("admin-nav-link")?.addEventListener("click", e => { e.preventDefault(); location.hash = "#/admin"; });
+  document.getElementById("profile-nav-link")?.addEventListener("click", e => { e.preventDefault(); navigateTo("/profile"); });
+  document.getElementById("admin-nav-link")?.addEventListener("click", e => { e.preventDefault(); navigateTo("/admin"); });
 
   // Create organization form
   document.getElementById("create-org-form")?.addEventListener("submit", async e => {
@@ -3295,7 +3319,7 @@ async function init() {
       userRecord = await getUserRecord(currentUser.uid);
       setTimeout(() => {
         closeModal("create-org-modal");
-        location.hash = `#/org/${org.id}`;
+        navigateTo(`/org/${org.id}`);
       }, 1500);
     } catch (err) {
       showFormError(form, err.message);
