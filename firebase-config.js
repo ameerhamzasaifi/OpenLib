@@ -2,7 +2,7 @@
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
 import { getAuth, signInWithPopup, GoogleAuthProvider, GithubAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
-import { getFirestore, collection, addDoc, query, where, getDocs, updateDoc, doc, setDoc, getDoc, orderBy, limit, increment, deleteDoc } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, query, where, getDocs, updateDoc, doc, setDoc, getDoc, orderBy, limit, increment, deleteDoc, runTransaction } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-storage.js";
 
 // Firebase configuration
@@ -173,31 +173,34 @@ export async function toggleVote(appId, userId, voteType) {
     const snapshot = await getDocs(q);
     const appRef = doc(db, "apps", appId);
 
-    if (!snapshot.empty) {
-      const existingVote = snapshot.docs[0];
-      const existingType = existingVote.data().type;
+    const existingVoteRef = !snapshot.empty ? snapshot.docs[0].ref : null;
+    const existingType = !snapshot.empty ? snapshot.docs[0].data().type : null;
 
-      if (existingType === voteType) {
-        await deleteDoc(existingVote.ref);
-        await updateDoc(appRef, {
-          [voteType === "like" ? "likes" : "dislikes"]: increment(-1)
-        });
-        return { action: "removed", type: voteType };
+    return await runTransaction(db, async (transaction) => {
+      if (existingVoteRef) {
+        if (existingType === voteType) {
+          transaction.delete(existingVoteRef);
+          transaction.update(appRef, {
+            [voteType === "like" ? "likes" : "dislikes"]: increment(-1)
+          });
+          return { action: "removed", type: voteType };
+        } else {
+          transaction.update(existingVoteRef, { type: voteType, timestamp: new Date().toISOString() });
+          transaction.update(appRef, {
+            [existingType === "like" ? "likes" : "dislikes"]: increment(-1),
+            [voteType === "like" ? "likes" : "dislikes"]: increment(1)
+          });
+          return { action: "switched", type: voteType };
+        }
       } else {
-        await updateDoc(existingVote.ref, { type: voteType, timestamp: new Date().toISOString() });
-        await updateDoc(appRef, {
-          [existingType === "like" ? "likes" : "dislikes"]: increment(-1),
+        const newVoteRef = doc(votesRef);
+        transaction.set(newVoteRef, { appId, userId, type: voteType, timestamp: new Date().toISOString() });
+        transaction.update(appRef, {
           [voteType === "like" ? "likes" : "dislikes"]: increment(1)
         });
-        return { action: "switched", type: voteType };
+        return { action: "added", type: voteType };
       }
-    } else {
-      await addDoc(votesRef, { appId, userId, type: voteType, timestamp: new Date().toISOString() });
-      await updateDoc(appRef, {
-        [voteType === "like" ? "likes" : "dislikes"]: increment(1)
-      });
-      return { action: "added", type: voteType };
-    }
+    });
   } catch (error) {
     console.error("Error toggling vote:", error);
     throw error;

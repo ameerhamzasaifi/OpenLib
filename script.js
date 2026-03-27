@@ -240,6 +240,7 @@ async function submitReport(payload) {
 }
 
 // ── Seed function (call from browser console) ────────────────────────────────
+if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
 window.seedApps = async function() {
   console.log("Seeding apps to Firestore...");
   try {
@@ -252,6 +253,7 @@ window.seedApps = async function() {
     console.error("Seed failed:", err);
   }
 };
+}
 
 // ── Ranking Calculator ───────────────────────────────────────────────────────
 function calcRankScore(app) {
@@ -1100,6 +1102,12 @@ async function handleEditRequestSubmit(e) {
     const val = document.getElementById(id).value.trim();
     if (val) changes[key] = val;
   });
+
+  // Validate logo URL if provided
+  if (changes.logo && !isValidLogoURL(changes.logo)) {
+    showFormError(form, "Logo URL must be a valid image link (.jpg, .jpeg, .png, or .svg).");
+    return;
+  }
 
   // Handle logo file upload for edit request
   const erLogoFile = document.getElementById("er-logo-file")?._selectedFile;
@@ -2073,7 +2081,7 @@ function renderAdminEditRequests(editRequests) {
         </div>
         <div class="er-card-changes">
           ${changedFields.map(f => `<span class="er-change-tag">${esc(f)}</span>`).join("")}
-          <button class="btn btn-sm btn-secondary er-diff-toggle" data-er-id="${esc(er.id)}" data-app-id="${esc(er.appId)}" data-changes='${JSON.stringify(er.changes || {}).replace(/'/g, "&#39;")}'>📋 View Changes</button>
+          <button class="btn btn-sm btn-secondary er-diff-toggle" data-er-id="${esc(er.id)}" data-app-id="${esc(er.appId)}" data-changes="${encodeURIComponent(JSON.stringify(er.changes || {}))}">📋 View Changes</button>
         </div>
         <div class="er-diff-container" id="er-diff-${esc(er.id)}"></div>
         ${er.changes?.reason ? `<p class="er-card-reason">"${esc(er.changes.reason)}"</p>` : ""}
@@ -2452,7 +2460,7 @@ async function toggleDiffView(erId, appId, changesJson, toggleBtn) {
   toggleBtn.textContent = "▲ Hide Changes";
   try {
     const app = apps.find(a => a.id === appId) || await getAppFromFirestore(appId);
-    const changes = JSON.parse(changesJson);
+    const changes = JSON.parse(decodeURIComponent(changesJson));
     diffEl.innerHTML = renderDiffTable(changes, app);
   } catch (err) {
     diffEl.innerHTML = '<p class="diff-empty-msg">Could not load diff.</p>';
@@ -2497,7 +2505,7 @@ async function loadEditRequestsForDetail(appId) {
           <div class="er-card-changes">
             <span class="er-changes-label">Changes:</span>
             ${changedFields.map(f => `<span class="er-change-tag">${esc(f)}</span>`).join("")}
-            <button class="btn btn-sm btn-secondary er-diff-toggle" data-er-id="${esc(er.id)}" data-app-id="${esc(appId)}" data-changes='${JSON.stringify(er.changes || {}).replace(/'/g, "&#39;")}'>📋 View Changes</button>
+            <button class="btn btn-sm btn-secondary er-diff-toggle" data-er-id="${esc(er.id)}" data-app-id="${esc(appId)}" data-changes="${encodeURIComponent(JSON.stringify(er.changes || {}))}">📋 View Changes</button>
           </div>
           <div class="er-diff-container" id="er-diff-${esc(er.id)}"></div>
           ${er.changes?.reason ? `<p class="er-card-reason">"${esc(er.changes.reason)}"</p>` : ""}
