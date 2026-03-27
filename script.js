@@ -320,8 +320,8 @@ function buildCard(app) {
           title="Report this app" aria-label="Report ${esc(app.name)}">⚑</button>
       </div>
       <div class="card-actions">
-        <a href="${esc(app.download)}" class="btn btn-primary auth-gate-link" data-action="download" data-app-id="${esc(app.id)}" data-app-name="${esc(app.name)}">⬇ Download</a>
-        <a href="${esc(app.source)}" class="btn btn-secondary auth-gate-link" data-action="source" data-app-id="${esc(app.id)}" data-app-name="${esc(app.name)}">&lt;/&gt; Source</a>
+        <a href="${esc(app.download)}" class="btn btn-primary" target="_blank" rel="noopener" data-app-id="${esc(app.id)}" data-app-name="${esc(app.name)}">⬇ Download</a>
+        <a href="${esc(app.source)}" class="btn btn-secondary" target="_blank" rel="noopener" data-app-id="${esc(app.id)}" data-app-name="${esc(app.name)}">&lt;/&gt; Source</a>
       </div>
     </article>`;
 }
@@ -669,9 +669,9 @@ async function showAppDetail(appId) {
           </div>
 
           <div class="detail-links">
-            <a href="${esc(app.download)}" class="btn btn-primary btn-lg auth-gate-link download-track-link" data-action="download" data-app-id="${esc(appId)}" data-app-name="${esc(app.name)}">⬇ Download</a>
+            <a href="${esc(app.download)}" class="btn btn-primary btn-lg download-track-link" target="_blank" rel="noopener" data-app-id="${esc(appId)}" data-app-name="${esc(app.name)}">⬇ Download</a>
             ${app.website ? `<a href="${esc(app.website)}" class="btn btn-secondary btn-lg" target="_blank" rel="noopener">🌐 Visit Website</a>` : ""}
-            <a href="${esc(app.source)}" class="btn btn-secondary btn-lg auth-gate-link" data-action="source" data-app-id="${esc(appId)}" data-app-name="${esc(app.name)}">&lt;/&gt; GitHub Repo</a>
+            <a href="${esc(app.source)}" class="btn btn-secondary btn-lg" target="_blank" rel="noopener" data-app-id="${esc(appId)}" data-app-name="${esc(app.name)}">&lt;/&gt; GitHub Repo</a>
             ${app.docs ? `<a href="${esc(app.docs)}" class="btn btn-secondary btn-lg" target="_blank" rel="noopener">📖 View Docs</a>` : ""}
           </div>
 
@@ -736,9 +736,7 @@ async function showAppDetail(appId) {
   detailView.querySelectorAll(".vote-btn").forEach(btn => {
     btn.addEventListener("click", handleVoteClick);
   });
-  detailView.querySelectorAll(".auth-gate-link").forEach(link => {
-    link.addEventListener("click", handleAuthGateClick);
-  });
+
   // Track downloads
   detailView.querySelectorAll(".download-track-link").forEach(link => {
     link.addEventListener("click", () => {
@@ -3061,18 +3059,7 @@ async function init() {
     }
   });
 
-  // Auth-gate on card links (event delegation — find the actual link)
-  document.getElementById("app-grid").addEventListener("click", e => {
-    const link = e.target.closest(".auth-gate-link");
-    if (link) {
-      if (currentUser) return; // Allow through
-      e.preventDefault();
-      e.stopPropagation();
-      const action = link.dataset.action;
-      const appName = link.dataset.appName;
-      openLoginPrompt(action, appName, link.href);
-    }
-  });
+
 
   // Login prompt modal handlers
   const loginModal = document.getElementById("login-prompt-modal");
