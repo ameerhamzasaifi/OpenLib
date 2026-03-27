@@ -3,6 +3,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
 import { getAuth, signInWithPopup, GoogleAuthProvider, GithubAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
 import { getFirestore, collection, addDoc, query, where, getDocs, updateDoc, doc, setDoc, getDoc, orderBy, limit, increment, deleteDoc } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-storage.js";
 
 // Firebase configuration
 const firebaseConfig = {
@@ -19,6 +20,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+const storage = getStorage(app);
 
 // Auth providers
 const googleProvider = new GoogleAuthProvider();
@@ -296,4 +298,17 @@ export async function getUserEditRequests(userId) {
   }
 }
 
-export { auth, db, app };
+export { auth, db, app, storage };
+
+// ── Storage: Logo Upload ──────────────────────────────────────────────────────
+export async function uploadLogoToStorage(file, appName) {
+  const allowed = ['image/jpeg', 'image/png', 'image/svg+xml'];
+  if (!allowed.includes(file.type)) throw new Error('Invalid file type. Use JPG, PNG, or SVG.');
+  if (file.size > 2 * 1024 * 1024) throw new Error('File too large. Max 2 MB.');
+  const ext = file.name.split('.').pop().toLowerCase();
+  const safeName = appName.replace(/[^a-zA-Z0-9-_]/g, '_').toLowerCase();
+  const path = `logos/${safeName}_${Date.now()}.${ext}`;
+  const fileRef = storageRef(storage, path);
+  await uploadBytes(fileRef, file);
+  return await getDownloadURL(fileRef);
+}

@@ -370,7 +370,7 @@
   <div class="modal-overlay" id="edit-request-modal" role="dialog" aria-modal="true" aria-labelledby="edit-request-title">
     <div class="modal modal-wide">
       <div class="modal-header">
-        <h2 class="modal-title" id="edit-request-title">✏️ Suggest Edit</h2>
+        <h2 class="modal-title" id="edit-request-title">✏️ Edit App</h2>
         <button class="modal-close" aria-label="Close modal">✕</button>
       </div>
       <div class="edit-request-submitter" id="edit-request-submitter"></div>
@@ -411,8 +411,14 @@
             <input type="text" id="er-alternative" placeholder="e.g. Adobe Photoshop" maxlength="100">
           </div>
           <div class="form-group">
-            <label for="er-logo">Logo URL</label>
-            <input type="url" id="er-logo" placeholder="https://…/logo.png">
+            <label for="er-logo">Logo</label>
+            <div class="logo-input-group">
+              <input type="url" id="er-logo" placeholder="https://…/logo.png" class="logo-url-input">
+              <span class="logo-or">or</span>
+              <label class="logo-upload-label" for="er-logo-file">📁 Upload</label>
+              <input type="file" id="er-logo-file" accept=".jpg,.jpeg,.png,.svg" class="logo-file-input" style="display:none;">
+              <span class="logo-file-name" id="er-logo-filename"></span>
+            </div>
           </div>
         </div>
         <div class="form-row">

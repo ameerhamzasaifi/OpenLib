@@ -1859,7 +1859,6 @@ a.added-by-link:hover {
   }
 
   .detail-secondary-actions .report-btn,
-  .detail-secondary-actions .btn-edit-request,
   .detail-secondary-actions .btn-direct-edit {
     font-size: 12px;
     padding: 6px 10px;
@@ -1990,29 +1989,6 @@ a.added-by-link:hover {
   color: var(--text-3);
   opacity: 0.6;
   margin-top: 2px;
-}
-
-/* ── Suggest Edit Button (detail page) ── */
-.btn-edit-request {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  font-size: 13px;
-  font-family: var(--font-body);
-  font-weight: 500;
-  color: var(--blue);
-  background: var(--blue-dim);
-  border: 1px solid var(--blue);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: all var(--transition);
-  margin-top: 8px;
-}
-
-.btn-edit-request:hover {
-  background: var(--blue);
-  color: #fff;
 }
 
 /* ── Edit Request Modal ── */
@@ -3192,6 +3168,64 @@ a.added-by-link:hover {
   opacity: 0.7;
 }
 
+/* ── OpenLib Official Avatar ── */
+.openlib-creator-card {
+  cursor: default;
+}
+
+.openlib-avatar {
+  background: var(--accent) !important;
+  color: #0c0c0f !important;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 16px;
+  letter-spacing: -0.5px;
+}
+
+/* ── Claim Ownership Section ── */
+.claim-section {
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.claim-section h3 {
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+
+.claim-description {
+  font-size: 13px;
+  color: var(--text-2);
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+
+.btn-claim-ownership {
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.btn-claim-ownership:hover {
+  background: var(--accent);
+  color: #0c0c0f;
+}
+
+.btn-claim-ownership:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .version-card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -4217,6 +4251,13 @@ a.added-by-link:hover {
   color: var(--text);
 }
 
+.share-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
 /* ── Screenshots / Preview Gallery ── */
 .screenshots-gallery {
   display: flex;
@@ -4548,13 +4589,17 @@ a.added-by-link:hover {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
   flex-wrap: wrap;
   gap: 8px;
 }
 
 .reviews-header h3 {
   margin-bottom: 0;
+  font-size: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-2);
 }
 
 .review-sort-btns {
@@ -4590,20 +4635,20 @@ a.added-by-link:hover {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 16px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin-bottom: 20px;
+  gap: 10px;
+  margin-bottom: 16px;
 }
 
 .review-rating-input {
   display: flex;
-  gap: 4px;
+  gap: 2px;
 }
 
 .review-star {
-  font-size: 24px;
+  font-size: 20px;
   color: var(--text-3);
   cursor: pointer;
   transition: color var(--transition), transform 0.15s;
@@ -4624,8 +4669,8 @@ a.added-by-link:hover {
 .review-text-input {
   width: 100%;
   font-family: var(--font-body);
-  font-size: 14px;
-  padding: 10px 14px;
+  font-size: 13px;
+  padding: 8px 12px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: var(--bg);
@@ -4652,21 +4697,21 @@ a.added-by-link:hover {
 .reviews-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
 }
 
 .review-card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 16px;
+  padding: 12px;
 }
 
 .review-card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .review-author {
@@ -4676,15 +4721,15 @@ a.added-by-link:hover {
 }
 
 .review-avatar {
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   object-fit: cover;
 }
 
 .review-avatar-fallback {
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   background: var(--bg-3);
   border: 1px solid var(--border);
@@ -4692,44 +4737,44 @@ a.added-by-link:hover {
   align-items: center;
   justify-content: center;
   font-family: var(--font-display);
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 700;
   color: var(--accent);
 }
 
 .review-author-name {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text);
 }
 
 .review-date {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-3);
 }
 
 .review-stars {
   display: flex;
   gap: 1px;
-  font-size: 14px;
+  font-size: 12px;
   color: var(--accent);
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .review-title {
   font-family: var(--font-display);
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--text);
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .review-text {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--text-2);
-  line-height: 1.6;
-  margin-bottom: 10px;
+  line-height: 1.5;
+  margin-bottom: 8px;
 }
 
 .review-actions {
@@ -4916,7 +4961,6 @@ a.added-by-link:hover {
   gap: 8px;
 }
 
-.detail-secondary-actions .btn-edit-request,
 .detail-secondary-actions .btn-direct-edit {
   flex: 1;
   text-align: center;

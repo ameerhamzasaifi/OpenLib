@@ -1048,3 +1048,31 @@ export async function getWeeklyDownloads(appId) {
     return 0;
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  OWNERSHIP CLAIMS — Collection: ownership_claims
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export async function submitOwnershipClaim(appId, user) {
+  // Check if user already has a pending claim
+  const existing = query(
+    collection(db, "ownership_claims"),
+    where("appId", "==", appId),
+    where("claimantUid", "==", user.uid),
+    where("status", "==", "pending")
+  );
+  const snap = await getDocs(existing);
+  if (!snap.empty) throw new Error("You already have a pending claim for this app.");
+
+  const now = new Date().toISOString();
+  await addDoc(collection(db, "ownership_claims"), {
+    appId,
+    claimantUid: user.uid,
+    claimantName: user.displayName || "Anonymous",
+    claimantEmail: user.email || "",
+    claimantPhoto: user.photoURL || "",
+    status: "pending",
+    createdAt: now,
+    updatedAt: now
+  });
+}

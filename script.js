@@ -4,7 +4,8 @@ import {
   submitReportToFirestore,
   submitAppToFirestore, getAllAppsFromFirestore,
   getAppFromFirestore, incrementAppViews, toggleVote, getUserVote, seedAppsToFirestore,
-  submitEditRequest, getEditRequestsForApp, getUserEditRequests
+  submitEditRequest, getEditRequestsForApp, getUserEditRequests,
+  uploadLogoToStorage
 } from './firebase-config.js';
 
 import {
@@ -23,7 +24,8 @@ import {
   followUser, unfollowUser, isFollowing,
   addAppReview, getAppReviews, markReviewHelpful,
   toggleBookmark, isBookmarked, getUserBookmarks,
-  trackDownload
+  trackDownload,
+  submitOwnershipClaim
 } from './firebase-db.js';
 
 // ── State ────────────────────────────────────────────────────────────────────
@@ -275,12 +277,12 @@ function platformIcon(p) {
 }
 
 function addedByBadge(addedBy) {
-  if (!addedBy) return '<span class="added-by-badge team">OpenLib Team</span>';
+  if (!addedBy) return '<span class="added-by-badge team">OpenLib</span>';
   if (addedBy.type === "openlib-team") {
-    return '<span class="added-by-badge team">OpenLib Team</span>';
+    return '<span class="added-by-badge team">OpenLib</span>';
   }
   const profileLink = addedBy.uid ? `href="/profile/${esc(addedBy.uid)}"` : "";
-  return `<a ${profileLink} class="added-by-badge user added-by-link">👤 ${esc(addedBy.name || "User")}</a>`;
+  return `<a ${profileLink} class="added-by-badge user added-by-link">👤 ${esc(addedBy.name || "Anonymous")}</a>`;
 }
 
 function buildCard(app) {
@@ -550,28 +552,67 @@ async function showAppDetail(appId) {
       </div>
     </div>` : "";
 
-  // Fetch creator profile
+  // Fetch creator profile — show OpenLib profile for admin/team apps
   let creatorHtml = "";
-  if (app.addedBy?.uid) {
+  const isTeamOrAdminApp = !app.addedBy || app.addedBy.type === "openlib-team" || app.addedBy.role === "admin";
+
+  if (isTeamOrAdminApp) {
+    // Show OpenLib profile for team/admin-added apps
+    creatorHtml = `
+      <div class="detail-section creator-section">
+        <h3>Added By</h3>
+        <div class="creator-card openlib-creator-card">
+          <div class="creator-card-avatar-fallback openlib-avatar">OL</div>
+          <div class="creator-card-info">
+            <span class="creator-card-name">OpenLib <span class="badge badge-role badge-admin">Official</span></span>
+            <span class="creator-card-bio">Curated by the OpenLib team</span>
+          </div>
+        </div>
+      </div>`;
+  } else if (app.addedBy?.uid) {
     const creator = await getUserRecord(app.addedBy.uid);
     if (creator) {
-      const creatorAvatar = creator.photoURL
-        ? `<img class="creator-card-avatar" src="${esc(creator.photoURL)}" alt="" referrerpolicy="no-referrer">`
-        : `<div class="creator-card-avatar-fallback">${esc((creator.displayName || "U").charAt(0))}</div>`;
-      creatorHtml = `
-        <div class="detail-section creator-section">
-          <h3>Added By</h3>
-          <a href="/profile/${esc(app.addedBy.uid)}" class="creator-card">
-            ${creatorAvatar}
-            <div class="creator-card-info">
-              <span class="creator-card-name">${esc(creator.displayName || "User")} ${verifiedBadge(creator)} ${roleBadge(creator.role)}</span>
-              ${creator.bio ? `<span class="creator-card-bio">${esc(creator.bio)}</span>` : ""}
-              <span class="creator-card-joined">Joined ${new Date(creator.createdAt).toLocaleDateString("en-US", { month: "long", year: "numeric" })}</span>
+      const isCreatorAdmin = ["admin", "openlib-team"].includes(creator.role);
+      if (isCreatorAdmin) {
+        creatorHtml = `
+          <div class="detail-section creator-section">
+            <h3>Added By</h3>
+            <div class="creator-card openlib-creator-card">
+              <div class="creator-card-avatar-fallback openlib-avatar">OL</div>
+              <div class="creator-card-info">
+                <span class="creator-card-name">OpenLib <span class="badge badge-role badge-admin">Official</span></span>
+                <span class="creator-card-bio">Curated by the OpenLib team</span>
+              </div>
             </div>
-          </a>
-        </div>`;
+          </div>`;
+      } else {
+        const creatorAvatar = creator.photoURL
+          ? `<img class="creator-card-avatar" src="${esc(creator.photoURL)}" alt="" referrerpolicy="no-referrer">`
+          : `<div class="creator-card-avatar-fallback">${esc((creator.displayName || "U").charAt(0))}</div>`;
+        creatorHtml = `
+          <div class="detail-section creator-section">
+            <h3>Added By</h3>
+            <a href="/profile/${esc(app.addedBy.uid)}" class="creator-card">
+              ${creatorAvatar}
+              <div class="creator-card-info">
+                <span class="creator-card-name">${esc(creator.displayName || "Anonymous")} ${verifiedBadge(creator)} ${roleBadge(creator.role)}</span>
+                ${creator.bio ? `<span class="creator-card-bio">${esc(creator.bio)}</span>` : ""}
+                <span class="creator-card-joined">Joined ${new Date(creator.createdAt).toLocaleDateString("en-US", { month: "long", year: "numeric" })}</span>
+              </div>
+            </a>
+          </div>`;
+      }
     }
   }
+
+  // Claim ownership section — show for logged-in users who don't already own the app
+  const showClaimOwnership = currentUser && !app.ownerId && app.addedBy?.uid !== currentUser?.uid;
+  const claimHtml = showClaimOwnership ? `
+    <div class="detail-section claim-section">
+      <h3>Is this your app?</h3>
+      <p class="claim-description">If you are the developer or maintainer of ${esc(app.name)}, you can claim ownership to manage its listing.</p>
+      <button class="btn btn-claim-ownership" id="claim-ownership-btn" data-app-id="${esc(appId)}">🔑 Claim App Ownership</button>
+    </div>` : "";
 
   // Check if current user can edit (owner, admin, or openlib team)
   const canEdit = currentUser && (
@@ -598,10 +639,10 @@ async function showAppDetail(appId) {
           <div class="share-dropdown-wrap">
             <button class="share-btn" id="share-btn" title="Share">🔗 Share</button>
             <div class="share-dropdown" id="share-dropdown">
-              <button class="share-option" data-action="copy" data-url="${esc(shareUrl)}">📋 Copy Link</button>
-              <a class="share-option" href="https://twitter.com/intent/tweet?text=${encodeURIComponent(app.name + ' — Open source alternative to ' + (app.alternative || '') + '. Check it out on OpenLib!')}&url=${encodeURIComponent(shareUrl)}" target="_blank" rel="noopener">🐦 Twitter</a>
-              <a class="share-option" href="https://wa.me/?text=${encodeURIComponent(app.name + ' — ' + shareUrl)}" target="_blank" rel="noopener">💬 WhatsApp</a>
-              <a class="share-option" href="https://reddit.com/submit?url=${encodeURIComponent(shareUrl)}&title=${encodeURIComponent(app.name + ' — Open Source Alternative to ' + (app.alternative || ''))}" target="_blank" rel="noopener">🔴 Reddit</a>
+              <button class="share-option" data-action="copy" data-url="${esc(shareUrl)}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy Link</button>
+              <a class="share-option" href="https://twitter.com/intent/tweet?text=${encodeURIComponent(app.name + ' — Open source alternative to ' + (app.alternative || '') + '. Check it out on OpenLib!')}&url=${encodeURIComponent(shareUrl)}" target="_blank" rel="noopener"><img class="share-icon" src="https://upload.wikimedia.org/wikipedia/commons/c/ce/X_logo_2023.svg" alt="X"> X (Twitter)</a>
+              <a class="share-option" href="https://wa.me/?text=${encodeURIComponent(app.name + ' — ' + shareUrl)}" target="_blank" rel="noopener"><img class="share-icon" src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" alt="WhatsApp"> WhatsApp</a>
+              <a class="share-option" href="https://reddit.com/submit?url=${encodeURIComponent(shareUrl)}&title=${encodeURIComponent(app.name + ' — Open Source Alternative to ' + (app.alternative || ''))}" target="_blank" rel="noopener"><img class="share-icon" src="https://upload.wikimedia.org/wikipedia/commons/b/b4/Reddit_logo.svg" alt="Reddit"> Reddit</a>
             </div>
           </div>
         </div>
@@ -663,8 +704,7 @@ async function showAppDetail(appId) {
 
         <div class="detail-secondary-actions">
             <button class="report-btn detail-report" data-app-id="${esc(appId)}" data-app-name="${esc(app.name)}">⚑ Report this app</button>
-            <button class="btn btn-edit-request" data-app-id="${esc(appId)}" data-app-name="${esc(app.name)}">✏️ Suggest Edit</button>
-            ${canEdit ? `<button class="btn btn-direct-edit" data-app-id="${esc(appId)}" data-app-name="${esc(app.name)}">🔧 Edit App</button>` : ""}
+            <button class="btn btn-direct-edit" data-app-id="${esc(appId)}" data-app-name="${esc(app.name)}">✏️ Edit App</button>
           </div>
 
         <!-- Reviews Section -->
@@ -688,7 +728,7 @@ async function showAppDetail(appId) {
               <input type="hidden" id="review-rating-${esc(appId)}" value="5">
             </div>
             <input type="text" class="review-title-input" id="review-title-${esc(appId)}" placeholder="Review title (optional)" maxlength="120">
-            <textarea class="review-text-input" id="review-text-${esc(appId)}" rows="3" placeholder="Share your experience with this app…" maxlength="2000" required></textarea>
+            <textarea class="review-text-input" id="review-text-${esc(appId)}" rows="2" placeholder="Share your experience with this app…" maxlength="2000" required></textarea>
             <button type="submit" class="btn btn-primary btn-sm">Submit Review</button>
             <div class="form-msg review-msg" role="alert"></div>
           </form>` : `<p class="review-signin-hint">Sign in to write a review.</p>`}
@@ -712,6 +752,7 @@ async function showAppDetail(appId) {
         </div>
 
         ${creatorHtml}
+        ${claimHtml}
         ${similarHtml}
       </div>
     </div>
@@ -733,16 +774,10 @@ async function showAppDetail(appId) {
     openReportModal(rb.dataset.appId, rb.dataset.appName);
   });
 
-  // Suggest Edit button
-  detailView.querySelector(".btn-edit-request")?.addEventListener("click", e => {
-    const btn = e.currentTarget;
-    openEditRequestModal(btn.dataset.appId, btn.dataset.appName, app);
-  });
-
-  // Direct edit button (for owners/admins)
+  // Edit App button (opens edit request modal for everyone)
   detailView.querySelector(".btn-direct-edit")?.addEventListener("click", e => {
     const btn = e.currentTarget;
-    openEditRequestModal(btn.dataset.appId, btn.dataset.appName, app, true);
+    openEditRequestModal(btn.dataset.appId, btn.dataset.appName, app);
   });
 
   // Bookmark button
@@ -802,6 +837,23 @@ async function showAppDetail(appId) {
       document.getElementById("search-input").value = tag.dataset.tag;
       navigateTo("/");
     });
+  });
+
+  // Claim ownership button
+  detailView.querySelector("#claim-ownership-btn")?.addEventListener("click", async e => {
+    if (!currentUser) { showToast("Sign in to claim ownership"); return; }
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    btn.textContent = "Submitting…";
+    try {
+      await submitOwnershipClaim(appId, currentUser);
+      showToast("Ownership claim submitted! The team will review it.");
+      btn.textContent = "✓ Claim Submitted";
+    } catch (err) {
+      showToast(err.message || "Failed to submit claim");
+      btn.disabled = false;
+      btn.textContent = "🔑 Claim App Ownership";
+    }
   });
 
   // Reviews
@@ -954,7 +1006,7 @@ function setupReviewForm(appId) {
 
 function openEditRequestModal(appId, appName, app, directEdit = false) {
   if (!currentUser) {
-    showToast("Sign in to suggest edits");
+    showToast("Sign in to edit app");
     return;
   }
   const modal = document.getElementById("edit-request-modal");
@@ -964,7 +1016,7 @@ function openEditRequestModal(appId, appName, app, directEdit = false) {
 
   // Set app ID
   document.getElementById("er-app-id").value = appId;
-  modal.querySelector(".modal-title").textContent = `✏️ Suggest Edit — ${appName}`;
+  modal.querySelector(".modal-title").textContent = `✏️ Edit App — ${appName}`;
 
   // Pre-fill placeholders with current data
   document.getElementById("er-name").placeholder = app.name || "App name";
@@ -1049,6 +1101,21 @@ async function handleEditRequestSubmit(e) {
     if (val) changes[key] = val;
   });
 
+  // Handle logo file upload for edit request
+  const erLogoFile = document.getElementById("er-logo-file")?._selectedFile;
+  if (erLogoFile) {
+    btn.disabled = true;
+    btn.textContent = "Uploading logo…";
+    try {
+      changes.logo = await uploadLogoToStorage(erLogoFile, appId);
+    } catch (err) {
+      showFormError(form, err.message || "Logo upload failed.");
+      btn.disabled = false;
+      btn.textContent = btn.getAttribute("data-original") || "Submit Edit Request";
+      return;
+    }
+  }
+
   // Multi-line / parsed fields
   const erFeatures = document.getElementById("er-features").value.trim();
   if (erFeatures) changes.features = erFeatures.split("\n").map(f => f.trim()).filter(Boolean);
@@ -1114,12 +1181,12 @@ function verifiedBadge(record) {
 
 function roleBadge(role) {
   const labels = {
-    "openlib-team": "OpenLib Team",
+    "openlib-team": "OpenLib",
     "admin": "Admin",
     "maintainer": "Maintainer",
-    "contributor": "Contributor",
-    "user": "User"
+    "contributor": "Contributor"
   };
+  if (!labels[role]) return '';
   const cls = ["admin", "openlib-team"].includes(role) ? "badge-admin" : role === "maintainer" ? "badge-maintainer" : "";
   return `<span class="badge badge-role ${cls}">${esc(labels[role] || role)}</span>`;
 }
@@ -2735,8 +2802,23 @@ async function handleSubmitApp(e) {
   if (description.length < 10 || description.length > 300) { showFormError(form, "Description must be 10-300 characters."); return; }
   if (uses.length < 10 || uses.length > 300) { showFormError(form, "Uses field must be 10-300 characters."); return; }
 
-  const logo = form.querySelector("#sub-logo").value.trim();
-  if (logo && !isValidLogoURL(logo)) { showFormError(form, "Logo URL must end in .jpg, .jpeg, .png, or .svg"); return; }
+  let logo = form.querySelector("#sub-logo").value.trim();
+  const logoFile = document.getElementById("sub-logo-file")?._selectedFile;
+  if (logo && !logoFile && !isValidLogoURL(logo)) { showFormError(form, "Logo URL must end in .jpg, .jpeg, .png, or .svg"); return; }
+
+  // If a file was selected, upload it to Firebase Storage
+  if (logoFile) {
+    btn.disabled = true;
+    btn.textContent = "Uploading logo…";
+    try {
+      logo = await uploadLogoToStorage(logoFile, name);
+    } catch (err) {
+      showFormError(form, err.message || "Logo upload failed.");
+      btn.disabled = false;
+      btn.textContent = btn.getAttribute("data-original") || "Submit App";
+      return;
+    }
+  }
 
   // Parse features (one per line)
   const featuresRaw = (form.querySelector("#sub-features")?.value || "").trim();
@@ -2910,6 +2992,7 @@ async function handleResubmit(e) {
 // ── Validation Helpers ────────────────────────────────────────────────────────
 function isValidLogoURL(url) {
   if (!url) return true; // logo is optional
+  if (url.startsWith("https://firebasestorage.googleapis.com/")) return true;
   return /\.(jpe?g|png|svg)(\?.*)?$/i.test(new URL(url, location.href).pathname);
 }
 
@@ -3191,17 +3274,24 @@ async function init() {
   document.getElementById("submit-app-btn").addEventListener("click", openSubmitModal);
   document.getElementById("report-form").addEventListener("submit", handleReportSubmit);
   document.getElementById("submit-form").addEventListener("submit", handleSubmitApp);
-  // Logo file upload → fill the URL input with a data URL
+  // Logo file upload → upload to Firebase Storage
   document.getElementById("sub-logo-file")?.addEventListener("change", e => {
     const file = e.target.files[0];
     const nameEl = document.getElementById("sub-logo-filename");
     if (!file) { if (nameEl) nameEl.textContent = ""; return; }
     if (nameEl) nameEl.textContent = file.name;
-    const reader = new FileReader();
-    reader.onload = () => { document.getElementById("sub-logo").value = reader.result; };
-    reader.readAsDataURL(file);
+    // Store file reference for later upload during submission
+    document.getElementById("sub-logo-file")._selectedFile = file;
   });
   document.getElementById("edit-request-form").addEventListener("submit", handleEditRequestSubmit);
+  // Edit request logo file upload
+  document.getElementById("er-logo-file")?.addEventListener("change", e => {
+    const file = e.target.files[0];
+    const nameEl = document.getElementById("er-logo-filename");
+    if (!file) { if (nameEl) nameEl.textContent = ""; return; }
+    if (nameEl) nameEl.textContent = file.name;
+    document.getElementById("er-logo-file")._selectedFile = file;
+  });
   document.getElementById("resubmit-form").addEventListener("submit", handleResubmit);
 
   // Grid events

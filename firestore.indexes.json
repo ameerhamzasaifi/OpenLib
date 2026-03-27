@@ -63,6 +63,56 @@
         { "fieldPath": "appId", "order": "ASCENDING" },
         { "fieldPath": "timestamp", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "review_comments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "editRequestId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "edit_requests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "submitter.uid", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "app_views",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "appId", "order": "ASCENDING" },
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "submission_comments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "submissionId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "review_comments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "submissionId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "ownership_claims",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "appId", "order": "ASCENDING" },
+        { "fieldPath": "claimantUid", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
