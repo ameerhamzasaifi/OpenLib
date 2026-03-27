@@ -4808,6 +4808,110 @@ a.added-by-link:hover {
   font-style: italic;
 }
 
+/* ── Review Vote Active State ── */
+.review-helpful-btn.review-vote-active {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ── Reviews Header Actions ── */
+.reviews-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.write-review-btn {
+  white-space: nowrap;
+}
+
+.write-review-btn.review-already-done {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* ── Review Form Wrapper ── */
+.review-form-wrapper {
+  margin-bottom: 16px;
+}
+
+.review-form-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.review-submitted-msg {
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 14px 18px;
+  font-size: 13px;
+  color: var(--accent);
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.review-success-icon {
+  font-size: 16px;
+}
+
+/* ── View All Reviews Button ── */
+.view-all-reviews-btn {
+  display: inline-block;
+  margin-top: 12px;
+  text-decoration: none;
+  text-align: center;
+  width: 100%;
+}
+
+/* ── Reviews Preview (max 3) ── */
+.reviews-preview .review-card:nth-child(n+4) {
+  display: none;
+}
+
+/* ── Dedicated Reviews Page ── */
+.reviews-page {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px 0;
+}
+
+.reviews-page-header {
+  margin-bottom: 20px;
+}
+
+.reviews-back-link {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--accent);
+  text-decoration: none;
+  margin-bottom: 8px;
+  display: inline-block;
+}
+
+.reviews-back-link:hover {
+  text-decoration: underline;
+}
+
+.reviews-page-header h2 {
+  font-family: var(--font-display);
+  font-size: 20px;
+  color: var(--text);
+  margin: 4px 0 12px;
+}
+
+.reviews-page-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reviews-page .review-sort-btns {
+  margin-bottom: 16px;
+}
+
 /* ── Similar Apps Section ── */
 .similar-section {
   margin-top: 8px;

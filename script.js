@@ -22,7 +22,7 @@ import {
   requestChangesOnSubmission,
   getAllSubmissions, getUserSubmissions, updateSubmission, getSubmissionComments, addSubmissionComment,
   followUser, unfollowUser, isFollowing,
-  addAppReview, getAppReviews, markReviewHelpful,
+  addAppReview, getAppReviews, markReviewHelpful, getUserReviewForApp, toggleReviewVote, getUserReviewVote,
   toggleBookmark, isBookmarked, getUserBookmarks,
   trackDownload,
   submitOwnershipClaim
@@ -713,30 +713,37 @@ async function showAppDetail(appId) {
         <div class="detail-section reviews-section" id="reviews-section-${esc(appId)}">
           <div class="reviews-header">
             <h3>Reviews</h3>
-            <div class="review-sort-btns">
-              <button class="review-sort-btn active" data-sort="latest">Latest</button>
-              <button class="review-sort-btn" data-sort="top">Top</button>
-              <button class="review-sort-btn" data-sort="helpful">Helpful</button>
+            <div class="reviews-header-actions">
+              ${currentUser ? `<button class="btn btn-primary btn-sm write-review-btn" id="write-review-btn-${esc(appId)}">✏️ Write a Review</button>` : `<p class="review-signin-hint">Sign in to write a review.</p>`}
             </div>
           </div>
           ${currentUser ? `
-          <form class="review-form" id="review-form-${esc(appId)}">
-            <div class="review-rating-input">
-              <span class="review-star" data-star="1">★</span>
-              <span class="review-star" data-star="2">★</span>
-              <span class="review-star" data-star="3">★</span>
-              <span class="review-star" data-star="4">★</span>
-              <span class="review-star" data-star="5">★</span>
-              <input type="hidden" id="review-rating-${esc(appId)}" value="5">
-            </div>
-            <input type="text" class="review-title-input" id="review-title-${esc(appId)}" placeholder="Review title (optional)" maxlength="120">
-            <textarea class="review-text-input" id="review-text-${esc(appId)}" rows="2" placeholder="Share your experience with this app…" maxlength="2000" required></textarea>
-            <button type="submit" class="btn btn-primary btn-sm">Submit Review</button>
-            <div class="form-msg review-msg" role="alert"></div>
-          </form>` : `<p class="review-signin-hint">Sign in to write a review.</p>`}
-          <div class="reviews-list" id="reviews-list-${esc(appId)}">
+          <div class="review-form-wrapper" id="review-form-wrapper-${esc(appId)}" style="display:none;">
+            <form class="review-form" id="review-form-${esc(appId)}">
+              <div class="review-rating-input">
+                <span class="review-star" data-star="1">★</span>
+                <span class="review-star" data-star="2">★</span>
+                <span class="review-star" data-star="3">★</span>
+                <span class="review-star" data-star="4">★</span>
+                <span class="review-star" data-star="5">★</span>
+                <input type="hidden" id="review-rating-${esc(appId)}" value="5">
+              </div>
+              <input type="text" class="review-title-input" id="review-title-${esc(appId)}" placeholder="Review title (optional)" maxlength="120">
+              <textarea class="review-text-input" id="review-text-${esc(appId)}" rows="2" placeholder="Share your experience with this app…" maxlength="2000" required></textarea>
+              <div class="review-form-actions">
+                <button type="submit" class="btn btn-primary btn-sm">Submit Review</button>
+                <button type="button" class="btn btn-secondary btn-sm review-cancel-btn" id="review-cancel-${esc(appId)}">Cancel</button>
+              </div>
+              <div class="form-msg review-msg" role="alert"></div>
+            </form>
+          </div>
+          <div class="review-submitted-msg" id="review-submitted-${esc(appId)}" style="display:none;">
+            <span class="review-success-icon">✅</span> Your review has been submitted. Thank you!
+          </div>` : ""}
+          <div class="reviews-list reviews-preview" id="reviews-list-${esc(appId)}">
             <p class="er-loading">Loading reviews…</p>
           </div>
+          <a class="btn btn-secondary btn-sm view-all-reviews-btn" href="/app/${esc(appId)}/reviews" id="view-all-reviews-${esc(appId)}" style="display:none;">View All Reviews →</a>
         </div>
 
         <div class="edit-requests-section" id="edit-requests-${esc(appId)}">
@@ -858,16 +865,15 @@ async function showAppDetail(appId) {
     }
   });
 
-  // Reviews
-  loadAppReviews(appId, "latest");
+  // Reviews — preview mode (top 3)
+  loadAppReviewsPreview(appId);
   setupReviewForm(appId);
-  detailView.querySelectorAll(".review-sort-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
-      detailView.querySelectorAll(".review-sort-btn").forEach(b => b.classList.remove("active"));
-      btn.classList.add("active");
-      loadAppReviews(appId, btn.dataset.sort);
-    });
-  });
+
+  // SPA navigation for View All Reviews
+  const viewAllLink = document.getElementById(`view-all-reviews-${appId}`);
+  if (viewAllLink) {
+    viewAllLink.addEventListener("click", e => { e.preventDefault(); navigateTo(`/app/${appId}/reviews`); });
+  }
 
   // Load edit requests and version history for this app
   loadEditRequestsForDetail(appId);
@@ -907,8 +913,74 @@ function openScreenshotLightbox(src) {
 }
 
 // ── Reviews ──────────────────────────────────────────────────────────────────
-async function loadAppReviews(appId, sortBy = "latest") {
+function renderReviewCard(r, showVoteState = false) {
+  const stars = "★".repeat(r.rating) + "☆".repeat(5 - r.rating);
+  const date = new Date(r.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const helpfulActive = r._userVote === "helpful" ? " review-vote-active" : "";
+  const unhelpfulActive = r._userVote === "unhelpful" ? " review-vote-active" : "";
+  return `
+    <div class="review-card">
+      <div class="review-card-header">
+        <div class="review-author">
+          ${r.authorPhoto ? `<img class="review-avatar" src="${esc(r.authorPhoto)}" alt="" referrerpolicy="no-referrer">` : `<div class="review-avatar-fallback">${esc((r.authorName || "U").charAt(0))}</div>`}
+          <span class="review-author-name">${esc(r.authorName)}</span>
+          <span class="review-date">${date}</span>
+        </div>
+        <span class="review-stars">${stars}</span>
+      </div>
+      ${r.title ? `<h4 class="review-title">${esc(r.title)}</h4>` : ""}
+      <p class="review-text">${esc(r.text)}</p>
+      <div class="review-actions">
+        <button class="review-helpful-btn${helpfulActive}" data-review-id="${esc(r.id)}" data-vote-type="helpful">👍 Helpful (${r.helpful || 0})</button>
+        <button class="review-helpful-btn${unhelpfulActive}" data-review-id="${esc(r.id)}" data-vote-type="unhelpful">👎 (${r.unhelpful || 0})</button>
+      </div>
+    </div>`;
+}
+
+function bindReviewVoteButtons(container, reloadFn) {
+  container.querySelectorAll(".review-helpful-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      if (!currentUser) { showToast("Sign in to rate reviews"); return; }
+      btn.disabled = true;
+      try {
+        await toggleReviewVote(btn.dataset.reviewId, currentUser.uid, btn.dataset.voteType);
+        await reloadFn();
+      } catch (e) {
+        showToast("Could not register vote");
+      }
+      btn.disabled = false;
+    });
+  });
+}
+
+async function loadAppReviewsPreview(appId) {
   const container = document.getElementById(`reviews-list-${appId}`);
+  const viewAllBtn = document.getElementById(`view-all-reviews-${appId}`);
+  if (!container) return;
+  try {
+    const reviews = await getAppReviews(appId, "helpful");
+    if (!reviews.length) {
+      container.innerHTML = `<p class="er-empty">No reviews yet. Be the first to review!</p>`;
+      if (viewAllBtn) viewAllBtn.style.display = "none";
+      return;
+    }
+    // Load user votes for preview reviews
+    const preview = reviews.slice(0, 3);
+    if (currentUser) {
+      await Promise.all(preview.map(async r => {
+        r._userVote = await getUserReviewVote(r.id, currentUser.uid);
+      }));
+    }
+    container.innerHTML = preview.map(r => renderReviewCard(r)).join("");
+    bindReviewVoteButtons(container, () => loadAppReviewsPreview(appId));
+    if (viewAllBtn) viewAllBtn.style.display = reviews.length > 3 ? "" : "none";
+  } catch (e) {
+    container.innerHTML = `<p class="er-empty">Could not load reviews.</p>`;
+  }
+}
+
+async function loadAppReviews(appId, sortBy = "latest") {
+  const container = document.getElementById(`reviews-list-full-${appId}`);
   if (!container) return;
   try {
     const reviews = await getAppReviews(appId, sortBy);
@@ -916,38 +988,13 @@ async function loadAppReviews(appId, sortBy = "latest") {
       container.innerHTML = `<p class="er-empty">No reviews yet. Be the first to review!</p>`;
       return;
     }
-    container.innerHTML = reviews.map(r => {
-      const stars = "★".repeat(r.rating) + "☆".repeat(5 - r.rating);
-      const date = new Date(r.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-      return `
-        <div class="review-card">
-          <div class="review-card-header">
-            <div class="review-author">
-              ${r.authorPhoto ? `<img class="review-avatar" src="${esc(r.authorPhoto)}" alt="" referrerpolicy="no-referrer">` : `<div class="review-avatar-fallback">${esc((r.authorName || "U").charAt(0))}</div>`}
-              <span class="review-author-name">${esc(r.authorName)}</span>
-              <span class="review-date">${date}</span>
-            </div>
-            <span class="review-stars">${stars}</span>
-          </div>
-          ${r.title ? `<h4 class="review-title">${esc(r.title)}</h4>` : ""}
-          <p class="review-text">${esc(r.text)}</p>
-          <div class="review-actions">
-            <button class="review-helpful-btn" data-review-id="${esc(r.id)}" data-helpful="true">👍 Helpful (${r.helpful || 0})</button>
-            <button class="review-helpful-btn" data-review-id="${esc(r.id)}" data-helpful="false">👎 (${r.unhelpful || 0})</button>
-          </div>
-        </div>`;
-    }).join("");
-
-    // Helpful buttons
-    container.querySelectorAll(".review-helpful-btn").forEach(btn => {
-      btn.addEventListener("click", async () => {
-        if (!currentUser) { showToast("Sign in to rate reviews"); return; }
-        btn.disabled = true;
-        await markReviewHelpful(btn.dataset.reviewId, btn.dataset.helpful === "true");
-        showToast("Thanks for your feedback!");
-        loadAppReviews(appId, sortBy);
-      });
-    });
+    if (currentUser) {
+      await Promise.all(reviews.map(async r => {
+        r._userVote = await getUserReviewVote(r.id, currentUser.uid);
+      }));
+    }
+    container.innerHTML = reviews.map(r => renderReviewCard(r, true)).join("");
+    bindReviewVoteButtons(container, () => loadAppReviews(appId, sortBy));
   } catch (e) {
     container.innerHTML = `<p class="er-empty">Could not load reviews.</p>`;
   }
@@ -955,7 +1002,36 @@ async function loadAppReviews(appId, sortBy = "latest") {
 
 function setupReviewForm(appId) {
   const form = document.getElementById(`review-form-${appId}`);
+  const wrapper = document.getElementById(`review-form-wrapper-${appId}`);
+  const writeBtn = document.getElementById(`write-review-btn-${appId}`);
+  const cancelBtn = document.getElementById(`review-cancel-${appId}`);
+  const submittedMsg = document.getElementById(`review-submitted-${appId}`);
   if (!form) return;
+
+  // Check if user already reviewed this app
+  if (currentUser) {
+    getUserReviewForApp(appId, currentUser.uid).then(existing => {
+      if (existing && writeBtn) {
+        writeBtn.textContent = "✅ Already Reviewed";
+        writeBtn.disabled = true;
+        writeBtn.classList.add("review-already-done");
+      }
+    });
+  }
+
+  // Write a Review button toggle
+  if (writeBtn) {
+    writeBtn.addEventListener("click", () => {
+      if (wrapper) wrapper.style.display = "";
+      writeBtn.style.display = "none";
+    });
+  }
+  if (cancelBtn) {
+    cancelBtn.addEventListener("click", () => {
+      if (wrapper) wrapper.style.display = "none";
+      if (writeBtn) writeBtn.style.display = "";
+    });
+  }
 
   // Star rating
   const stars = form.querySelectorAll(".review-star");
@@ -990,16 +1066,15 @@ function setupReviewForm(appId) {
     btn.textContent = "Submitting…";
     try {
       await addAppReview(appId, { rating: selectedRating, title, text }, currentUser);
-      msg.textContent = "Review submitted!";
-      msg.className = "form-msg review-msg success";
-      form.reset();
-      updateStars(5);
-      selectedRating = 5;
-      loadAppReviews(appId, "latest");
+      // Hide form, show confirmation
+      if (wrapper) wrapper.style.display = "none";
+      if (submittedMsg) submittedMsg.style.display = "";
+      if (writeBtn) { writeBtn.textContent = "✅ Already Reviewed"; writeBtn.disabled = true; writeBtn.classList.add("review-already-done"); }
+      // Reload preview
+      loadAppReviewsPreview(appId);
     } catch (err) {
       msg.textContent = err.message;
       msg.className = "form-msg review-msg error";
-    } finally {
       btn.disabled = false;
       btn.textContent = "Submit Review";
     }
@@ -3173,7 +3248,16 @@ function updatePageMeta({ title, description, url }) {
 // ── Router ───────────────────────────────────────────────────────────────────
 function handleRoute() {
   const path = location.pathname || "/";
-  if (path.startsWith("/app/")) {
+  if (path.match(/^\/app\/[^/]+\/reviews$/)) {
+    const appId = decodeURIComponent(path.replace("/app/", "").replace("/reviews", ""));
+    const app = apps.find(a => a.id === appId);
+    updatePageMeta({
+      title: app ? `Reviews — ${app.name} — OpenLib` : "Reviews — OpenLib",
+      description: app ? `Read reviews for ${app.name} on OpenLib.` : "App reviews on OpenLib.",
+      url: `${BASE_URL}/app/${encodeURIComponent(appId)}/reviews`
+    });
+    showReviewsPage(appId);
+  } else if (path.startsWith("/app/")) {
     const appId = decodeURIComponent(path.replace("/app/", ""));
     const app = apps.find(a => a.id === appId);
     updatePageMeta({
@@ -3222,9 +3306,135 @@ function showHome() {
   renderRecommendations();
 }
 
+async function showReviewsPage(appId) {
+  const views = ["home-view", "rankings-view", "profile-view", "org-view", "admin-view", "verify-view"];
+  views.forEach(v => { const el = document.getElementById(v); if (el) el.style.display = "none"; });
+  const detailView = document.getElementById("detail-view");
+  detailView.style.display = "block";
+
+  let app = apps.find(a => a.id === appId);
+  if (!app) { try { app = await getAppFromFirestore(appId); } catch(e) {} }
+  if (!app) { detailView.innerHTML = `<div class="detail-loading">App not found.</div>`; return; }
+
+  const hasReviewed = currentUser ? await getUserReviewForApp(appId, currentUser.uid) : null;
+
+  detailView.innerHTML = `
+    <div class="reviews-page">
+      <div class="reviews-page-header">
+        <a href="/app/${esc(appId)}" class="reviews-back-link">← Back to ${esc(app.name)}</a>
+        <h2>Reviews for ${esc(app.name)}</h2>
+        <div class="reviews-page-actions">
+          ${currentUser ? (hasReviewed
+            ? `<button class="btn btn-secondary btn-sm write-review-btn review-already-done" disabled>✅ Already Reviewed</button>`
+            : `<button class="btn btn-primary btn-sm write-review-btn" id="write-review-page-btn">✏️ Write a Review</button>`)
+            : `<p class="review-signin-hint">Sign in to write a review.</p>`}
+        </div>
+      </div>
+      ${currentUser && !hasReviewed ? `
+      <div class="review-form-wrapper" id="review-form-wrapper-page" style="display:none;">
+        <form class="review-form" id="review-form-page">
+          <div class="review-rating-input">
+            <span class="review-star" data-star="1">★</span>
+            <span class="review-star" data-star="2">★</span>
+            <span class="review-star" data-star="3">★</span>
+            <span class="review-star" data-star="4">★</span>
+            <span class="review-star" data-star="5">★</span>
+            <input type="hidden" id="review-rating-page" value="5">
+          </div>
+          <input type="text" class="review-title-input" id="review-title-page" placeholder="Review title (optional)" maxlength="120">
+          <textarea class="review-text-input" id="review-text-page" rows="3" placeholder="Share your experience with ${esc(app.name)}…" maxlength="2000" required></textarea>
+          <div class="review-form-actions">
+            <button type="submit" class="btn btn-primary btn-sm">Submit Review</button>
+            <button type="button" class="btn btn-secondary btn-sm review-cancel-btn" id="review-cancel-page">Cancel</button>
+          </div>
+          <div class="form-msg review-msg" role="alert"></div>
+        </form>
+      </div>
+      <div class="review-submitted-msg" id="review-submitted-page" style="display:none;">
+        <span class="review-success-icon">✅</span> Your review has been submitted. Thank you!
+      </div>` : ""}
+      <div class="review-sort-btns">
+        <button class="review-sort-btn active" data-sort="latest">Latest</button>
+        <button class="review-sort-btn" data-sort="top">Top</button>
+        <button class="review-sort-btn" data-sort="helpful">Helpful</button>
+      </div>
+      <div class="reviews-list" id="reviews-list-full-${esc(appId)}">
+        <p class="er-loading">Loading reviews…</p>
+      </div>
+    </div>`;
+
+  // Sort buttons
+  detailView.querySelectorAll(".review-sort-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      detailView.querySelectorAll(".review-sort-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      loadAppReviews(appId, btn.dataset.sort);
+    });
+  });
+
+  loadAppReviews(appId, "latest");
+
+  // Write review form on reviews page
+  const writeBtn = document.getElementById("write-review-page-btn");
+  const wrapper = document.getElementById("review-form-wrapper-page");
+  const cancelBtn = document.getElementById("review-cancel-page");
+  const form = document.getElementById("review-form-page");
+  const submittedMsg = document.getElementById("review-submitted-page");
+
+  if (writeBtn && wrapper) {
+    writeBtn.addEventListener("click", () => { wrapper.style.display = ""; writeBtn.style.display = "none"; });
+  }
+  if (cancelBtn && wrapper && writeBtn) {
+    cancelBtn.addEventListener("click", () => { wrapper.style.display = "none"; writeBtn.style.display = ""; });
+  }
+
+  if (form) {
+    const stars = form.querySelectorAll(".review-star");
+    const ratingInput = document.getElementById("review-rating-page");
+    let selectedRating = 5;
+    function updateStars(rating) { stars.forEach((s, i) => s.classList.toggle("selected", i < rating)); }
+    updateStars(5);
+    stars.forEach(star => {
+      star.addEventListener("click", () => { selectedRating = parseInt(star.dataset.star); ratingInput.value = selectedRating; updateStars(selectedRating); });
+      star.addEventListener("mouseenter", () => updateStars(parseInt(star.dataset.star)));
+      star.addEventListener("mouseleave", () => updateStars(selectedRating));
+    });
+
+    form.addEventListener("submit", async e => {
+      e.preventDefault();
+      const title = document.getElementById("review-title-page").value.trim();
+      const text = document.getElementById("review-text-page").value.trim();
+      const msg = form.querySelector(".review-msg");
+      if (!text) { msg.textContent = "Please write a review."; msg.className = "form-msg review-msg error"; return; }
+      const btn = form.querySelector("button[type=submit]");
+      btn.disabled = true;
+      btn.textContent = "Submitting…";
+      try {
+        await addAppReview(appId, { rating: selectedRating, title, text }, currentUser);
+        if (wrapper) wrapper.style.display = "none";
+        if (submittedMsg) submittedMsg.style.display = "";
+        loadAppReviews(appId, "latest");
+      } catch (err) {
+        msg.textContent = err.message;
+        msg.className = "form-msg review-msg error";
+        btn.disabled = false;
+        btn.textContent = "Submit Review";
+      }
+    });
+  }
+
+  // Back link SPA navigation
+  detailView.querySelector(".reviews-back-link")?.addEventListener("click", e => {
+    e.preventDefault();
+    navigateTo(`/app/${appId}`);
+  });
+}
+
 function renderCurrentView() {
   const path = location.pathname || "/";
-  if (path.startsWith("/app/")) {
+  if (path.match(/^\/app\/[^/]+\/reviews$/)) {
+    showReviewsPage(decodeURIComponent(path.replace("/app/", "").replace("/reviews", "")));
+  } else if (path.startsWith("/app/")) {
     showAppDetail(path.replace("/app/", ""));
   } else if (path === "/rankings") {
     showRankings();

@@ -983,6 +983,67 @@ export async function markReviewHelpful(reviewId, helpful = true) {
   }
 }
 
+export async function getUserReviewForApp(appId, userId) {
+  try {
+    const q = query(
+      collection(db, "app_reviews"),
+      where("appId", "==", appId),
+      where("authorUid", "==", userId)
+    );
+    const snapshot = await getDocs(q);
+    if (!snapshot.empty) return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
+    return null;
+  } catch (e) {
+    console.error("Error checking user review:", e);
+    return null;
+  }
+}
+
+export async function toggleReviewVote(reviewId, userId, voteType) {
+  const voteId = `${userId}_${reviewId}`;
+  const voteRef = doc(db, "review_votes", voteId);
+  const reviewRef = doc(db, "app_reviews", reviewId);
+  try {
+    const voteSnap = await getDoc(voteRef);
+    if (voteSnap.exists()) {
+      const existing = voteSnap.data().type;
+      if (existing === voteType) {
+        // Remove vote
+        await deleteDoc(voteRef);
+        const field = voteType === "helpful" ? "helpful" : "unhelpful";
+        await updateDoc(reviewRef, { [field]: increment(-1) });
+        return { action: "removed", type: voteType };
+      } else {
+        // Switch vote
+        await updateDoc(voteRef, { type: voteType, updatedAt: new Date().toISOString() });
+        const addField = voteType === "helpful" ? "helpful" : "unhelpful";
+        const removeField = existing === "helpful" ? "helpful" : "unhelpful";
+        await updateDoc(reviewRef, { [addField]: increment(1), [removeField]: increment(-1) });
+        return { action: "switched", type: voteType };
+      }
+    } else {
+      // New vote
+      await setDoc(voteRef, { reviewId, userId, type: voteType, createdAt: new Date().toISOString() });
+      const field = voteType === "helpful" ? "helpful" : "unhelpful";
+      await updateDoc(reviewRef, { [field]: increment(1) });
+      return { action: "added", type: voteType };
+    }
+  } catch (e) {
+    console.error("Error toggling review vote:", e);
+    throw e;
+  }
+}
+
+export async function getUserReviewVote(reviewId, userId) {
+  try {
+    const voteRef = doc(db, "review_votes", `${userId}_${reviewId}`);
+    const snap = await getDoc(voteRef);
+    return snap.exists() ? snap.data().type : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 //  BOOKMARKS — Collection: bookmarks/{userId_appId}
 // ═══════════════════════════════════════════════════════════════════════════════
