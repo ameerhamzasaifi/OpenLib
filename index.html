@@ -402,6 +402,79 @@
             <input type="url" id="er-source" placeholder="https://github.com/…">
           </div>
         </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="er-website">Website URL</label>
+            <input type="url" id="er-website" placeholder="https://…">
+          </div>
+          <div class="form-group">
+            <label for="er-docs">Docs URL</label>
+            <input type="url" id="er-docs" placeholder="https://docs.…">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="er-version">Version</label>
+            <input type="text" id="er-version" placeholder="e.g. 3.4.1" maxlength="30">
+          </div>
+          <div class="form-group">
+            <label for="er-license">License</label>
+            <select id="er-license">
+              <option value="">— No change —</option>
+              <option value="MIT">MIT</option>
+              <option value="GPL-3.0">GPL-3.0</option>
+              <option value="GPL-2.0">GPL-2.0</option>
+              <option value="Apache-2.0">Apache-2.0</option>
+              <option value="BSD-3-Clause">BSD-3-Clause</option>
+              <option value="BSD-2-Clause">BSD-2-Clause</option>
+              <option value="MPL-2.0">MPL-2.0</option>
+              <option value="AGPL-3.0">AGPL-3.0</option>
+              <option value="LGPL-3.0">LGPL-3.0</option>
+              <option value="ISC">ISC</option>
+              <option value="Unlicense">Unlicense</option>
+              <option value="Proprietary">Proprietary</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="er-filesize">File Size</label>
+            <input type="text" id="er-filesize" placeholder="e.g. 45 MB" maxlength="30">
+          </div>
+          <div class="form-group">
+            <label for="er-developer">Developer Name</label>
+            <input type="text" id="er-developer" placeholder="Developer or org name" maxlength="100">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="er-developer-url">Developer URL</label>
+          <input type="url" id="er-developer-url" placeholder="https://…">
+        </div>
+        <div class="form-group">
+          <label for="er-full-description">Full Description</label>
+          <textarea id="er-full-description" rows="3" placeholder="Extended description…" maxlength="5000"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="er-features">Key Features <span class="optional">(one per line)</span></label>
+          <textarea id="er-features" rows="3" placeholder="Feature 1&#10;Feature 2&#10;Feature 3" maxlength="2000"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="er-tags">Tags <span class="optional">(comma-separated)</span></label>
+          <input type="text" id="er-tags" placeholder="e.g. privacy, encryption, chat" maxlength="200">
+        </div>
+        <div class="form-group">
+          <label for="er-screenshots">Screenshot URLs <span class="optional">(one per line)</span></label>
+          <textarea id="er-screenshots" rows="2" placeholder="https://…/screenshot1.png&#10;https://…/screenshot2.png" maxlength="2000"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="er-install-methods">Installation Methods <span class="optional">(label | command, one per line)</span></label>
+          <textarea id="er-install-methods" rows="2" placeholder="apt | sudo apt install appname&#10;brew | brew install appname" maxlength="2000"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="er-sysreq">System Requirements</label>
+          <textarea id="er-sysreq" rows="2" placeholder="Min RAM, disk space, OS version…" maxlength="1000"></textarea>
+        </div>
         <div class="form-group">
           <label>Platforms</label>
           <div class="checkbox-group">
@@ -512,6 +585,79 @@
             <label for="resub-source">Source URL <span class="required">*</span></label>
             <input type="url" id="resub-source" required>
           </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="resub-website">Website URL</label>
+            <input type="url" id="resub-website">
+          </div>
+          <div class="form-group">
+            <label for="resub-docs">Docs URL</label>
+            <input type="url" id="resub-docs">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="resub-version">Version</label>
+            <input type="text" id="resub-version" maxlength="30">
+          </div>
+          <div class="form-group">
+            <label for="resub-license">License</label>
+            <select id="resub-license">
+              <option value="">— Select —</option>
+              <option value="MIT">MIT</option>
+              <option value="GPL-3.0">GPL-3.0</option>
+              <option value="GPL-2.0">GPL-2.0</option>
+              <option value="Apache-2.0">Apache-2.0</option>
+              <option value="BSD-3-Clause">BSD-3-Clause</option>
+              <option value="BSD-2-Clause">BSD-2-Clause</option>
+              <option value="MPL-2.0">MPL-2.0</option>
+              <option value="AGPL-3.0">AGPL-3.0</option>
+              <option value="LGPL-3.0">LGPL-3.0</option>
+              <option value="ISC">ISC</option>
+              <option value="Unlicense">Unlicense</option>
+              <option value="Proprietary">Proprietary</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="resub-filesize">File Size</label>
+            <input type="text" id="resub-filesize" maxlength="30">
+          </div>
+          <div class="form-group">
+            <label for="resub-developer">Developer Name</label>
+            <input type="text" id="resub-developer" maxlength="100">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="resub-developer-url">Developer URL</label>
+          <input type="url" id="resub-developer-url">
+        </div>
+        <div class="form-group">
+          <label for="resub-full-description">Full Description</label>
+          <textarea id="resub-full-description" rows="3" maxlength="5000"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="resub-features">Key Features <span class="optional">(one per line)</span></label>
+          <textarea id="resub-features" rows="3" maxlength="2000"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="resub-tags">Tags <span class="optional">(comma-separated)</span></label>
+          <input type="text" id="resub-tags" maxlength="200">
+        </div>
+        <div class="form-group">
+          <label for="resub-screenshots">Screenshot URLs <span class="optional">(one per line)</span></label>
+          <textarea id="resub-screenshots" rows="2" maxlength="2000"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="resub-install-methods">Installation Methods <span class="optional">(label | command, one per line)</span></label>
+          <textarea id="resub-install-methods" rows="2" maxlength="2000"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="resub-sysreq">System Requirements</label>
+          <textarea id="resub-sysreq" rows="2" maxlength="1000"></textarea>
         </div>
         <div class="form-row">
           <div class="form-group">

@@ -512,7 +512,7 @@ async function showAppDetail(appId) {
       <div class="trust-badges">
         ${app.source ? '<span class="trust-badge trust-verified">✅ Open Source Verified</span>' : ''}
         ${app.addedBy?.type === "openlib-team" ? '<span class="trust-badge trust-team">🛡️ OpenLib Reviewed</span>' : ''}
-        <span class="trust-badge trust-source">🔗 ${app.source?.includes("github.com") ? "GitHub" : app.source?.includes("gitlab") ? "GitLab" : "Official"} Source</span>
+        <span class="trust-badge trust-source">🔗 ${app.source?.includes("github.com") ? "GitHub" : app.source?.includes("gitlab") ? "GitLab" : app.source?.includes("bitbucket") ? "Bitbucket" : app.source?.includes("codeberg") ? "Codeberg" : app.source?.includes("sourceforge") ? "SourceForge" : "Official"} Source</span>
       </div>
     </div>`;
 
@@ -675,7 +675,7 @@ async function showAppDetail(appId) {
           <div class="detail-links">
             <a href="${esc(app.download)}" class="btn btn-primary btn-lg download-track-link" target="_blank" rel="noopener" data-app-id="${esc(appId)}" data-app-name="${esc(app.name)}">⬇ Download</a>
             ${app.website ? `<a href="${esc(app.website)}" class="btn btn-secondary btn-lg" target="_blank" rel="noopener">🌐 Visit Website</a>` : ""}
-            <a href="${esc(app.source)}" class="btn btn-secondary btn-lg" target="_blank" rel="noopener" data-app-id="${esc(appId)}" data-app-name="${esc(app.name)}">&lt;/&gt; GitHub Repo</a>
+            <a href="${esc(app.source)}" class="btn btn-secondary btn-lg" target="_blank" rel="noopener" data-app-id="${esc(appId)}" data-app-name="${esc(app.name)}">&lt;/&gt; ${app.source?.includes("github.com") ? "GitHub" : app.source?.includes("gitlab") ? "GitLab" : app.source?.includes("bitbucket") ? "Bitbucket" : app.source?.includes("codeberg") ? "Codeberg" : app.source?.includes("sourceforge") ? "SourceForge" : "Source Code"}</a>
             ${app.docs ? `<a href="${esc(app.docs)}" class="btn btn-secondary btn-lg" target="_blank" rel="noopener">📖 View Docs</a>` : ""}
           </div>
 
@@ -993,6 +993,19 @@ function openEditRequestModal(appId, appName, app, directEdit = false) {
   document.getElementById("er-logo").placeholder = app.logo || "Logo URL";
   document.getElementById("er-download").placeholder = app.download || "Download URL";
   document.getElementById("er-source").placeholder = app.source || "Source URL";
+  document.getElementById("er-website").placeholder = app.website || "Website URL";
+  document.getElementById("er-docs").placeholder = app.docs || "Docs URL";
+  document.getElementById("er-version").placeholder = app.version || "Version";
+  document.getElementById("er-filesize").placeholder = app.fileSize || "File size";
+  document.getElementById("er-developer").placeholder = app.developer || "Developer";
+  document.getElementById("er-developer-url").placeholder = app.developerUrl || "Developer URL";
+  document.getElementById("er-full-description").placeholder = app.fullDescription || "Extended description";
+  document.getElementById("er-features").placeholder = (app.features || []).join("\n") || "Features (one per line)";
+  document.getElementById("er-tags").placeholder = (app.tags || []).join(", ") || "Tags";
+  document.getElementById("er-screenshots").placeholder = (app.screenshots || []).join("\n") || "Screenshot URLs";
+  document.getElementById("er-install-methods").placeholder = (app.installMethods || []).map(m => m.label + " | " + m.command).join("\n") || "Installation methods";
+  document.getElementById("er-sysreq").placeholder = app.systemRequirements || "System requirements";
+  if (app.license) document.getElementById("er-license").value = app.license;
 
   // Pre-check current platforms
   form.querySelectorAll("input[name='er-platforms']").forEach(cb => {
@@ -1038,13 +1051,38 @@ async function handleEditRequestSubmit(e) {
     { id: "er-logo", key: "logo" },
     { id: "er-download", key: "download" },
     { id: "er-source", key: "source" },
-    { id: "er-category", key: "category" }
+    { id: "er-category", key: "category" },
+    { id: "er-website", key: "website" },
+    { id: "er-docs", key: "docs" },
+    { id: "er-version", key: "version" },
+    { id: "er-license", key: "license" },
+    { id: "er-filesize", key: "fileSize" },
+    { id: "er-developer", key: "developer" },
+    { id: "er-developer-url", key: "developerUrl" },
+    { id: "er-full-description", key: "fullDescription" },
+    { id: "er-sysreq", key: "systemRequirements" }
   ];
 
   fields.forEach(({ id, key }) => {
     const val = document.getElementById(id).value.trim();
     if (val) changes[key] = val;
   });
+
+  // Multi-line / parsed fields
+  const erFeatures = document.getElementById("er-features").value.trim();
+  if (erFeatures) changes.features = erFeatures.split("\n").map(f => f.trim()).filter(Boolean);
+
+  const erTags = document.getElementById("er-tags").value.trim();
+  if (erTags) changes.tags = erTags.split(",").map(t => t.trim().toLowerCase()).filter(Boolean);
+
+  const erScreenshots = document.getElementById("er-screenshots").value.trim();
+  if (erScreenshots) changes.screenshots = erScreenshots.split("\n").map(s => s.trim()).filter(Boolean);
+
+  const erInstall = document.getElementById("er-install-methods").value.trim();
+  if (erInstall) changes.installMethods = erInstall.split("\n").map(line => {
+    const parts = line.split("|").map(p => p.trim());
+    return parts.length >= 2 ? { label: parts[0], command: parts[1] } : null;
+  }).filter(Boolean);
 
   const platforms = [...form.querySelectorAll("input[name='er-platforms']:checked")].map(el => el.value);
   // Find the app to compare platforms
@@ -1168,6 +1206,8 @@ async function showProfile(uid) {
   const userApps = await getAppsByOwner(targetUid);
   const editReqs = await getUserEditRequests(targetUid);
   const userSubs = isOwnProfile ? await getUserSubmissions(targetUid) : [];
+  const bookmarkedIds = isOwnProfile && currentUser ? await getUserBookmarks(currentUser.uid) : [];
+  const bookmarkedApps = bookmarkedIds.length ? apps.filter(a => bookmarkedIds.includes(a.id)) : [];
 
   // Follow state
   const followersCount = record.followersCount || 0;
@@ -1293,6 +1333,23 @@ async function showProfile(uid) {
           }).join("") : `<p class="profile-empty">No edit requests yet.</p>`}
         </div>
       </div>
+
+      ${isOwnProfile ? `
+      <div class="profile-section">
+        <h3>Saved Apps (${bookmarkedApps.length})</h3>
+        <div class="profile-list">
+          ${bookmarkedApps.length ? bookmarkedApps.map(app => `
+            <a href="#/app/${esc(app.id)}" class="profile-list-item">
+              <span class="org-icon">★</span>
+              <div class="profile-list-info">
+                <span class="profile-list-name">${esc(app.name)}</span>
+                <span class="profile-list-meta">${esc(app.category)} · 👍 ${app.likes || 0}</span>
+              </div>
+            </a>
+          `).join("") : `<p class="profile-empty">No saved apps yet. Bookmark apps to find them here.</p>`}
+        </div>
+      </div>
+      ` : ""}
 
       ${isOwnProfile && userSubs.length ? `
       <div class="profile-section">
@@ -2707,6 +2764,19 @@ function openResubmitModal(sub) {
   document.getElementById("resub-download").value = sub.download || "";
   document.getElementById("resub-source").value = sub.source || "";
   document.getElementById("resub-maintainer").value = sub.maintainer || "individual";
+  document.getElementById("resub-website").value = sub.website || "";
+  document.getElementById("resub-docs").value = sub.docs || "";
+  document.getElementById("resub-version").value = sub.version || "";
+  document.getElementById("resub-license").value = sub.license || "";
+  document.getElementById("resub-filesize").value = sub.fileSize || "";
+  document.getElementById("resub-developer").value = sub.developer || "";
+  document.getElementById("resub-developer-url").value = sub.developerUrl || "";
+  document.getElementById("resub-full-description").value = sub.fullDescription || "";
+  document.getElementById("resub-features").value = (sub.features || []).join("\n");
+  document.getElementById("resub-tags").value = (sub.tags || []).join(", ");
+  document.getElementById("resub-screenshots").value = (sub.screenshots || []).join("\n");
+  document.getElementById("resub-install-methods").value = (sub.installMethods || []).map(m => m.label + " | " + m.command).join("\n");
+  document.getElementById("resub-sysreq").value = sub.systemRequirements || "";
 
   // Check platforms
   document.querySelectorAll("input[name='resub-platforms']").forEach(cb => {
@@ -2739,7 +2809,23 @@ async function handleResubmit(e) {
     download: document.getElementById("resub-download").value.trim(),
     source: document.getElementById("resub-source").value.trim(),
     maintainer: document.getElementById("resub-maintainer").value,
-    platforms
+    platforms,
+    website: (document.getElementById("resub-website")?.value || "").trim(),
+    docs: (document.getElementById("resub-docs")?.value || "").trim(),
+    version: (document.getElementById("resub-version")?.value || "").trim(),
+    license: (document.getElementById("resub-license")?.value || ""),
+    fileSize: (document.getElementById("resub-filesize")?.value || "").trim(),
+    developer: (document.getElementById("resub-developer")?.value || "").trim(),
+    developerUrl: (document.getElementById("resub-developer-url")?.value || "").trim(),
+    fullDescription: (document.getElementById("resub-full-description")?.value || "").trim(),
+    systemRequirements: (document.getElementById("resub-sysreq")?.value || "").trim(),
+    features: (document.getElementById("resub-features")?.value || "").trim().split("\n").map(f => f.trim()).filter(Boolean),
+    tags: (document.getElementById("resub-tags")?.value || "").trim().split(",").map(t => t.trim().toLowerCase()).filter(Boolean),
+    screenshots: (document.getElementById("resub-screenshots")?.value || "").trim().split("\n").map(s => s.trim()).filter(Boolean),
+    installMethods: (document.getElementById("resub-install-methods")?.value || "").trim().split("\n").map(line => {
+      const parts = line.split("|").map(p => p.trim());
+      return parts.length >= 2 ? { label: parts[0], command: parts[1] } : null;
+    }).filter(Boolean),
   };
 
   if (updatedData.name.length < 2) { showFormError(form, "App name must be at least 2 characters."); return; }

@@ -1,0 +1,69 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "edit_requests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "edit_requests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "appId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "submissions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "app_reviews",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "appId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "app_reviews",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "appId", "order": "ASCENDING" },
+        { "fieldPath": "rating", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "app_reviews",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "appId", "order": "ASCENDING" },
+        { "fieldPath": "helpful", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "bookmarks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "app_downloads",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "appId", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

@@ -703,11 +703,24 @@ export async function approveSubmission(submissionId, adminUid) {
     logo: sub.logo || "",
     category: sub.category,
     description: sub.description,
+    fullDescription: sub.fullDescription || "",
+    features: sub.features || [],
     uses: sub.uses,
     alternative: sub.alternative,
     download: sub.download,
     source: sub.source,
+    website: sub.website || "",
+    docs: sub.docs || "",
     maintainer: sub.maintainer,
+    developer: sub.developer || "",
+    developerUrl: sub.developerUrl || "",
+    license: sub.license || "",
+    version: sub.version || "1.0.0",
+    fileSize: sub.fileSize || "",
+    tags: sub.tags || [],
+    screenshots: sub.screenshots || [],
+    installMethods: sub.installMethods || [],
+    systemRequirements: sub.systemRequirements || "",
     platforms: sub.platforms || [],
     likes: 0,
     dislikes: 0,
@@ -716,8 +729,7 @@ export async function approveSubmission(submissionId, adminUid) {
     ownerType: sub.ownerType || "user",
     ownerId: sub.ownerId || sub.userId,
     createdAt: now,
-    updatedAt: now,
-    version: "1.0.0"
+    updatedAt: now
   };
 
   await setDoc(doc(db, "apps", id), appData);
