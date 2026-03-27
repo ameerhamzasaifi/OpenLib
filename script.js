@@ -14,7 +14,7 @@ import {
   createOrganization, getOrganization, updateOrganization, addOrgMember,
   removeOrgMember, transferOwnership, transferToCorporation, getUserOrganizations, getAllOrganizations,
   submitAppWithOwner, getAppsByOwner, transferAppOwnership,
-  getAppVersions,
+  getAppVersions, restoreAppVersion,
   addReviewComment, getReviewComments, approveEditRequest, mergeEditRequest, rejectEditRequest,
   computeRecommendations, trackActivity,
   isAdminOrTeam, adminAddApp, adminUpdateApp, adminRemoveApp,
@@ -759,6 +759,7 @@ async function showAppDetail(appId) {
           <div class="version-history-list" id="version-history-${esc(appId)}">
             <p class="er-loading">Loading history…</p>
           </div>
+          <a class="btn btn-secondary btn-sm view-all-versions-btn" href="/app/${esc(appId)}/versions" id="view-all-versions-${esc(appId)}" style="display:none;">View All Versions →</a>
         </div>
 
         ${creatorHtml}
@@ -880,6 +881,12 @@ async function showAppDetail(appId) {
   const viewAllERLink = document.getElementById(`view-all-er-${appId}`);
   if (viewAllERLink) {
     viewAllERLink.addEventListener("click", e => { e.preventDefault(); navigateTo(`/app/${appId}/edit-requests`); });
+  }
+
+  // SPA navigation for View All Versions
+  const viewAllVersionsLink = document.getElementById(`view-all-versions-${appId}`);
+  if (viewAllVersionsLink) {
+    viewAllVersionsLink.addEventListener("click", e => { e.preventDefault(); navigateTo(`/app/${appId}/versions`); });
   }
 
   // Load edit requests and version history for this app
@@ -2444,43 +2451,96 @@ function attachAdminHandlers(tab) {
 }
 
 // ── Version History (in detail page) ─────────────────────────────────────────
+function renderVersionCard(v, appId, opts = {}) {
+  const date = new Date(v.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const changedFields = Object.keys(v.changes || {});
+  const typeIcon = v.type === "initial" ? "🎉" : v.type === "restore" ? "⏪" : v.type === "ownership_transfer" ? "🔄" : "📝";
+  const typeLabel = v.type === "initial" ? "Initial" : v.type === "restore" ? "Restore" : v.type === "ownership_transfer" ? "Transfer" : "Edit";
+  const vNum = v.versionNumber != null ? `#${v.versionNumber}` : "";
+  const avatar = v.authorPhoto
+    ? `<img class="er-comment-avatar" src="${esc(v.authorPhoto)}" alt="" referrerpolicy="no-referrer">`
+    : `<div class="er-comment-avatar-fallback">${esc((v.authorName || "U").charAt(0))}</div>`;
+  const canRestore = isAdmin && v.fullSnapshot && Object.keys(v.fullSnapshot).length > 0;
+
+  return `
+    <div class="version-card" data-version-id="${esc(v.id)}">
+      <div class="version-header">
+        <div class="version-header-left">
+          <span class="version-number">${vNum}</span>
+          <span class="version-type-badge version-type-${esc(v.type)}">${typeIcon} ${typeLabel}</span>
+          ${v.editRequestId ? `<a class="version-er-link" href="/app/${esc(appId)}/edit-requests" title="Linked edit request">🔗 ER</a>` : ""}
+        </div>
+        <span class="version-date">${date}</span>
+      </div>
+      <p class="version-message">${esc(v.commitMessage)}</p>
+      ${v.summary && v.summary !== v.commitMessage ? `<p class="version-summary">${esc(v.summary)}</p>` : ""}
+      <div class="version-author">
+        ${avatar}
+        <span>${esc(v.authorName || "Unknown")}</span>
+      </div>
+      ${changedFields.length ? `
+        <button class="btn btn-sm btn-secondary version-diff-toggle" data-version-id="${esc(v.id)}">📋 View Changes (${changedFields.length} field${changedFields.length > 1 ? "s" : ""})</button>
+        <div class="version-changes" id="version-diff-${esc(v.id)}" style="display:none;">
+          ${changedFields.map(f => {
+            const c = v.changes[f];
+            return `<div class="version-diff"><span class="diff-field">${esc(f)}</span><span class="diff-old">− ${esc(String(c?.old ?? "—")).slice(0, 200)}</span><span class="diff-new">+ ${esc(String(c?.new ?? "—")).slice(0, 200)}</span></div>`;
+          }).join("")}
+        </div>
+      ` : ""}
+      ${canRestore ? `<button class="btn btn-sm btn-secondary version-restore-btn" data-version-id="${esc(v.id)}" data-app-id="${esc(appId)}">⏪ Restore to this version</button>` : ""}
+    </div>`;
+}
+
+function bindVersionCardHandlers(container, appId, reloadFn) {
+  container.querySelectorAll(".version-diff-toggle").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const diffEl = document.getElementById(`version-diff-${btn.dataset.versionId}`);
+      if (diffEl) {
+        const open = diffEl.style.display !== "none";
+        diffEl.style.display = open ? "none" : "";
+        btn.textContent = open ? btn.textContent.replace("Hide", "View") : btn.textContent.replace("View", "Hide");
+      }
+    });
+  });
+  container.querySelectorAll(".version-er-link").forEach(link => {
+    link.addEventListener("click", e => { e.preventDefault(); navigateTo(link.getAttribute("href")); });
+  });
+  container.querySelectorAll(".version-restore-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("Restore the app to this version? This will overwrite current data and create a new version entry.")) return;
+      btn.disabled = true;
+      btn.textContent = "Restoring…";
+      try {
+        await restoreAppVersion(btn.dataset.appId, btn.dataset.versionId, currentUser.uid);
+        showToast("App restored to selected version!");
+        await loadApps();
+        reloadFn();
+      } catch (err) {
+        showToast(err.message);
+        btn.disabled = false;
+        btn.textContent = "⏪ Restore to this version";
+      }
+    });
+  });
+}
+
 async function loadVersionHistory(appId) {
   const container = document.getElementById(`version-history-${appId}`);
+  const viewAllBtn = document.getElementById(`view-all-versions-${appId}`);
   if (!container) return;
 
   try {
     const versions = await getAppVersions(appId);
     if (!versions.length) {
       container.innerHTML = `<p class="er-empty">No version history yet.</p>`;
+      if (viewAllBtn) viewAllBtn.style.display = "none";
       return;
     }
 
-    container.innerHTML = versions.map(v => {
-      const date = new Date(v.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-      const changedFields = Object.keys(v.changes || {});
-      const typeIcon = v.type === "initial" ? "🎉" : v.type === "ownership_transfer" ? "🔄" : "📝";
-
-      return `
-        <div class="version-card">
-          <div class="version-header">
-            <span class="version-type">${typeIcon} ${esc(v.type)}</span>
-            <span class="version-date">${date}</span>
-          </div>
-          <p class="version-message">${esc(v.commitMessage)}</p>
-          <div class="version-author">
-            ${v.authorPhoto ? `<img class="er-avatar-sm" src="${esc(v.authorPhoto)}" alt="" referrerpolicy="no-referrer">` : ""}
-            <span>${esc(v.authorName || "Unknown")}</span>
-          </div>
-          ${changedFields.length ? `
-            <div class="version-changes">
-              ${changedFields.map(f => {
-                const c = v.changes[f];
-                return `<div class="version-diff"><span class="diff-field">${esc(f)}</span><span class="diff-old">− ${esc(String(c?.old || ""))}</span><span class="diff-new">+ ${esc(String(c?.new || ""))}</span></div>`;
-              }).join("")}
-            </div>
-          ` : ""}
-        </div>`;
-    }).join("");
+    const preview = versions.slice(0, 3);
+    container.innerHTML = preview.map(v => renderVersionCard(v, appId)).join("");
+    bindVersionCardHandlers(container, appId, () => loadVersionHistory(appId));
+    if (viewAllBtn) viewAllBtn.style.display = versions.length > 3 ? "" : "none";
   } catch (e) {
     container.innerHTML = `<p class="er-empty">Could not load version history.</p>`;
   }
@@ -3308,6 +3368,15 @@ function handleRoute() {
       url: `${BASE_URL}/app/${encodeURIComponent(appId)}/edit-requests`
     });
     showEditRequestsPage(appId);
+  } else if (path.match(/^\/app\/[^/]+\/versions$/)) {
+    const appId = decodeURIComponent(path.replace("/app/", "").replace("/versions", ""));
+    const app = apps.find(a => a.id === appId);
+    updatePageMeta({
+      title: app ? `Version History — ${app.name} — OpenLib` : "Version History — OpenLib",
+      description: app ? `View version history for ${app.name} on OpenLib.` : "App version history on OpenLib.",
+      url: `${BASE_URL}/app/${encodeURIComponent(appId)}/versions`
+    });
+    showVersionHistoryPage(appId);
   } else if (path.startsWith("/app/")) {
     const appId = decodeURIComponent(path.replace("/app/", ""));
     const app = apps.find(a => a.id === appId);
@@ -3546,12 +3615,59 @@ async function showEditRequestsPage(appId) {
   });
 }
 
+async function showVersionHistoryPage(appId) {
+  const views = ["home-view", "rankings-view", "profile-view", "org-view", "admin-view", "verify-view"];
+  views.forEach(v => { const el = document.getElementById(v); if (el) el.style.display = "none"; });
+  const detailView = document.getElementById("detail-view");
+  detailView.style.display = "block";
+
+  let app = apps.find(a => a.id === appId);
+  if (!app) { try { app = await getAppFromFirestore(appId); } catch(e) {} }
+  if (!app) { detailView.innerHTML = `<div class="detail-loading">App not found.</div>`; return; }
+
+  detailView.innerHTML = `
+    <div class="version-page">
+      <div class="version-page-header">
+        <a href="/app/${esc(appId)}" class="version-back-link">← Back to ${esc(app.name)}</a>
+        <h2>Version History for ${esc(app.name)}</h2>
+      </div>
+      <div class="version-full-list" id="version-full-list-${esc(appId)}">
+        <p class="er-loading">Loading version history…</p>
+      </div>
+    </div>`;
+
+  async function loadAll() {
+    const listEl = document.getElementById(`version-full-list-${appId}`);
+    if (!listEl) return;
+    try {
+      const versions = await getAppVersions(appId);
+      if (!versions.length) {
+        listEl.innerHTML = `<p class="er-empty">No version history yet.</p>`;
+        return;
+      }
+      listEl.innerHTML = versions.map(v => renderVersionCard(v, appId)).join("");
+      bindVersionCardHandlers(listEl, appId, loadAll);
+    } catch (err) {
+      listEl.innerHTML = `<p class="er-empty">Could not load version history.</p>`;
+    }
+  }
+
+  loadAll();
+
+  detailView.querySelector(".version-back-link")?.addEventListener("click", e => {
+    e.preventDefault();
+    navigateTo(`/app/${appId}`);
+  });
+}
+
 function renderCurrentView() {
   const path = location.pathname || "/";
   if (path.match(/^\/app\/[^/]+\/reviews$/)) {
     showReviewsPage(decodeURIComponent(path.replace("/app/", "").replace("/reviews", "")));
   } else if (path.match(/^\/app\/[^/]+\/edit-requests$/)) {
     showEditRequestsPage(decodeURIComponent(path.replace("/app/", "").replace("/edit-requests", "")));
+  } else if (path.match(/^\/app\/[^/]+\/versions$/)) {
+    showVersionHistoryPage(decodeURIComponent(path.replace("/app/", "").replace("/versions", "")));
   } else if (path.startsWith("/app/")) {
     showAppDetail(path.replace("/app/", ""));
   } else if (path === "/rankings") {

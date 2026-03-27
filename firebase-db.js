@@ -344,30 +344,56 @@ export async function transferAppOwnership(appId, newOwnerId, newOwnerType, curr
 
   const now = new Date().toISOString();
   await updateDoc(doc(db, "apps", appId), { ownerId: newOwnerId, ownerType: newOwnerType, updatedAt: now });
-
-  await addDoc(collection(db, "app_versions"), {
-    appId,
-    type: "ownership_transfer",
-    changes: { ownerId: { old: app.ownerId || app.addedBy?.uid, new: newOwnerId } },
-    commitMessage: `Ownership transferred to ${newOwnerType}: ${newOwnerId}`,
-    authorUid: currentOwnerUid,
-    createdAt: now
-  });
 }
 
 // ── App Version History ──────────────────────────────────────────────────────
 
-export async function createAppVersion(appId, changes, commitMessage, authorUid) {
+async function getNextVersionNumber(appId) {
+  try {
+    const q = query(collection(db, "app_versions"), where("appId", "==", appId), orderBy("versionNumber", "desc"), limit(1));
+    const snap = await getDocs(q);
+    if (!snap.empty && snap.docs[0].data().versionNumber != null) {
+      return snap.docs[0].data().versionNumber + 1;
+    }
+  } catch (e) {
+    // Index may not be ready yet — fall back
+  }
+  // Fallback: count all existing versions for this app
+  const fallbackQ = query(collection(db, "app_versions"), where("appId", "==", appId));
+  const fallbackSnap = await getDocs(fallbackQ);
+  return fallbackSnap.size + 1;
+}
+
+export async function createAppVersion(appId, { changes, commitMessage, authorUid, type = "edit", editRequestId = null }) {
   const now = new Date().toISOString();
   const user = await getUserRecord(authorUid);
+  const appSnap = await getDoc(doc(db, "apps", appId));
+  const fullSnapshot = appSnap.exists() ? appSnap.data() : {};
+  const versionNumber = await getNextVersionNumber(appId);
+
+  // Build human-readable summary
+  const changedKeys = Object.keys(changes || {});
+  const summary = changedKeys.length
+    ? changedKeys.map(k => {
+        const c = changes[k];
+        const oldVal = c?.old != null ? String(c.old) : "—";
+        const newVal = c?.new != null ? String(c.new) : "—";
+        return `${k}: "${oldVal.slice(0, 60)}" → "${newVal.slice(0, 60)}"`;
+      }).join("; ")
+    : type === "initial" ? "Initial app listing" : commitMessage;
+
   const version = {
     appId,
-    changes,
+    versionNumber,
+    type,
+    changes: changes || {},
     commitMessage,
+    summary,
     authorUid,
     authorName: user?.displayName || "Unknown",
     authorPhoto: user?.photoURL || "",
-    type: "edit",
+    editRequestId: editRequestId || null,
+    fullSnapshot,
     createdAt: now
   };
   const ref = await addDoc(collection(db, "app_versions"), version);
@@ -376,13 +402,57 @@ export async function createAppVersion(appId, changes, commitMessage, authorUid)
 
 export async function getAppVersions(appId) {
   try {
-    const q = query(collection(db, "app_versions"), where("appId", "==", appId), orderBy("createdAt", "desc"));
+    const q = query(collection(db, "app_versions"), where("appId", "==", appId), orderBy("versionNumber", "desc"));
     const snapshot = await getDocs(q);
     return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
   } catch (e) {
-    console.error("Error getting app versions:", e);
-    return [];
+    // Fallback if versionNumber index not ready
+    try {
+      const q2 = query(collection(db, "app_versions"), where("appId", "==", appId), orderBy("createdAt", "desc"));
+      const snapshot = await getDocs(q2);
+      return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch (e2) {
+      console.error("Error getting app versions:", e2);
+      return [];
+    }
   }
+}
+
+export async function restoreAppVersion(appId, versionId, adminUid) {
+  if (!(await isAdminOrTeam(adminUid))) throw new Error("Unauthorized");
+
+  const vSnap = await getDoc(doc(db, "app_versions", versionId));
+  if (!vSnap.exists()) throw new Error("Version not found");
+  const version = vSnap.data();
+  if (version.appId !== appId) throw new Error("Version does not belong to this app");
+  if (!version.fullSnapshot || !Object.keys(version.fullSnapshot).length) throw new Error("No snapshot available for this version");
+
+  const appRef = doc(db, "apps", appId);
+  const appSnap = await getDoc(appRef);
+  if (!appSnap.exists()) throw new Error("App not found");
+
+  const currentData = appSnap.data();
+  const restoreData = { ...version.fullSnapshot };
+  // Preserve system fields
+  const preserve = ["id", "likes", "dislikes", "views", "addedBy", "ownerId", "ownerType", "createdAt"];
+  preserve.forEach(k => { if (currentData[k] !== undefined) restoreData[k] = currentData[k]; });
+  restoreData.updatedAt = new Date().toISOString();
+
+  // Build changes for the restore version entry
+  const restoreChanges = {};
+  Object.keys(restoreData).forEach(k => {
+    if (!preserve.includes(k) && JSON.stringify(currentData[k]) !== JSON.stringify(restoreData[k])) {
+      restoreChanges[k] = { old: currentData[k], new: restoreData[k] };
+    }
+  });
+
+  await updateDoc(appRef, restoreData);
+  await createAppVersion(appId, {
+    changes: restoreChanges,
+    commitMessage: `Restored to version #${version.versionNumber}`,
+    authorUid: adminUid,
+    type: "restore"
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -480,8 +550,13 @@ export async function mergeEditRequest(editRequestId, mergerUid) {
   });
 
   await updateDoc(appRef, { ...changes, updatedAt: now });
-  await createAppVersion(er.appId, versionChanges,
-    `Merged edit request: ${er.changes.reason || "No reason provided"}`, mergerUid);
+  await createAppVersion(er.appId, {
+    changes: versionChanges,
+    commitMessage: `Merged edit request: ${er.changes.reason || "No reason provided"}`,
+    authorUid: mergerUid,
+    type: "edit",
+    editRequestId
+  });
 
   // Lock the edit request with merge snapshot for permanent audit
   await updateDoc(erRef, {
@@ -626,14 +701,11 @@ export async function adminAddApp(appData, adminUid) {
 
   await setDoc(doc(db, "apps", id), fullData);
 
-  await addDoc(collection(db, "app_versions"), {
-    appId: id,
-    type: "initial",
+  await createAppVersion(id, {
     changes: {},
     commitMessage: "Initial app listing by OpenLib Team",
     authorUid: adminUid,
-    authorName: admin?.displayName || "Admin",
-    createdAt: now
+    type: "initial"
   });
 
   await incrementActivity(adminUid, "appsAdded");
@@ -659,7 +731,12 @@ export async function adminUpdateApp(appId, data, adminUid) {
   await updateDoc(appRef, { ...data, updatedAt: now });
 
   if (Object.keys(versionChanges).length > 0) {
-    await createAppVersion(appId, versionChanges, "Admin override edit", adminUid);
+    await createAppVersion(appId, {
+      changes: versionChanges,
+      commitMessage: "Admin override edit",
+      authorUid: adminUid,
+      type: "edit"
+    });
   }
 }
 
@@ -746,13 +823,11 @@ export async function approveSubmission(submissionId, adminUid) {
   await setDoc(doc(db, "apps", id), appData);
   await updateDoc(subRef, { status: "approved", reviewedBy: adminUid, reviewedAt: now });
 
-  await addDoc(collection(db, "app_versions"), {
-    appId: id,
-    type: "initial",
+  await createAppVersion(id, {
     changes: {},
     commitMessage: `App submitted by user, approved by ${admin?.displayName || "admin"}`,
     authorUid: sub.userId,
-    createdAt: now
+    type: "initial"
   });
 
   return { id, ...appData };
