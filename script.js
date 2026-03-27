@@ -2717,7 +2717,7 @@ async function loadERComments(editRequestId) {
     if (seeMoreBtn) {
       seeMoreBtn.addEventListener("click", () => {
         const hiddenEl = document.getElementById(`er-comments-hidden-${editRequestId}`);
-        if (hiddenEl) hiddenEl.style.display = "";
+        if (hiddenEl) { hiddenEl.classList.remove("er-comments-hidden"); hiddenEl.style.display = ""; }
         seeMoreBtn.remove();
       });
     }
