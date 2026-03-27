@@ -2245,6 +2245,97 @@ a.added-by-link:hover {
   border-left: 2px solid var(--border-2);
 }
 
+/* ── Locked Badge ── */
+.er-locked-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-2);
+  background: var(--card-bg);
+  border: 1px solid var(--border-2);
+  border-radius: 8px;
+  padding: 1px 8px;
+}
+
+/* ── View All ER Button ── */
+.view-all-er-btn {
+  display: inline-block;
+  margin-top: 12px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+/* ── ER Comments See More ── */
+.er-comments-hidden {
+  display: none;
+}
+.er-see-more-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 0;
+  margin-top: 4px;
+}
+.er-see-more-btn:hover {
+  text-decoration: underline;
+}
+
+/* ── Dedicated Edit Requests Page ── */
+.er-page {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 24px 0;
+}
+.er-page-header {
+  margin-bottom: 20px;
+}
+.er-back-link {
+  font-size: 13px;
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+}
+.er-back-link:hover {
+  text-decoration: underline;
+}
+.er-page-header h2 {
+  margin: 8px 0 0;
+  font-size: 22px;
+  color: var(--text-1);
+}
+.er-status-filters {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.er-filter-btn {
+  padding: 6px 16px;
+  border-radius: 20px;
+  border: 1px solid var(--border-2);
+  background: var(--card-bg);
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.er-filter-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.er-filter-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+.er-full-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 /* ── Responsive for Edit Requests ── */
 @media (max-width: 560px) {
   .er-submitter-card {
@@ -2252,6 +2343,12 @@ a.added-by-link:hover {
   }
   .er-card-changes {
     flex-wrap: wrap;
+  }
+  .er-status-filters {
+    flex-wrap: wrap;
+  }
+  .er-page {
+    padding: 16px 0;
   }
 }
 

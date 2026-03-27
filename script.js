@@ -751,6 +751,7 @@ async function showAppDetail(appId) {
           <div class="edit-requests-list" id="er-list-${esc(appId)}">
             <p class="er-loading">Loading edit requests…</p>
           </div>
+          <a class="btn btn-secondary btn-sm view-all-er-btn" href="/app/${esc(appId)}/edit-requests" id="view-all-er-${esc(appId)}" style="display:none;">View All Edit Requests →</a>
         </div>
 
         <div class="version-history-section">
@@ -873,6 +874,12 @@ async function showAppDetail(appId) {
   const viewAllLink = document.getElementById(`view-all-reviews-${appId}`);
   if (viewAllLink) {
     viewAllLink.addEventListener("click", e => { e.preventDefault(); navigateTo(`/app/${appId}/reviews`); });
+  }
+
+  // SPA navigation for View All Edit Requests
+  const viewAllERLink = document.getElementById(`view-all-er-${appId}`);
+  if (viewAllERLink) {
+    viewAllERLink.addEventListener("click", e => { e.preventDefault(); navigateTo(`/app/${appId}/edit-requests`); });
   }
 
   // Load edit requests and version history for this app
@@ -2497,17 +2504,17 @@ const FIELD_LABELS = {
   systemRequirements: "System Requirements"
 };
 
-function renderDiffTable(changes, originalApp) {
+function renderDiffTable(changes, originalApp, snapshot) {
   const fields = Object.keys(changes).filter(k => k !== "reason");
   if (!fields.length) return '<p class="diff-empty-msg">No field changes.</p>';
 
   return `
     <div class="diff-table-wrap">
       <table class="diff-table">
-        <thead><tr><th>Field</th><th class="diff-old">Current</th><th class="diff-new">Proposed</th></tr></thead>
+        <thead><tr><th>Field</th><th class="diff-old">Original</th><th class="diff-new">Proposed</th></tr></thead>
         <tbody>
           ${fields.map(f => {
-            const oldVal = originalApp ? originalApp[f] : undefined;
+            const oldVal = snapshot && snapshot[f] !== undefined ? snapshot[f] : (originalApp ? originalApp[f] : undefined);
             const newVal = changes[f];
             const isLong = typeof newVal === "string" && newVal.length > 120;
             return `<tr class="${isLong ? "diff-row-long" : ""}">
@@ -2521,7 +2528,7 @@ function renderDiffTable(changes, originalApp) {
     </div>`;
 }
 
-async function toggleDiffView(erId, appId, changesJson, toggleBtn) {
+async function toggleDiffView(erId, appId, changesJson, toggleBtn, snapshotJson) {
   const diffEl = document.getElementById(`er-diff-${erId}`);
   if (!diffEl) return;
   if (diffEl.classList.contains("open")) {
@@ -2536,135 +2543,145 @@ async function toggleDiffView(erId, appId, changesJson, toggleBtn) {
   try {
     const app = apps.find(a => a.id === appId) || await getAppFromFirestore(appId);
     const changes = JSON.parse(decodeURIComponent(changesJson));
-    diffEl.innerHTML = renderDiffTable(changes, app);
+    const snapshot = snapshotJson ? JSON.parse(decodeURIComponent(snapshotJson)) : null;
+    diffEl.innerHTML = renderDiffTable(changes, app, snapshot);
   } catch (err) {
     diffEl.innerHTML = '<p class="diff-empty-msg">Could not load diff.</p>';
   }
 }
 
+function renderERCard(er, appId, opts = {}) {
+  const date = new Date(er.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const statusClass = er.status === "open" ? "er-status-open" : er.status === "merged" ? "er-status-merged" : "er-status-closed";
+  const statusIcon = er.status === "open" ? "🟢" : er.status === "merged" ? "🟣" : "🔴";
+  const changedFields = Object.keys(er.changes || {}).filter(k => k !== "reason");
+  const submitter = er.submitter || {};
+  const avatarHtml = submitter.photoURL
+    ? `<img class="er-avatar-sm" src="${esc(submitter.photoURL)}" alt="" referrerpolicy="no-referrer">`
+    : `<div class="er-avatar-sm-fallback">${esc((submitter.displayName || "U").charAt(0))}</div>`;
+  const approvals = er.approvals || [];
+  const canReview = isAdmin && er.status === "open";
+  const snapshot = er.mergeSnapshot || er.originalSnapshot || null;
+  const snapshotAttr = snapshot ? `data-snapshot="${encodeURIComponent(JSON.stringify(snapshot))}"` : "";
+
+  return `
+    <div class="er-card" data-er-id="${esc(er.id)}">
+      <div class="er-card-header">
+        <span class="er-status ${statusClass}">${statusIcon} ${esc(er.status)}</span>
+        ${er.locked ? '<span class="er-locked-badge">🔒 Locked</span>' : ""}
+        ${approvals.length ? `<span class="er-approvals">✓ ${approvals.length} approval${approvals.length > 1 ? "s" : ""}</span>` : ""}
+        <span class="er-date">${date}</span>
+      </div>
+      <div class="er-card-submitter">
+        ${avatarHtml}
+        <span class="er-submitter-link">${esc(submitter.displayName || "Anonymous")}</span>
+        ${submitter.provider ? `<span class="er-provider-sm">via ${esc(submitter.provider === "github.com" ? "GitHub" : "Google")}</span>` : ""}
+      </div>
+      <div class="er-card-changes">
+        <span class="er-changes-label">Changes:</span>
+        ${changedFields.map(f => `<span class="er-change-tag">${esc(f)}</span>`).join("")}
+        <button class="btn btn-sm btn-secondary er-diff-toggle" data-er-id="${esc(er.id)}" data-app-id="${esc(appId)}" data-changes="${encodeURIComponent(JSON.stringify(er.changes || {}))}" ${snapshotAttr}>📋 View Changes</button>
+      </div>
+      <div class="er-diff-container" id="er-diff-${esc(er.id)}"></div>
+      ${er.changes?.reason ? `<p class="er-card-reason">"${esc(er.changes.reason)}"</p>` : ""}
+      <div class="er-comments-section" id="er-comments-${esc(er.id)}"></div>
+      ${currentUser ? `
+        <div class="er-comment-form">
+          <input type="text" class="er-comment-input" data-er-id="${esc(er.id)}" placeholder="Add a comment…" maxlength="500">
+          <button class="btn btn-sm btn-secondary er-comment-btn" data-er-id="${esc(er.id)}">Comment</button>
+        </div>
+      ` : ""}
+      ${canReview ? `
+        <div class="er-review-actions">
+          <button class="btn btn-sm btn-primary er-merge-btn" data-er-id="${esc(er.id)}">Merge</button>
+          <button class="btn btn-sm btn-secondary er-approve-btn" data-er-id="${esc(er.id)}">Approve</button>
+          <button class="btn btn-sm btn-secondary er-reject-btn" data-er-id="${esc(er.id)}">Reject</button>
+        </div>
+      ` : ""}
+    </div>
+  `;
+}
+
+function bindERCardHandlers(container, appId, reloadFn) {
+  // Diff toggle handlers
+  container.querySelectorAll(".er-diff-toggle").forEach(btn => {
+    btn.addEventListener("click", () => {
+      toggleDiffView(btn.dataset.erId, btn.dataset.appId, btn.dataset.changes, btn, btn.dataset.snapshot || null);
+    });
+  });
+
+  // Comment handlers
+  container.querySelectorAll(".er-comment-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const input = container.querySelector(`.er-comment-input[data-er-id="${btn.dataset.erId}"]`);
+      const text = input?.value.trim();
+      if (!text) return;
+      try {
+        await addReviewComment(btn.dataset.erId, text, currentUser);
+        input.value = "";
+        loadERComments(btn.dataset.erId);
+      } catch (err) { showToast(err.message); }
+    });
+  });
+
+  // Admin review handlers
+  container.querySelectorAll(".er-merge-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      try {
+        await mergeEditRequest(btn.dataset.erId, currentUser.uid);
+        showToast("Edit request merged!");
+        await loadApps();
+        reloadFn();
+      } catch (err) { showToast(err.message); }
+      btn.disabled = false;
+    });
+  });
+  container.querySelectorAll(".er-approve-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      try {
+        await approveEditRequest(btn.dataset.erId, currentUser.uid);
+        showToast("Approved!");
+        reloadFn();
+      } catch (err) { showToast(err.message); }
+      btn.disabled = false;
+    });
+  });
+  container.querySelectorAll(".er-reject-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const reason = prompt("Reason for rejection:");
+      if (reason === null) return;
+      btn.disabled = true;
+      try {
+        await rejectEditRequest(btn.dataset.erId, currentUser.uid, reason);
+        showToast("Rejected");
+        reloadFn();
+      } catch (err) { showToast(err.message); }
+      btn.disabled = false;
+    });
+  });
+}
+
 async function loadEditRequestsForDetail(appId) {
   const listEl = document.getElementById(`er-list-${appId}`);
+  const viewAllBtn = document.getElementById(`view-all-er-${appId}`);
   if (!listEl) return;
 
   try {
     const requests = await getEditRequestsForApp(appId);
     if (requests.length === 0) {
       listEl.innerHTML = `<p class="er-empty">No edit requests yet. Be the first to suggest an improvement!</p>`;
+      if (viewAllBtn) viewAllBtn.style.display = "none";
       return;
     }
 
-    listEl.innerHTML = requests.map(er => {
-      const date = new Date(er.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-      const statusClass = er.status === "open" ? "er-status-open" : er.status === "merged" ? "er-status-merged" : "er-status-closed";
-      const statusIcon = er.status === "open" ? "🟢" : er.status === "merged" ? "🟣" : "🔴";
-      const changedFields = Object.keys(er.changes || {}).filter(k => k !== "reason");
-      const submitter = er.submitter || {};
-      const avatarHtml = submitter.photoURL
-        ? `<img class="er-avatar-sm" src="${esc(submitter.photoURL)}" alt="" referrerpolicy="no-referrer">`
-        : `<div class="er-avatar-sm-fallback">${esc((submitter.displayName || "U").charAt(0))}</div>`;
-      const approvals = er.approvals || [];
-      const canReview = isAdmin && er.status === "open";
+    const preview = requests.slice(0, 3);
+    listEl.innerHTML = preview.map(er => renderERCard(er, appId)).join("");
 
-      return `
-        <div class="er-card" data-er-id="${esc(er.id)}">
-          <div class="er-card-header">
-            <span class="er-status ${statusClass}">${statusIcon} ${esc(er.status)}</span>
-            ${approvals.length ? `<span class="er-approvals">✓ ${approvals.length} approval${approvals.length > 1 ? "s" : ""}</span>` : ""}
-            <span class="er-date">${date}</span>
-          </div>
-          <div class="er-card-submitter">
-            ${avatarHtml}
-            <span class="er-submitter-link">${esc(submitter.displayName || "Anonymous")}</span>
-            ${submitter.provider ? `<span class="er-provider-sm">via ${esc(submitter.provider === "github.com" ? "GitHub" : "Google")}</span>` : ""}
-          </div>
-          <div class="er-card-changes">
-            <span class="er-changes-label">Changes:</span>
-            ${changedFields.map(f => `<span class="er-change-tag">${esc(f)}</span>`).join("")}
-            <button class="btn btn-sm btn-secondary er-diff-toggle" data-er-id="${esc(er.id)}" data-app-id="${esc(appId)}" data-changes="${encodeURIComponent(JSON.stringify(er.changes || {}))}">📋 View Changes</button>
-          </div>
-          <div class="er-diff-container" id="er-diff-${esc(er.id)}"></div>
-          ${er.changes?.reason ? `<p class="er-card-reason">"${esc(er.changes.reason)}"</p>` : ""}
-          <div class="er-comments-section" id="er-comments-${esc(er.id)}"></div>
-          ${currentUser ? `
-            <div class="er-comment-form">
-              <input type="text" class="er-comment-input" data-er-id="${esc(er.id)}" placeholder="Add a comment…" maxlength="500">
-              <button class="btn btn-sm btn-secondary er-comment-btn" data-er-id="${esc(er.id)}">Comment</button>
-            </div>
-          ` : ""}
-          ${canReview ? `
-            <div class="er-review-actions">
-              <button class="btn btn-sm btn-primary er-merge-btn" data-er-id="${esc(er.id)}">Merge</button>
-              <button class="btn btn-sm btn-secondary er-approve-btn" data-er-id="${esc(er.id)}">Approve</button>
-              <button class="btn btn-sm btn-secondary er-reject-btn" data-er-id="${esc(er.id)}">Reject</button>
-            </div>
-          ` : ""}
-        </div>
-      `;
-    }).join("");
-
-    // Load comments for each ER
-    for (const er of requests) {
-      loadERComments(er.id);
-    }
-
-    // Attach diff toggle handlers
-    listEl.querySelectorAll(".er-diff-toggle").forEach(btn => {
-      btn.addEventListener("click", () => {
-        toggleDiffView(btn.dataset.erId, btn.dataset.appId, btn.dataset.changes, btn);
-      });
-    });
-
-    // Attach comment handlers
-    listEl.querySelectorAll(".er-comment-btn").forEach(btn => {
-      btn.addEventListener("click", async () => {
-        const input = listEl.querySelector(`.er-comment-input[data-er-id="${btn.dataset.erId}"]`);
-        const text = input?.value.trim();
-        if (!text) return;
-        try {
-          await addReviewComment(btn.dataset.erId, text, currentUser);
-          input.value = "";
-          loadERComments(btn.dataset.erId);
-        } catch (err) { showToast(err.message); }
-      });
-    });
-
-    // Admin review handlers
-    listEl.querySelectorAll(".er-merge-btn").forEach(btn => {
-      btn.addEventListener("click", async () => {
-        btn.disabled = true;
-        try {
-          await mergeEditRequest(btn.dataset.erId, currentUser.uid);
-          showToast("Edit request merged!");
-          await loadApps();
-          loadEditRequestsForDetail(appId);
-        } catch (err) { showToast(err.message); }
-        btn.disabled = false;
-      });
-    });
-    listEl.querySelectorAll(".er-approve-btn").forEach(btn => {
-      btn.addEventListener("click", async () => {
-        btn.disabled = true;
-        try {
-          await approveEditRequest(btn.dataset.erId, currentUser.uid);
-          showToast("Approved!");
-          loadEditRequestsForDetail(appId);
-        } catch (err) { showToast(err.message); }
-        btn.disabled = false;
-      });
-    });
-    listEl.querySelectorAll(".er-reject-btn").forEach(btn => {
-      btn.addEventListener("click", async () => {
-        const reason = prompt("Reason for rejection:");
-        if (reason === null) return;
-        btn.disabled = true;
-        try {
-          await rejectEditRequest(btn.dataset.erId, currentUser.uid, reason);
-          showToast("Rejected");
-          loadEditRequestsForDetail(appId);
-        } catch (err) { showToast(err.message); }
-        btn.disabled = false;
-      });
-    });
+    for (const er of preview) { loadERComments(er.id); }
+    bindERCardHandlers(listEl, appId, () => loadEditRequestsForDetail(appId));
+    if (viewAllBtn) viewAllBtn.style.display = requests.length > 3 ? "" : "none";
   } catch (err) {
     listEl.innerHTML = `<p class="er-empty">Could not load edit requests.</p>`;
   }
@@ -2676,7 +2693,9 @@ async function loadERComments(editRequestId) {
   try {
     const comments = await getReviewComments(editRequestId);
     if (!comments.length) { container.innerHTML = ""; return; }
-    container.innerHTML = comments.map(c => {
+
+    const INITIAL_SHOW = 3;
+    const renderComment = c => {
       const typeClass = c.type === "approval" ? "comment-approval" : c.type === "rejection" ? "comment-rejection" : c.type === "merge" ? "comment-merge" : "";
       return `
         <div class="er-comment ${typeClass}">
@@ -2685,7 +2704,23 @@ async function loadERComments(editRequestId) {
           <span class="er-comment-text">${esc(c.text)}</span>
           <span class="er-comment-time">${new Date(c.createdAt).toLocaleDateString()}</span>
         </div>`;
-    }).join("");
+    };
+
+    const visible = comments.slice(0, INITIAL_SHOW);
+    const hidden = comments.slice(INITIAL_SHOW);
+
+    container.innerHTML = visible.map(renderComment).join("")
+      + (hidden.length ? `<div class="er-comments-hidden" id="er-comments-hidden-${editRequestId}" style="display:none;">${hidden.map(renderComment).join("")}</div>
+        <button class="btn btn-sm btn-secondary er-see-more-btn" id="er-see-more-${editRequestId}">View all ${comments.length} comments</button>` : "");
+
+    const seeMoreBtn = document.getElementById(`er-see-more-${editRequestId}`);
+    if (seeMoreBtn) {
+      seeMoreBtn.addEventListener("click", () => {
+        const hiddenEl = document.getElementById(`er-comments-hidden-${editRequestId}`);
+        if (hiddenEl) hiddenEl.style.display = "";
+        seeMoreBtn.remove();
+      });
+    }
   } catch (e) {
     container.innerHTML = "";
   }
@@ -3257,6 +3292,15 @@ function handleRoute() {
       url: `${BASE_URL}/app/${encodeURIComponent(appId)}/reviews`
     });
     showReviewsPage(appId);
+  } else if (path.match(/^\/app\/[^/]+\/edit-requests$/)) {
+    const appId = decodeURIComponent(path.replace("/app/", "").replace("/edit-requests", ""));
+    const app = apps.find(a => a.id === appId);
+    updatePageMeta({
+      title: app ? `Edit Requests — ${app.name} — OpenLib` : "Edit Requests — OpenLib",
+      description: app ? `View edit requests for ${app.name} on OpenLib.` : "App edit requests on OpenLib.",
+      url: `${BASE_URL}/app/${encodeURIComponent(appId)}/edit-requests`
+    });
+    showEditRequestsPage(appId);
   } else if (path.startsWith("/app/")) {
     const appId = decodeURIComponent(path.replace("/app/", ""));
     const app = apps.find(a => a.id === appId);
@@ -3430,10 +3474,77 @@ async function showReviewsPage(appId) {
   });
 }
 
+async function showEditRequestsPage(appId) {
+  const views = ["home-view", "rankings-view", "profile-view", "org-view", "admin-view", "verify-view"];
+  views.forEach(v => { const el = document.getElementById(v); if (el) el.style.display = "none"; });
+  const detailView = document.getElementById("detail-view");
+  detailView.style.display = "block";
+
+  let app = apps.find(a => a.id === appId);
+  if (!app) { try { app = await getAppFromFirestore(appId); } catch(e) {} }
+  if (!app) { detailView.innerHTML = `<div class="detail-loading">App not found.</div>`; return; }
+
+  detailView.innerHTML = `
+    <div class="er-page">
+      <div class="er-page-header">
+        <a href="/app/${esc(appId)}" class="er-back-link">← Back to ${esc(app.name)}</a>
+        <h2>Edit Requests for ${esc(app.name)}</h2>
+      </div>
+      <div class="er-status-filters">
+        <button class="er-filter-btn active" data-filter="all">All</button>
+        <button class="er-filter-btn" data-filter="open">Open</button>
+        <button class="er-filter-btn" data-filter="merged">Merged</button>
+        <button class="er-filter-btn" data-filter="closed">Closed</button>
+      </div>
+      <div class="er-full-list" id="er-full-list-${esc(appId)}">
+        <p class="er-loading">Loading edit requests…</p>
+      </div>
+    </div>`;
+
+  let allRequests = [];
+
+  async function loadFiltered(filter) {
+    const listEl = document.getElementById(`er-full-list-${appId}`);
+    if (!listEl) return;
+    try {
+      if (!allRequests.length) allRequests = await getEditRequestsForApp(appId);
+      const filtered = filter === "all" ? allRequests : allRequests.filter(r => r.status === filter);
+      if (!filtered.length) {
+        listEl.innerHTML = `<p class="er-empty">No ${filter === "all" ? "" : filter + " "}edit requests.</p>`;
+        return;
+      }
+      listEl.innerHTML = filtered.map(er => renderERCard(er, appId)).join("");
+      for (const er of filtered) { loadERComments(er.id); }
+      bindERCardHandlers(listEl, appId, () => { allRequests = []; loadFiltered(filter); });
+    } catch (err) {
+      listEl.innerHTML = `<p class="er-empty">Could not load edit requests.</p>`;
+    }
+  }
+
+  // Filter buttons
+  detailView.querySelectorAll(".er-filter-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      detailView.querySelectorAll(".er-filter-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      loadFiltered(btn.dataset.filter);
+    });
+  });
+
+  loadFiltered("all");
+
+  // Back link SPA navigation
+  detailView.querySelector(".er-back-link")?.addEventListener("click", e => {
+    e.preventDefault();
+    navigateTo(`/app/${appId}`);
+  });
+}
+
 function renderCurrentView() {
   const path = location.pathname || "/";
   if (path.match(/^\/app\/[^/]+\/reviews$/)) {
     showReviewsPage(decodeURIComponent(path.replace("/app/", "").replace("/reviews", "")));
+  } else if (path.match(/^\/app\/[^/]+\/edit-requests$/)) {
+    showEditRequestsPage(decodeURIComponent(path.replace("/app/", "").replace("/edit-requests", "")));
   } else if (path.startsWith("/app/")) {
     showAppDetail(path.replace("/app/", ""));
   } else if (path === "/rankings") {

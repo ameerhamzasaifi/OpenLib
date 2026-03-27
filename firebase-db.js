@@ -471,16 +471,27 @@ export async function mergeEditRequest(editRequestId, mergerUid) {
   const changes = { ...er.changes };
   delete changes.reason;
 
+  // Build version changes with old/new for audit trail
   const versionChanges = {};
+  const mergeSnapshot = {};
   Object.keys(changes).forEach(key => {
     versionChanges[key] = { old: oldData[key], new: changes[key] };
+    mergeSnapshot[key] = oldData[key] ?? null;
   });
 
   await updateDoc(appRef, { ...changes, updatedAt: now });
   await createAppVersion(er.appId, versionChanges,
     `Merged edit request: ${er.changes.reason || "No reason provided"}`, mergerUid);
 
-  await updateDoc(erRef, { status: "merged", mergedBy: mergerUid, mergedAt: now, updatedAt: now });
+  // Lock the edit request with merge snapshot for permanent audit
+  await updateDoc(erRef, {
+    status: "merged",
+    mergedBy: mergerUid,
+    mergedAt: now,
+    updatedAt: now,
+    mergeSnapshot: mergeSnapshot,
+    locked: true
+  });
 
   await addDoc(collection(db, "review_comments"), {
     editRequestId,

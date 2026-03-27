@@ -250,9 +250,17 @@ export async function seedAppsToFirestore(appsArray) {
 
 export async function submitEditRequest(appId, changes, user) {
   try {
+    // Capture snapshot of current app data at submission time
+    const appSnap = await getDoc(doc(db, "apps", appId));
+    const originalData = appSnap.exists() ? appSnap.data() : {};
+    const changedKeys = Object.keys(changes).filter(k => k !== "reason");
+    const snapshot = {};
+    changedKeys.forEach(k => { snapshot[k] = originalData[k] ?? null; });
+
     const editRef = await addDoc(collection(db, "edit_requests"), {
       appId,
       changes,
+      originalSnapshot: snapshot,
       status: "open",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
