@@ -2264,24 +2264,6 @@ a.added-by-link:hover {
   text-decoration: none;
 }
 
-/* ── ER Comments See More ── */
-.er-comments-hidden {
-  display: none;
-}
-.er-see-more-btn {
-  background: none;
-  border: none;
-  color: var(--accent);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  padding: 4px 0;
-  margin-top: 4px;
-}
-.er-see-more-btn:hover {
-  text-decoration: underline;
-}
-
 /* ── Dedicated Edit Requests Page ── */
 .er-page {
   max-width: 800px;
@@ -3416,18 +3398,47 @@ a.added-by-link:hover {
 .er-comments-section {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin-top: 6px;
+  gap: 4px;
+  margin-top: 8px;
 }
 
 .er-comment {
   display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
   background: var(--bg-2);
-  border-radius: 6px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.er-comment-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.er-comment-avatar-fallback {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--border-2);
+  color: var(--text-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+  text-transform: uppercase;
+}
+
+.er-comment-body {
+  flex: 1;
+  min-width: 0;
 }
 
 .er-comment.comment-approval {
@@ -3446,11 +3457,12 @@ a.added-by-link:hover {
   font-weight: 600;
   color: var(--text);
   white-space: nowrap;
+  margin-right: 6px;
 }
 
 .er-comment-text {
   color: var(--text-2);
-  flex: 1;
+  word-break: break-word;
 }
 
 .er-comment-time {
@@ -3458,6 +3470,25 @@ a.added-by-link:hover {
   font-size: 10px;
   color: var(--text-3);
   white-space: nowrap;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.er-load-more-btn {
+  background: none;
+  border: 1px solid var(--border-2);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s;
+}
+.er-load-more-btn:hover {
+  background: var(--bg-2);
+  border-color: var(--accent);
 }
 
 .er-comment-form {

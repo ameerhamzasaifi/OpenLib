@@ -1122,7 +1122,7 @@ function openEditRequestModal(appId, appName, app, directEdit = false) {
   document.getElementById("er-screenshots").placeholder = (app.screenshots || []).join("\n") || "Screenshot URLs";
   document.getElementById("er-install-methods").placeholder = (app.installMethods || []).map(m => m.label + " | " + m.command).join("\n") || "Installation methods";
   document.getElementById("er-sysreq").placeholder = app.systemRequirements || "System requirements";
-  if (app.license) document.getElementById("er-license").value = app.license;
+  document.getElementById("er-license").value = "";
 
   // Pre-check current platforms
   form.querySelectorAll("input[name='er-platforms']").forEach(cb => {
@@ -2695,32 +2695,39 @@ async function loadERComments(editRequestId) {
     if (!comments.length) { container.innerHTML = ""; return; }
 
     const INITIAL_SHOW = 3;
+    const LOAD_MORE = 10;
+
     const renderComment = c => {
       const typeClass = c.type === "approval" ? "comment-approval" : c.type === "rejection" ? "comment-rejection" : c.type === "merge" ? "comment-merge" : "";
+      const avatar = c.authorPhoto
+        ? `<img class="er-comment-avatar" src="${esc(c.authorPhoto)}" alt="" referrerpolicy="no-referrer">`
+        : `<div class="er-comment-avatar-fallback">${esc((c.authorName || "U").charAt(0))}</div>`;
       return `
         <div class="er-comment ${typeClass}">
-          ${c.authorPhoto ? `<img class="er-avatar-sm" src="${esc(c.authorPhoto)}" alt="" referrerpolicy="no-referrer">` : ""}
-          <span class="er-comment-author">${esc(c.authorName)}</span>
-          <span class="er-comment-text">${esc(c.text)}</span>
+          ${avatar}
+          <div class="er-comment-body">
+            <span class="er-comment-author">${esc(c.authorName)}</span>
+            <span class="er-comment-text">${esc(c.text)}</span>
+          </div>
           <span class="er-comment-time">${new Date(c.createdAt).toLocaleDateString()}</span>
         </div>`;
     };
 
-    const visible = comments.slice(0, INITIAL_SHOW);
-    const hidden = comments.slice(INITIAL_SHOW);
-
-    container.innerHTML = visible.map(renderComment).join("")
-      + (hidden.length ? `<div class="er-comments-hidden" id="er-comments-hidden-${editRequestId}" style="display:none;">${hidden.map(renderComment).join("")}</div>
-        <button class="btn btn-sm btn-secondary er-see-more-btn" id="er-see-more-${editRequestId}">View all ${comments.length} comments</button>` : "");
-
-    const seeMoreBtn = document.getElementById(`er-see-more-${editRequestId}`);
-    if (seeMoreBtn) {
-      seeMoreBtn.addEventListener("click", () => {
-        const hiddenEl = document.getElementById(`er-comments-hidden-${editRequestId}`);
-        if (hiddenEl) { hiddenEl.classList.remove("er-comments-hidden"); hiddenEl.style.display = ""; }
-        seeMoreBtn.remove();
-      });
+    let shown = INITIAL_SHOW;
+    function render() {
+      const visible = comments.slice(0, shown);
+      const remaining = comments.length - shown;
+      container.innerHTML = visible.map(renderComment).join("")
+        + (remaining > 0 ? `<button class="er-load-more-btn" id="er-load-more-${editRequestId}">Load more comments (${remaining} remaining)</button>` : "");
+      const loadMoreBtn = document.getElementById(`er-load-more-${editRequestId}`);
+      if (loadMoreBtn) {
+        loadMoreBtn.addEventListener("click", () => {
+          shown = Math.min(shown + LOAD_MORE, comments.length);
+          render();
+        });
+      }
     }
+    render();
   } catch (e) {
     container.innerHTML = "";
   }
