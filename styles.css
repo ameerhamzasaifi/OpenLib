@@ -780,6 +780,10 @@ footer {
   color: var(--text);
 }
 
+.footer-link-bug {
+  color: var(--accent);
+}
+
 /* ── Submit App header button ── */
 .btn-submit-app {
   padding: 7px 14px;

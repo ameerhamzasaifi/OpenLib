@@ -1,0 +1,81 @@
+PRIVACY POLICY — OpenLib
+Last Updated: March 28, 2026
+
+1. INTRODUCTION
+OpenLib ("we", "us", "our") operates the OpenLib web application at
+https://openlib-f7bf1.web.app. This Privacy Policy explains how we collect,
+use, and protect your information when you use our service.
+
+2. INFORMATION WE COLLECT
+
+  a) Account Information
+     When you sign in via Google or GitHub, we receive your display name,
+     email address, profile photo URL, and unique user ID from the
+     authentication provider. We do not receive or store your password.
+
+  b) User-Generated Content
+     Reviews, comments, edit requests, app submissions, and profile
+     information you voluntarily provide.
+
+  c) Usage Data
+     We collect anonymous usage data through Google Analytics (GA4),
+     including page views, session duration, device type, and browser.
+     No personally identifiable information is sent to Google Analytics.
+
+  d) App Interaction Data
+     Votes (likes/dislikes), bookmarks, download clicks, and view counts
+     are stored in Cloud Firestore and associated with your user ID.
+
+3. HOW WE USE YOUR INFORMATION
+
+  - To provide and maintain the service
+  - To display your public profile (name, photo) on reviews and submissions
+  - To enable community features (voting, commenting, edit requests)
+  - To improve the service through aggregated analytics
+  - To enforce our Terms & Conditions and prevent abuse
+
+4. DATA STORAGE AND SECURITY
+
+  All data is stored in Google Cloud Firestore and Firebase Authentication,
+  hosted on Google Cloud Platform. Data is encrypted in transit (TLS) and
+  at rest. We implement Firestore Security Rules to restrict unauthorized
+  access. We do not sell, trade, or rent your personal information.
+
+5. THIRD-PARTY SERVICES
+
+  - Firebase Authentication (Google, GitHub sign-in)
+  - Google Cloud Firestore (database)
+  - Firebase Storage (logo uploads)
+  - Firebase Hosting (web hosting)
+  - Google Analytics 4 (anonymous usage analytics)
+
+6. COOKIES
+
+  We use essential cookies for authentication sessions managed by Firebase.
+  Google Analytics may set cookies for analytics purposes. No advertising
+  or tracking cookies are used.
+
+7. YOUR RIGHTS
+
+  You may:
+  - View your data through your profile page
+  - Request deletion of your account and associated data by contacting us
+  - Opt out of Google Analytics by using browser extensions or settings
+
+8. CHILDREN'S PRIVACY
+
+  OpenLib is not directed at children under 13. We do not knowingly
+  collect personal information from children under 13.
+
+9. CHANGES TO THIS POLICY
+
+  We may update this policy from time to time. Changes will be posted on
+  this page with an updated "Last Updated" date.
+
+10. CONTACT
+
+  For privacy-related inquiries, open an issue at:
+  https://github.com/ameerhamzasaifi/openlib/issues
+
+  Or reach us through the GitHub repository:
+  https://github.com/ameerhamzasaifi/openlib

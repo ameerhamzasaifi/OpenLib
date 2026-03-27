@@ -1,0 +1,91 @@
+TERMS AND CONDITIONS — OpenLib
+Last Updated: March 28, 2026
+
+1. ACCEPTANCE OF TERMS
+By accessing or using OpenLib ("the Service"), you agree to be bound by
+these Terms and Conditions. If you do not agree, do not use the Service.
+
+2. DESCRIPTION OF SERVICE
+OpenLib is a curated open-source app library that allows users to discover,
+rate, review, and submit open-source software. The Service is provided
+free of charge and is itself open-source under the MIT License.
+
+3. USER ACCOUNTS
+
+  a) You may sign in using Google or GitHub authentication.
+  b) You are responsible for all activity under your account.
+  c) You must not impersonate others or create misleading accounts.
+  d) We reserve the right to suspend or terminate accounts that violate
+     these terms.
+
+4. USER CONTENT
+
+  a) By submitting content (reviews, comments, edit requests, app
+     submissions), you grant OpenLib a non-exclusive, royalty-free license
+     to display and use that content within the Service.
+  b) You retain ownership of your original content.
+  c) You must not submit content that is:
+     - Illegal, harmful, threatening, abusive, or harassing
+     - Defamatory, obscene, or invasive of another's privacy
+     - Infringing on intellectual property rights
+     - Spam, phishing, or malicious in nature
+     - Misleading or fraudulent
+
+5. APP LISTINGS
+
+  a) App information is community-maintained through edit requests.
+  b) OpenLib does not host or distribute the software listed; we link to
+     official sources.
+  c) We make no warranties about the safety, quality, or legality of
+     listed applications.
+  d) Users download and install software at their own risk.
+
+6. EDIT REQUESTS AND MODERATION
+
+  a) Edit requests are reviewed by the OpenLib team before merging.
+  b) The team reserves the right to reject, modify, or revert any edit.
+  c) Abuse of the edit request system may result in account restrictions.
+
+7. INTELLECTUAL PROPERTY
+
+  a) The OpenLib platform source code is licensed under the MIT License.
+  b) App logos, names, and trademarks belong to their respective owners.
+  c) User-submitted content remains the property of the original author.
+
+8. PROHIBITED CONDUCT
+
+  You must not:
+  - Attempt to gain unauthorized access to the Service or its systems
+  - Use automated tools to scrape or overload the Service
+  - Manipulate votes, reviews, or rankings
+  - Upload malware or malicious content
+  - Circumvent security measures or abuse Firebase resources
+
+9. DISCLAIMER OF WARRANTIES
+
+  THE SERVICE IS PROVIDED "AS IS" WITHOUT WARRANTIES OF ANY KIND, EXPRESS
+  OR IMPLIED. WE DO NOT GUARANTEE UNINTERRUPTED OR ERROR-FREE OPERATION.
+
+10. LIMITATION OF LIABILITY
+
+  TO THE MAXIMUM EXTENT PERMITTED BY LAW, OPENLIB AND ITS CONTRIBUTORS
+  SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, OR
+  CONSEQUENTIAL DAMAGES ARISING FROM YOUR USE OF THE SERVICE.
+
+11. MODIFICATIONS
+
+  We may modify these Terms at any time. Continued use of the Service
+  after changes constitutes acceptance of the updated Terms.
+
+12. GOVERNING LAW
+
+  These Terms are governed by applicable open-source community standards
+  and the laws of the jurisdiction in which the Service operators reside.
+
+13. CONTACT
+
+  For questions about these Terms, open an issue at:
+  https://github.com/ameerhamzasaifi/openlib/issues
+
+  Or visit the repository:
+  https://github.com/ameerhamzasaifi/openlib
