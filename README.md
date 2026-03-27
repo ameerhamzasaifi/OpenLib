@@ -14,7 +14,7 @@ A curated open-source app library. Discover, rate, and explore free software alt
 |-------|------|
 | Frontend | Vanilla JS (ES modules), HTML5, CSS3 |
 | Routing | Hash-based (`#/app/{id}`, `#/rankings`, `#/profile`) |
-| Database | Cloud Firestore |
+| Database | Firebase |
 | Auth | Firebase Auth (Google, GitHub) |
 | Hosting | Firebase Hosting |
 
