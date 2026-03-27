@@ -1868,10 +1868,6 @@ a.added-by-link:hover {
   }
 
   /* Reviews compact on mobile */
-  .review-form textarea {
-    rows: 2;
-  }
-
   .review-text-input {
     font-size: 13px;
   }
