@@ -605,7 +605,7 @@ async function showAppDetail(appId) {
             </div>
           </div>
         </div>
-
+      </div>
 
       ${tagsHtml ? `<div class="detail-tags">${tagsHtml}</div>` : ""}
 

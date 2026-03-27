@@ -1291,7 +1291,7 @@ a.added-by-link:hover {
 .detail-page {
   max-width: 800px;
   margin: 0 auto;
-  padding: 32px 0;
+  padding: 32px 20px;
 }
 
 .detail-loading {
@@ -1304,9 +1304,10 @@ a.added-by-link:hover {
 
 .detail-header {
   display: flex;
-  align-items: flex-start;
-  gap: 20px;
-  margin-bottom: 16px;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
 }
 
 .detail-logo {
@@ -1338,10 +1339,11 @@ a.added-by-link:hover {
 
 .detail-header-text {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .detail-name {
@@ -1378,8 +1380,9 @@ a.added-by-link:hover {
 
 .detail-stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  grid-template-columns: repeat(4, 1fr);
   gap: 12px;
+  width: 100%;
 }
 
 .detail-stat-card {
@@ -1415,14 +1418,8 @@ a.added-by-link:hover {
 
 .detail-stats-actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  align-items: flex-start;
-}
-
-.detail-stats-actions .detail-section {
-  flex: 1 1 200px;
-  min-width: 0;
+  flex-direction: column;
+  gap: 14px;
 }
 
 .detail-actions-row {
@@ -1432,9 +1429,14 @@ a.added-by-link:hover {
   align-items: center;
 }
 
-.detail-actions-row .vote-buttons,
-.detail-actions-row .detail-primary-actions,
-.detail-actions-row .detail-secondary-actions {
+.detail-actions-row .vote-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.detail-actions-row .detail-links {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -1691,35 +1693,190 @@ a.added-by-link:hover {
     padding: 4px 8px;
   }
 
-  .detail-header {
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
+  .detail-page {
+    padding: 20px 14px;
   }
 
-  .detail-header-text {
+  .detail-header {
+    gap: 12px;
+  }
+
+  .detail-logo, .detail-logo-fallback {
+    width: 56px;
+    height: 56px;
+    border-radius: 12px;
+    font-size: 24px;
+    padding: 4px;
+  }
+
+  .detail-name {
+    font-size: 20px;
+  }
+
+  .detail-header-actions {
+    gap: 6px;
+  }
+
+  .bookmark-btn, .share-btn {
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+
+  .detail-tags {
+    gap: 4px;
+  }
+
+  .detail-tag {
+    font-size: 10px;
+    padding: 2px 7px;
+  }
+
+  .detail-body {
+    gap: 12px;
+  }
+
+  .detail-section h3 {
+    font-size: 12px;
+    margin-bottom: 4px;
+  }
+
+  .detail-section p {
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .desc-content {
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .desc-content.collapsed {
+    max-height: 90px;
+  }
+
+  .features-list {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .features-list li {
+    font-size: 13px;
+    padding: 4px 0 4px 20px;
+  }
+
+  .screenshots-gallery {
+    gap: 8px;
+  }
+
+  .screenshot-thumb {
+    width: 160px;
+    height: 100px;
+  }
+
+  .detail-info-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  /* Hide heavy sections on mobile */
+  .comparison-table,
+  .security-badges,
+  .sysreq-block,
+  .version-history-section,
+  .edit-requests-section,
+  .creator-section,
+  .similar-section {
+    display: none !important;
+  }
+
+  .install-method {
+    padding: 8px 12px;
+    gap: 8px;
+  }
+
+  .install-label {
+    font-size: 11px;
+    min-width: 50px;
+  }
+
+  .install-cmd {
+    font-size: 11px;
+  }
+
+  .detail-stats {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
+  .detail-stat-card {
+    padding: 8px;
+  }
+
+  .stat-number {
+    font-size: 16px;
+  }
+
+  .stat-label {
+    font-size: 10px;
+  }
+
+  .detail-stats-actions {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .detail-actions-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .vote-buttons {
+    flex-direction: row;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .vote-btn {
+    flex: 1;
+    padding: 8px 12px;
+    font-size: 13px;
     justify-content: center;
   }
 
   .detail-links {
     flex-direction: column;
+    gap: 8px;
+    width: 100%;
   }
 
-  .vote-buttons {
-    flex-direction: column;
+  .btn-lg {
+    padding: 10px 16px;
+    font-size: 13px;
+    text-align: center;
+    justify-content: center;
   }
 
-  .detail-info-grid {
-    grid-template-columns: 1fr;
+  .detail-secondary-actions {
+    gap: 8px;
+    flex-wrap: wrap;
   }
 
-  .detail-stats-actions {
-    flex-direction: column;
+  .detail-secondary-actions button {
+    font-size: 12px;
+    padding: 6px 10px;
   }
 
-  .detail-actions-row {
-    flex-direction: column;
-    align-items: stretch;
+  /* Reviews compact on mobile */
+  .review-form textarea {
+    rows: 2;
+  }
+
+  .review-text-input {
+    font-size: 13px;
+  }
+
+  .review-card {
+    padding: 12px;
   }
 
   .ranking-metrics {
@@ -1729,6 +1886,68 @@ a.added-by-link:hover {
 
 @media (max-width: 480px) {
   .ranking-score {
+    display: none;
+  }
+
+  .detail-page {
+    padding: 16px 10px;
+  }
+
+  .detail-header {
+    gap: 10px;
+  }
+
+  .detail-logo, .detail-logo-fallback {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    font-size: 20px;
+  }
+
+  .detail-name {
+    font-size: 18px;
+  }
+
+  .detail-info-grid {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .detail-stats {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+  }
+
+  .stat-number {
+    font-size: 14px;
+  }
+
+  .vote-btn {
+    padding: 6px 8px;
+    font-size: 12px;
+    gap: 4px;
+  }
+
+  .btn-lg {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  /* Also hide install methods on very small screens */
+  .install-methods {
+    display: none;
+  }
+
+  .screenshots-gallery {
+    gap: 6px;
+  }
+
+  .screenshot-thumb {
+    width: 130px;
+    height: 80px;
+  }
+
+  .detail-tags {
     display: none;
   }
 }
