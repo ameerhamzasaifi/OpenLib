@@ -3,7 +3,7 @@ import {
   signInWithGoogle, signInWithGitHub, signOutUser, getCurrentUser, onUserAuthStateChanged,
   submitReportToFirestore,
   submitAppToFirestore, getAllAppsFromFirestore,
-  getAppFromFirestore, incrementAppViews, toggleVote, getUserVote, seedAppsToFirestore,
+  getAppFromFirestore, incrementAppViews, toggleVote, getUserVote,
   submitEditRequest, getEditRequestsForApp, getUserEditRequests,
   uploadLogoToStorage
 } from './firebase-config.js';
@@ -35,165 +35,9 @@ let isAdmin = false;
 let apps = [];
 
 
-// ── Seed data (used to populate Firestore if empty) ──────────────────────────
-const SEED_APPS = [
-  {
-    id: "frappe-books",
-    name: "Frappe Books",
-    logo: "https://frappebooks.com/logo.png",
-    category: "Finance",
-    description: "Free and open-source desktop bookkeeping software for small businesses and freelancers.",
-    uses: "Track income, expenses, invoices, and financial reports without a subscription.",
-    alternative: "QuickBooks",
-    download: "https://frappebooks.com/",
-    source: "https://github.com/frappe/books",
-    maintainer: "organization",
-    platforms: ["Linux", "Windows", "macOS"]
-  },
-  {
-    id: "vlc",
-    name: "VLC Media Player",
-    logo: "https://www.videolan.org/vlc/screenshots/2.0.0/vlc-2.0.png",
-    category: "Media",
-    description: "A free, open-source multimedia player that handles virtually every video and audio format.",
-    uses: "Play any media file locally without codec packs or proprietary software.",
-    alternative: "Windows Media Player",
-    download: "https://www.videolan.org/vlc/",
-    source: "https://code.videolan.org/videolan/vlc",
-    maintainer: "organization",
-    platforms: ["Linux", "Windows", "macOS", "Android", "iOS"]
-  },
-  {
-    id: "gimp",
-    name: "GIMP",
-    logo: "https://www.gimp.org/images/frontpage/wilber-big.png",
-    category: "Design",
-    description: "A professional-grade image editor with layers, masks, filters, and a full suite of drawing tools.",
-    uses: "Edit photos, create digital art, and compose graphics without paying for Photoshop.",
-    alternative: "Adobe Photoshop",
-    download: "https://www.gimp.org/downloads/",
-    source: "https://gitlab.gnome.org/GNOME/gimp",
-    maintainer: "organization",
-    platforms: ["Linux", "Windows", "macOS"]
-  },
-  {
-    id: "logseq",
-    name: "Logseq",
-    logo: "https://logseq.com/logo.png",
-    category: "Productivity",
-    description: "A privacy-first, local-first knowledge management and note-taking app with outliner and graph views.",
-    uses: "Build a personal knowledge base, journal, and task manager entirely on your own machine.",
-    alternative: "Notion",
-    download: "https://logseq.com/downloads",
-    source: "https://github.com/logseq/logseq",
-    maintainer: "organization",
-    platforms: ["Linux", "Windows", "macOS", "Android", "iOS"]
-  },
-  {
-    id: "inkscape",
-    name: "Inkscape",
-    logo: "https://media.inkscape.org/static/images/inkscape-logo.svg",
-    category: "Design",
-    description: "A powerful vector graphics editor with SVG as its native format, supporting complex paths and typography.",
-    uses: "Create scalable logos, illustrations, and print layouts without Adobe Illustrator.",
-    alternative: "Adobe Illustrator",
-    download: "https://inkscape.org/release/",
-    source: "https://gitlab.com/inkscape/inkscape",
-    maintainer: "organization",
-    platforms: ["Linux", "Windows", "macOS"]
-  },
-  {
-    id: "bitwarden",
-    name: "Bitwarden",
-    logo: "https://bitwarden.com/images/icons/apple-touch-icon.png",
-    category: "Security",
-    description: "An end-to-end encrypted, open-source password manager with browser extensions and mobile apps.",
-    uses: "Securely store and sync credentials across all devices with the option to self-host the vault.",
-    alternative: "1Password",
-    download: "https://bitwarden.com/download/",
-    source: "https://github.com/bitwarden/clients",
-    maintainer: "organization",
-    platforms: ["Linux", "Windows", "macOS", "Android", "iOS", "Web"]
-  },
-  {
-    id: "thunderbird",
-    name: "Thunderbird",
-    logo: "https://www.thunderbird.net/media/img/thunderbird/logos/thunderbird-128x128.png",
-    category: "Communication",
-    description: "A feature-rich email client with a unified inbox, calendar, RSS reader, and extensible add-ons.",
-    uses: "Manage multiple email accounts from a single desktop app without browser dependency.",
-    alternative: "Microsoft Outlook",
-    download: "https://www.thunderbird.net/",
-    source: "https://github.com/mozilla/releases-comm-central",
-    maintainer: "organization",
-    platforms: ["Linux", "Windows", "macOS"]
-  },
-  {
-    id: "kdenlive",
-    name: "Kdenlive",
-    logo: "https://kdenlive.org/wp-content/uploads/2022/01/kdenlive.png",
-    category: "Media",
-    description: "A non-linear video editor with multi-track timeline, effects, transitions, and proxy editing.",
-    uses: "Edit, cut, and export videos for YouTube or social media without paying for Premiere Pro.",
-    alternative: "Adobe Premiere Pro",
-    download: "https://kdenlive.org/en/download/",
-    source: "https://invent.kde.org/multimedia/kdenlive",
-    maintainer: "organization",
-    platforms: ["Linux", "Windows", "macOS"]
-  },
-  {
-    id: "signal",
-    name: "Signal",
-    logo: "https://signal.org/favicon-32x32.png",
-    category: "Communication",
-    description: "A private, end-to-end encrypted messaging app with voice and video calls backed by open protocols.",
-    uses: "Send messages, photos, and make calls with strong cryptographic privacy by default.",
-    alternative: "WhatsApp",
-    download: "https://signal.org/en/download/",
-    source: "https://github.com/signalapp/Signal-Android",
-    maintainer: "organization",
-    platforms: ["Linux", "Windows", "macOS", "Android", "iOS"]
-  },
-  {
-    id: "libreoffice",
-    name: "LibreOffice",
-    logo: "https://www.libreoffice.org/themes/libreofficenew/img/discover.png",
-    category: "Productivity",
-    description: "A complete office suite with Writer, Calc, Impress, Draw, and Base — fully compatible with Microsoft formats.",
-    uses: "Create documents, spreadsheets, and presentations without a Microsoft 365 subscription.",
-    alternative: "Microsoft Office",
-    download: "https://www.libreoffice.org/download/download/",
-    source: "https://git.libreoffice.org/core",
-    maintainer: "organization",
-    platforms: ["Linux", "Windows", "macOS"]
-  },
-  {
-    id: "blender",
-    name: "Blender",
-    logo: "https://www.blender.org/wp-content/themes/bthree/assets/imgs/logo-B.svg",
-    category: "Design",
-    description: "A complete 3D creation suite covering modelling, rigging, animation, simulation, rendering, and video editing.",
-    uses: "Create 3D assets, animated films, game assets, and visual effects at professional quality.",
-    alternative: "Autodesk Maya",
-    download: "https://www.blender.org/download/",
-    source: "https://github.com/blender/blender",
-    maintainer: "organization",
-    platforms: ["Linux", "Windows", "macOS"]
-  },
-  {
-    id: "syncthing",
-    name: "Syncthing",
-    logo: "https://syncthing.net/img/logo-horizontal.svg",
-    category: "Utility",
-    description: "A continuous file-synchronisation program that syncs files between devices directly without a central server.",
-    uses: "Keep folders in sync across computers without uploading data to a third-party cloud service.",
-    alternative: "Dropbox",
-    download: "https://syncthing.net/downloads/",
-    source: "https://github.com/syncthing/syncthing",
-    maintainer: "individual",
-    platforms: ["Linux", "Windows", "macOS", "Android"]
-  }
-];
+// [VULN-10 FIX] Seed data removed from production bundle.
+// Use a separate seed script with firebase-admin SDK for development:
+//   node seed.js
 
 // ── Security: HTML escaping ──────────────────────────────────────────────────
 function esc(str) {
@@ -239,21 +83,8 @@ async function submitReport(payload) {
   );
 }
 
-// ── Seed function (call from browser console) ────────────────────────────────
-if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
-window.seedApps = async function() {
-  console.log("Seeding apps to Firestore...");
-  try {
-    const count = await seedAppsToFirestore(SEED_APPS);
-    console.log(`Seeded ${count} new apps.`);
-    await loadApps();
-    renderCurrentView();
-    showToast(`Seeded ${count} apps to Firestore`);
-  } catch (err) {
-    console.error("Seed failed:", err);
-  }
-};
-}
+// [VULN-10 FIX] Seed function removed from client bundle.
+// Use a separate seed script: node seed.js
 
 // ── Ranking Calculator ───────────────────────────────────────────────────────
 function calcRankScore(app) {
@@ -1943,11 +1774,12 @@ function attachVerifyHandlers() {
   document.querySelectorAll(".verify-reject-btn").forEach(btn => {
     btn.addEventListener("click", async () => {
       const reason = prompt("Reason for rejection:");
-      if (reason === null) return;
+      if (!reason || !reason.trim()) return;
+      const trimmedReason = reason.trim().slice(0, 1000);
       btn.disabled = true;
       btn.textContent = "Rejecting…";
       try {
-        await rejectSubmission(btn.dataset.id, currentUser.uid, reason.trim());
+        await rejectSubmission(btn.dataset.id, currentUser.uid, trimmedReason);
         showToast("Submission rejected");
         showVerifySubmissions();
       } catch (err) {
@@ -2301,10 +2133,11 @@ function attachAdminHandlers(tab) {
     document.querySelectorAll(".admin-request-changes-sub").forEach(btn => {
       btn.addEventListener("click", async () => {
         const comment = prompt("Describe the required changes for this submission:");
-        if (comment === null || !comment.trim()) return;
+        if (!comment || !comment.trim()) return;
+        const trimmedComment = comment.trim().slice(0, 1000);
         btn.disabled = true;
         try {
-          await requestChangesOnSubmission(btn.dataset.id, currentUser.uid, comment);
+          await requestChangesOnSubmission(btn.dataset.id, currentUser.uid, trimmedComment);
           btn.closest(".admin-card").remove();
           showToast("Requested changes on submission");
         } catch (err) { showToast(err.message); }
@@ -2326,10 +2159,11 @@ function attachAdminHandlers(tab) {
     document.querySelectorAll(".admin-reject-sub").forEach(btn => {
       btn.addEventListener("click", async () => {
         const reason = prompt("Reason for rejection:");
-        if (reason === null) return;
+        if (!reason || !reason.trim()) return;
+        const trimmedReason = reason.trim().slice(0, 1000);
         btn.disabled = true;
         try {
-          await rejectSubmission(btn.dataset.id, currentUser.uid, reason);
+          await rejectSubmission(btn.dataset.id, currentUser.uid, trimmedReason);
           btn.closest(".admin-card").remove();
           showToast("Submission rejected");
         } catch (err) { showToast(err.message); }
@@ -2369,10 +2203,11 @@ function attachAdminHandlers(tab) {
     document.querySelectorAll(".admin-reject-er").forEach(btn => {
       btn.addEventListener("click", async () => {
         const reason = prompt("Reason for rejection:");
-        if (reason === null) return;
+        if (!reason || !reason.trim()) return;
+        const trimmedReason = reason.trim().slice(0, 1000);
         btn.disabled = true;
         try {
-          await rejectEditRequest(btn.dataset.id, currentUser.uid, reason);
+          await rejectEditRequest(btn.dataset.id, currentUser.uid, trimmedReason);
           btn.closest(".admin-card").remove();
           showToast("Edit request rejected");
         } catch (err) { showToast(err.message); }
@@ -2711,10 +2546,11 @@ function bindERCardHandlers(container, appId, reloadFn) {
   container.querySelectorAll(".er-reject-btn").forEach(btn => {
     btn.addEventListener("click", async () => {
       const reason = prompt("Reason for rejection:");
-      if (reason === null) return;
+      if (!reason || !reason.trim()) return;
+      const trimmedReason = reason.trim().slice(0, 1000);
       btn.disabled = true;
       try {
-        await rejectEditRequest(btn.dataset.erId, currentUser.uid, reason);
+        await rejectEditRequest(btn.dataset.erId, currentUser.uid, trimmedReason);
         showToast("Rejected");
         reloadFn();
       } catch (err) { showToast(err.message); }
@@ -3177,8 +3013,24 @@ async function handleResubmit(e) {
 // ── Validation Helpers ────────────────────────────────────────────────────────
 function isValidLogoURL(url) {
   if (!url) return true; // logo is optional
-  if (url.startsWith("https://firebasestorage.googleapis.com/")) return true;
-  return /\.(jpe?g|png|svg)(\?.*)?$/i.test(new URL(url, location.href).pathname);
+  try {
+    const parsed = new URL(url, location.href);
+    // Only allow https: scheme
+    if (parsed.protocol !== "https:") return false;
+    // Allowlist of trusted image hostnames
+    const trustedHosts = [
+      "firebasestorage.googleapis.com",
+      "raw.githubusercontent.com",
+      "i.imgur.com",
+      "imgur.com"
+    ];
+    const isTrustedHost = trustedHosts.some(h => parsed.hostname === h || parsed.hostname.endsWith("." + h));
+    if (isTrustedHost) return true;
+    // For other https hosts, require an image file extension
+    return /\.(jpe?g|png|svg|webp)(\?.*)?$/i.test(parsed.pathname);
+  } catch {
+    return false;
+  }
 }
 
 // ── Modal Utilities ──────────────────────────────────────────────────────────

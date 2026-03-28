@@ -13,6 +13,7 @@ data/
 firebase-debug.log
 firebase-debug.*.log
 .firebaserc
+firebase-config.js
 
 # OS files
 .DS_Store

@@ -24,13 +24,20 @@ service cloud.firestore {
     }
 
     // ── Apps ──────────────────────────────────────────────────────────────────
+    // [VULN-02 FIX] Restricted app-owner updates to safe fields only;
+    // removed open like/dislike/views update clause (use toggleVote server logic)
     match /apps/{appId} {
       allow read: if true;
       allow create: if isAdmin();
       allow update: if isAdmin()
-        || (isSignedIn() && resource.data.addedBy.uid == request.auth.uid)
-        || (isSignedIn()
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["likes", "dislikes", "views"]));
+        || (isSignedIn() && resource.data.addedBy.uid == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(["description", "fullDescription", "logo", "website",
+                         "docs", "download", "source", "features", "uses",
+                         "alternative", "tags", "screenshots", "installMethods",
+                         "systemRequirements", "platforms", "fileSize",
+                         "developer", "developerUrl", "license", "version",
+                         "updatedAt"]));
       allow delete: if isAdmin();
     }
 
@@ -63,10 +70,21 @@ service cloud.firestore {
     }
 
     // ── Submissions ──────────────────────────────────────────────────────────
+    // [VULN-08 FIX] Added field validation on create
     match /submissions/{submissionId} {
       allow read: if isSignedIn()
         && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 100
+        && request.resource.data.description is string
+        && request.resource.data.description.size() <= 500
+        && request.resource.data.download is string
+        && request.resource.data.download.matches('https://.*')
+        && request.resource.data.source is string
+        && request.resource.data.source.matches('https://.*')
+        && request.resource.data.keys().size() <= 30;
       allow update: if isAdmin()
         || (isSignedIn() && resource.data.userId == request.auth.uid
             && resource.data.status in ["pending", "changes_requested"]);
@@ -74,54 +92,78 @@ service cloud.firestore {
     }
 
     // ── Edit Requests ────────────────────────────────────────────────────────
+    // [VULN-09 FIX] Submitter updates restricted — cannot touch approvals/status/merge fields
     match /edit_requests/{editId} {
       allow read: if true;
-      allow create: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.keys().size() <= 20;
       allow update: if isMaintainerOrAbove()
         || (isSignedIn() && resource.data.submitter.uid == request.auth.uid
-            && resource.data.status == "open");
+            && resource.data.status == "open"
+            && !(resource.data.locked == true)
+            && !request.resource.data.diff(resource.data).affectedKeys()
+                 .hasAny(["approvals", "status", "mergedBy", "mergedAt",
+                          "locked", "closedBy", "closeReason", "mergeSnapshot"]));
       allow delete: if isAdmin();
     }
 
     // ── Review Comments ──────────────────────────────────────────────────────
+    // [VULN-08 FIX] Added field validation on create
     match /review_comments/{commentId} {
       allow read: if true;
-      allow create: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.text is string
+        && request.resource.data.text.size() <= 2000
+        && request.resource.data.keys().size() <= 15;
       allow update, delete: if isAdmin();
     }
 
     // ── Reports ──────────────────────────────────────────────────────────────
+    // [VULN-08 FIX] Added field validation on create
     match /reports/{reportId} {
       allow read: if isAdmin();
-      allow create: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.reason is string
+        && request.resource.data.reason.size() <= 500
+        && request.resource.data.details is string
+        && request.resource.data.details.size() <= 2000
+        && request.resource.data.keys().size() <= 15;
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
 
     // ── User Records ─────────────────────────────────────────────────────────
+    // [VULN-05 FIX] Owners cannot modify role, verified, teamAccount, or uid
     match /user_records/{uid} {
       allow read: if true;
       allow create: if isOwner(uid);
-      allow update: if isOwner(uid) || isAdmin();
+      allow update: if isAdmin()
+        || (isOwner(uid)
+            && !request.resource.data.diff(resource.data).affectedKeys()
+                 .hasAny(["role", "verified", "teamAccount", "uid"]));
       allow delete: if isAdmin();
     }
 
     // ── Organizations ────────────────────────────────────────────────────────
+    // [VULN-11 FIX] Members cannot modify verified, ownerType, ownerId, corporationName
     match /organizations/{orgId} {
       allow read: if true;
       allow create: if isSignedIn();
-      allow update: if isSignedIn()
-        && resource.data.members.hasAny([
-          {"uid": request.auth.uid, "role": "owner"},
-          {"uid": request.auth.uid, "role": "maintainer"}
-        ]) || isAdmin();
+      allow update: if isAdmin()
+        || (isSignedIn()
+            && resource.data.members.hasAny([
+              {"uid": request.auth.uid, "role": "owner"},
+              {"uid": request.auth.uid, "role": "maintainer"}
+            ])
+            && !request.resource.data.diff(resource.data).affectedKeys()
+                 .hasAny(["verified", "ownerId", "ownerType", "corporationName"]));
       allow delete: if isAdmin();
     }
 
     // ── User Activity (recommendations tracking) ─────────────────────────────
     match /user_activity/{activityId} {
       allow read: if isSignedIn()
-        && resource.data.uid == request.auth.uid || isAdmin();
+        && (resource.data.uid == request.auth.uid || isAdmin());
       allow create: if isSignedIn();
       allow update, delete: if false;
     }
@@ -166,8 +208,10 @@ service cloud.firestore {
     }
 
     // ── Review Votes ─────────────────────────────────────────────────────────
+    // [VULN-12 FIX] Restricted read to own votes or admin
     match /review_votes/{voteId} {
-      allow read: if true;
+      allow read: if isSignedIn()
+        && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn()
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.type in ["helpful", "unhelpful"];
@@ -178,8 +222,9 @@ service cloud.firestore {
     }
 
     // ── App Downloads ────────────────────────────────────────────────────────
+    // [VULN-12 FIX] Restricted read to admin only (aggregate counts on app doc)
     match /app_downloads/{downloadId} {
-      allow read: if true;
+      allow read: if isAdmin();
       allow create: if isSignedIn();
       allow update, delete: if false;
     }

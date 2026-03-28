@@ -5,15 +5,17 @@ import { getAuth, signInWithPopup, GoogleAuthProvider, GithubAuthProvider, signO
 import { getFirestore, collection, addDoc, query, where, getDocs, updateDoc, doc, setDoc, getDoc, orderBy, limit, increment, deleteDoc, runTransaction } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-storage.js";
 
-// Firebase configuration
+// Firebase configuration — load from environment or replace before deploy.
+// DO NOT commit real values to version control.
+// See firebase-config.template.js for the structure.
 const firebaseConfig = {
-  apiKey: "AIzaSyBFgiUsJBK2fFGCiTTQHHlkZ6Lo7clXFfg",
-  authDomain: "openlib-f7bf1.firebaseapp.com",
-  projectId: "openlib-f7bf1",
-  storageBucket: "openlib-f7bf1.firebasestorage.app",
-  messagingSenderId: "480795071552",
-  appId: "1:480795071552:web:46b203a9cacd196292bba5",
-  measurementId: "G-TRYB22NJBL"
+  apiKey: globalThis.__FIREBASE_CONFIG__?.apiKey || "YOUR_API_KEY",
+  authDomain: globalThis.__FIREBASE_CONFIG__?.authDomain || "YOUR_PROJECT.firebaseapp.com",
+  projectId: globalThis.__FIREBASE_CONFIG__?.projectId || "YOUR_PROJECT_ID",
+  storageBucket: globalThis.__FIREBASE_CONFIG__?.storageBucket || "YOUR_PROJECT.firebasestorage.app",
+  messagingSenderId: globalThis.__FIREBASE_CONFIG__?.messagingSenderId || "YOUR_SENDER_ID",
+  appId: globalThis.__FIREBASE_CONFIG__?.appId || "YOUR_APP_ID",
+  measurementId: globalThis.__FIREBASE_CONFIG__?.measurementId || "YOUR_MEASUREMENT_ID"
 };
 
 // Initialize Firebase
@@ -151,8 +153,15 @@ export async function incrementAppViews(appId, userId) {
           timestamp: new Date().toISOString()
         });
       } catch (viewErr) {
-        console.warn("View throttle check failed (missing index?), incrementing anyway:", viewErr);
+        // [VULN-14 FIX] Fail closed — don't increment if throttle check fails
+        console.warn("View throttle check failed, skipping increment:", viewErr);
+        const snap = await getDoc(appRef);
+        return snap.data()?.views || 0;
       }
+    } else {
+      // Unauthenticated users: don't increment views (require auth for accurate counts)
+      const snap = await getDoc(appRef);
+      return snap.data()?.views || 0;
     }
 
     await updateDoc(appRef, { views: increment(1) });
