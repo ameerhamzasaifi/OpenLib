@@ -1,6 +1,7 @@
 // ── Firebase Imports ─────────────────────────────────────────────────────────
 import {
   signInWithGoogle, signInWithGitHub, signOutUser, getCurrentUser, onUserAuthStateChanged,
+  getPendingLinkData, clearPendingLinkData, linkProviderToCurrentUser, getLinkedProviders,
   submitReportToFirestore,
   submitAppToFirestore, getAllAppsFromFirestore,
   getAppFromFirestore, incrementAppViews, toggleVote, getUserVote,
@@ -3081,12 +3082,16 @@ async function updateAuthUI(user) {
       : `<span id="auth-icon">✓</span>`;
     trigger.innerHTML = `${avatarHtml}<span id="auth-label">${esc(user.displayName || "Account")}</span>`;
     const providerName = user.providerData?.[0]?.providerId === "github.com" ? "GitHub" : "Google";
+    const linkedProviders = getLinkedProviders();
+    const linkedDisplay = linkedProviders.map(p =>
+      p === "github.com" ? "GitHub" : p === "google.com" ? "Google" : p
+    ).join(" + ");
     content.innerHTML = `
       <div class="user-info">
         ${user.photoURL ? `<img class="auth-dropdown-avatar" src="${esc(user.photoURL)}" alt="" referrerpolicy="no-referrer">` : ""}
         <div class="user-name">${esc(user.displayName || "User")} ${verifiedBadge(userRecord)}</div>
         <div class="user-email">${esc(user.email || "")}</div>
-        <div class="user-provider">Signed in via ${esc(providerName)}</div>
+        <div class="user-provider">Signed in via ${esc(linkedDisplay || providerName)}</div>
         <div class="user-role">${roleBadge(userRecord?.role || "user")}</div>
       </div>
       <a href="/profile" class="auth-option profile-link">👤 My Profile</a>
@@ -3133,7 +3138,14 @@ function setupAuthHandlers() {
         dropdown.classList.remove("open");
         showToast("Signed in with Google ✓");
       } catch (err) {
-        showToast("Sign-in failed: " + err.message);
+        if (err.code === "auth/account-exists-with-different-credential") {
+          dropdown.classList.remove("open");
+          showAccountLinkingModal(err.email, err.existingProvider);
+        } else if (err.code === "auth/popup-closed-by-user" || err.code === "auth/cancelled-popup-request") {
+          // User closed the popup — do nothing
+        } else {
+          showToast("Sign-in failed: " + err.message);
+        }
       }
     }
     if (e.target.closest("#github-signin-btn")) {
@@ -3142,7 +3154,14 @@ function setupAuthHandlers() {
         dropdown.classList.remove("open");
         showToast("Signed in with GitHub ✓");
       } catch (err) {
-        showToast("Sign-in failed: " + err.message);
+        if (err.code === "auth/account-exists-with-different-credential") {
+          dropdown.classList.remove("open");
+          showAccountLinkingModal(err.email, err.existingProvider);
+        } else if (err.code === "auth/popup-closed-by-user" || err.code === "auth/cancelled-popup-request") {
+          // User closed the popup — do nothing
+        } else {
+          showToast("Sign-in failed: " + err.message);
+        }
       }
     }
     if (e.target.closest("#signout-btn")) {
@@ -3157,12 +3176,79 @@ function setupAuthHandlers() {
   });
 }
 
+// ── Account Linking Modal ────────────────────────────────────────────────────
+function showAccountLinkingModal(email, existingProvider) {
+  const modal = document.getElementById("account-link-modal");
+  if (!modal) return;
+
+  const providerName = existingProvider === "github.com" ? "GitHub" : "Google";
+  const attemptedName = existingProvider === "github.com" ? "Google" : "GitHub";
+
+  modal.querySelector("#link-modal-email").textContent = email || "your email";
+  modal.querySelector("#link-modal-existing-provider").textContent = providerName;
+  modal.querySelector("#link-modal-attempted-provider").textContent = attemptedName;
+
+  const linkBtn = modal.querySelector("#link-modal-signin-btn");
+  linkBtn.textContent = "Sign in with " + providerName;
+  linkBtn.dataset.provider = existingProvider;
+
+  modal.classList.add("open");
+}
+
+function hideAccountLinkingModal() {
+  const modal = document.getElementById("account-link-modal");
+  if (modal) modal.classList.remove("open");
+}
+
+function setupAccountLinkingModal() {
+  const modal = document.getElementById("account-link-modal");
+  if (!modal) return;
+
+  // "Sign in with [existing provider]" button — signs in and auto-links
+  modal.querySelector("#link-modal-signin-btn")?.addEventListener("click", async () => {
+    const provider = modal.querySelector("#link-modal-signin-btn").dataset.provider;
+    try {
+      if (provider === "google.com") {
+        await signInWithGoogle();
+      } else if (provider === "github.com") {
+        await signInWithGitHub();
+      }
+      hideAccountLinkingModal();
+      showToast("Accounts linked successfully ✓");
+    } catch (err) {
+      if (err.code === "auth/popup-closed-by-user" || err.code === "auth/cancelled-popup-request") {
+        return;
+      }
+      showToast("Linking failed: " + err.message);
+    }
+  });
+
+  // Cancel button(s)
+  modal.querySelector("#link-modal-cancel-btn")?.addEventListener("click", () => {
+    clearPendingLinkData();
+    hideAccountLinkingModal();
+  });
+  modal.querySelector("#link-modal-cancel-btn-secondary")?.addEventListener("click", () => {
+    clearPendingLinkData();
+    hideAccountLinkingModal();
+  });
+
+  // Close on backdrop click
+  modal.addEventListener("click", e => {
+    if (e.target === modal) {
+      clearPendingLinkData();
+      hideAccountLinkingModal();
+    }
+  });
+}
+
 function initAuth() {
   onUserAuthStateChanged(async user => {
     await updateAuthUI(user);
     renderRecommendations();
   });
   setupAuthHandlers();
+  setupAccountLinkingModal();
 }
 
 // ── Toast ────────────────────────────────────────────────────────────────────
@@ -3637,7 +3723,12 @@ async function init() {
       showToast("Signed in! You can now proceed.");
       if (loginModal.dataset.targetUrl) window.open(loginModal.dataset.targetUrl, "_blank", "noopener");
     } catch (err) {
-      showToast("Sign-in failed: " + err.message);
+      if (err.code === "auth/account-exists-with-different-credential") {
+        loginModal.classList.remove("open");
+        showAccountLinkingModal(err.email, err.existingProvider);
+      } else if (err.code !== "auth/popup-closed-by-user" && err.code !== "auth/cancelled-popup-request") {
+        showToast("Sign-in failed: " + err.message);
+      }
     }
   });
   loginModal?.querySelector("#prompt-github-btn")?.addEventListener("click", async () => {
@@ -3647,7 +3738,12 @@ async function init() {
       showToast("Signed in! You can now proceed.");
       if (loginModal.dataset.targetUrl) window.open(loginModal.dataset.targetUrl, "_blank", "noopener");
     } catch (err) {
-      showToast("Sign-in failed: " + err.message);
+      if (err.code === "auth/account-exists-with-different-credential") {
+        loginModal.classList.remove("open");
+        showAccountLinkingModal(err.email, err.existingProvider);
+      } else if (err.code !== "auth/popup-closed-by-user" && err.code !== "auth/cancelled-popup-request") {
+        showToast("Sign-in failed: " + err.message);
+      }
     }
   });
 
