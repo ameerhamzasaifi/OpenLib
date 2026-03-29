@@ -1014,9 +1014,9 @@ export async function followUser(followerId, followeeId) {
     createdAt: new Date().toISOString()
   });
 
-  // Update counts on both user records
-  await updateDoc(doc(db, "user_records", followerId), { followingCount: increment(1) });
-  await updateDoc(doc(db, "user_records", followeeId), { followersCount: increment(1) });
+  // [VULN-12N FIX] Removed client-side counter updates on user_records.
+  // Follower/following counts are derived from the follows collection
+  // via getFollowersCount() and getFollowingCount() queries.
   return true;
 }
 
@@ -1027,8 +1027,8 @@ export async function unfollowUser(followerId, followeeId) {
   if (!snap.exists()) return false; // not following
 
   await deleteDoc(ref);
-  await updateDoc(doc(db, "user_records", followerId), { followingCount: increment(-1) });
-  await updateDoc(doc(db, "user_records", followeeId), { followersCount: increment(-1) });
+  // [VULN-12N FIX] Removed client-side counter updates on user_records.
+  // Follower/following counts are derived from the follows collection.
   return true;
 }
 

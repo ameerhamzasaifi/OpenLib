@@ -8,6 +8,14 @@ import { db } from './firebase-config.js';
 // ── Current app version (bumped by deploy script) ────────────────────────────
 const APP_VERSION = "1.0.0";
 
+// [VULN-11N FIX] Strict version string validation to prevent injection
+const SEMVER_RE = /^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$/;
+const MAX_VERSION_LEN = 30;
+
+function isValidVersion(v) {
+  return typeof v === "string" && v.length <= MAX_VERSION_LEN && SEMVER_RE.test(v);
+}
+
 const LS_KEY = "openlib_app_version";
 const SS_DISMISS_KEY = "openlib_update_dismissed";
 
@@ -52,7 +60,13 @@ async function fetchRemoteVersion() {
   try {
     const snap = await getDoc(doc(db, "config", "app_version"));
     if (snap.exists()) {
-      return snap.data().version || null;
+      const version = snap.data().version || null;
+      // [VULN-11N FIX] Reject invalid version strings from Firestore
+      if (version && !isValidVersion(version)) {
+        console.warn("Remote version string failed validation, ignoring:", version);
+        return null;
+      }
+      return version;
     }
     return null;
   } catch (_) {

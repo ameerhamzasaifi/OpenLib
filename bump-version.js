@@ -21,6 +21,12 @@ if (!newVersion) {
   process.exit(1);
 }
 
+// [VULN-08N FIX] Validate version string against strict semver pattern
+if (!/^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$/.test(newVersion)) {
+  console.error("Version must be semver format: X.Y.Z or X.Y.Z-prerelease");
+  process.exit(1);
+}
+
 // ── 1. Patch version-check.js ────────────────────────────────────────────────
 const vcPath = path.join(__dirname, "version-check.js");
 let vcSource = fs.readFileSync(vcPath, "utf-8");
@@ -38,8 +44,16 @@ async function updateFirestore() {
   try {
     const admin = require("firebase-admin");
 
+    // [VULN-08N FIX] Use environment variable instead of hardcoded project ID
+    const projectId = process.env.FIREBASE_PROJECT_ID;
+    if (!projectId) {
+      console.error("⚠ Set FIREBASE_PROJECT_ID environment variable");
+      console.log('  e.g. FIREBASE_PROJECT_ID=openlib-f7bf1 node bump-version.js 1.2.0');
+      process.exit(1);
+    }
+
     if (!admin.apps.length) {
-      admin.initializeApp({ projectId: "openlib-f7bf1" });
+      admin.initializeApp({ projectId });
     }
 
     const db = admin.firestore();

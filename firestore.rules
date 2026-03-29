@@ -30,8 +30,8 @@ service cloud.firestore {
     }
 
     // ── Apps ──────────────────────────────────────────────────────────────────
-    // [VULN-02 FIX] Restricted app-owner updates to safe fields only;
-    // removed open like/dislike/views update clause (use toggleVote server logic)
+    // [VULN-02 FIX] Restricted app-owner updates to safe fields only.
+    // [VULN-02B FIX] Re-added counter fields with type validation for signed-in users.
     match /apps/{appId} {
       allow read: if true;
       allow create: if isAdmin();
@@ -43,14 +43,23 @@ service cloud.firestore {
                          "alternative", "tags", "screenshots", "installMethods",
                          "systemRequirements", "platforms", "fileSize",
                          "developer", "developerUrl", "license", "version",
-                         "updatedAt"]));
+                         "updatedAt"]))
+        // Counter fields: any signed-in user can update only counters with type validation
+        || (isSignedIn()
+            && request.resource.data.diff(resource.data)
+                 .affectedKeys().hasOnly(["likes", "dislikes", "views", "downloads"])
+            && request.resource.data.likes is int
+            && request.resource.data.dislikes is int
+            && request.resource.data.views is int
+            && request.resource.data.downloads is int);
       allow delete: if isAdmin();
     }
 
     // ── App Versions ─────────────────────────────────────────────────────────
+    // [VULN-04N FIX] Restricted create to admins only to prevent audit trail poisoning
     match /app_versions/{versionId} {
       allow read: if true;
-      allow create: if isSignedIn();
+      allow create: if isAdmin();
       allow update, delete: if isAdmin();
     }
 
@@ -201,6 +210,7 @@ service cloud.firestore {
     }
 
     // ── App Reviews ──────────────────────────────────────────────────────────
+    // [VULN-05N FIX] Restrict helpful/unhelpful to single-unit increments only
     match /app_reviews/{reviewId} {
       allow read: if true;
       allow create: if isSignedIn()
@@ -210,9 +220,21 @@ service cloud.firestore {
         && request.resource.data.rating <= 5
         && request.resource.data.text is string
         && request.resource.data.text.size() <= 2000;
-      allow update: if isSignedIn()
-        && (resource.data.authorUid == request.auth.uid
-          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(["helpful", "unhelpful"])));
+      allow update: if isAdmin()
+        || (isSignedIn() && resource.data.authorUid == request.auth.uid
+            && !request.resource.data.diff(resource.data).affectedKeys()
+                  .hasAny(["authorUid", "appId", "createdAt"]))
+        || (isSignedIn()
+            && request.resource.data.diff(resource.data)
+                 .affectedKeys().hasOnly(["helpful", "unhelpful"])
+            && request.resource.data.helpful is int
+            && request.resource.data.unhelpful is int
+            && (request.resource.data.helpful == resource.data.helpful + 1
+                || request.resource.data.helpful == resource.data.helpful - 1
+                || request.resource.data.helpful == resource.data.helpful)
+            && (request.resource.data.unhelpful == resource.data.unhelpful + 1
+                || request.resource.data.unhelpful == resource.data.unhelpful - 1
+                || request.resource.data.unhelpful == resource.data.unhelpful));
       allow delete: if (isSignedIn()
         && resource.data.authorUid == request.auth.uid) || isAdmin();
     }
@@ -237,6 +259,25 @@ service cloud.firestore {
       allow read: if isAdmin();
       allow create: if isSignedIn();
       allow update, delete: if false;
+    }
+
+    // ── Ownership Claims ─────────────────────────────────────────────────────
+    // [VULN-03N FIX] Added explicit rules for ownership_claims collection
+    match /ownership_claims/{claimId} {
+      // Admins can read all claims; users can read their own
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.claimantUid == request.auth.uid);
+
+      // Authenticated users can submit claims with proper validation
+      allow create: if isSignedIn()
+        && request.resource.data.claimantUid == request.auth.uid
+        && request.resource.data.status == "pending"
+        && request.resource.data.appId is string
+        && request.resource.data.appId.size() > 0
+        && request.resource.data.keys().size() <= 12;
+
+      // Only admins can update (approve/reject) or delete
+      allow update, delete: if isAdmin();
     }
   }
 }

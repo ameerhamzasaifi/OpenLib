@@ -49,6 +49,54 @@ function esc(str) {
   return div.innerHTML;
 }
 
+// ── [VULN-14R FIX] Modal-based input prompt (replaces browser prompt()) ──────
+function showInputModal(title, placeholder = "Enter your response…") {
+  return new Promise((resolve) => {
+    const modal = document.getElementById("input-prompt-modal");
+    if (!modal) { resolve(null); return; }
+
+    const titleEl = modal.querySelector("#input-prompt-title");
+    const labelEl = modal.querySelector("#input-prompt-label");
+    const field = modal.querySelector("#input-prompt-field");
+    const submitBtn = modal.querySelector("#input-prompt-submit");
+    const cancelBtn = modal.querySelector("#input-prompt-cancel");
+
+    titleEl.textContent = title;
+    labelEl.textContent = title;
+    field.value = "";
+    field.placeholder = placeholder;
+    modal.classList.add("open");
+    field.focus();
+
+    function cleanup() {
+      modal.classList.remove("open");
+      submitBtn.removeEventListener("click", onSubmit);
+      cancelBtn.removeEventListener("click", onCancel);
+      modal.querySelector(".modal-close").removeEventListener("click", onCancel);
+      field.removeEventListener("keydown", onKeydown);
+    }
+    function onSubmit() {
+      const val = field.value.trim();
+      if (!val) return;
+      cleanup();
+      resolve(val.slice(0, 1000));
+    }
+    function onCancel() {
+      cleanup();
+      resolve(null);
+    }
+    function onKeydown(e) {
+      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onSubmit(); }
+      if (e.key === "Escape") onCancel();
+    }
+
+    submitBtn.addEventListener("click", onSubmit);
+    cancelBtn.addEventListener("click", onCancel);
+    modal.querySelector(".modal-close").addEventListener("click", onCancel);
+    field.addEventListener("keydown", onKeydown);
+  });
+}
+
 // ── Session ID ───────────────────────────────────────────────────────────────
 function getSessionId() {
   let id = localStorage.getItem("openlib_session");
@@ -1802,12 +1850,12 @@ function attachVerifyHandlers() {
   // Request Changes
   document.querySelectorAll(".verify-changes-btn").forEach(btn => {
     btn.addEventListener("click", async () => {
-      const comment = prompt("Describe the changes needed for this submission:");
-      if (comment === null || !comment.trim()) return;
+      const comment = await showInputModal("Describe the changes needed for this submission:");
+      if (!comment) return;
       btn.disabled = true;
       btn.textContent = "Sending…";
       try {
-        await requestChangesOnSubmission(btn.dataset.id, currentUser.uid, comment.trim());
+        await requestChangesOnSubmission(btn.dataset.id, currentUser.uid, comment);
         showToast("Changes requested — submitter will be notified");
         showVerifySubmissions();
       } catch (err) {
@@ -1821,13 +1869,12 @@ function attachVerifyHandlers() {
   // Reject
   document.querySelectorAll(".verify-reject-btn").forEach(btn => {
     btn.addEventListener("click", async () => {
-      const reason = prompt("Reason for rejection:");
-      if (!reason || !reason.trim()) return;
-      const trimmedReason = reason.trim().slice(0, 1000);
+      const reason = await showInputModal("Reason for rejection:");
+      if (!reason) return;
       btn.disabled = true;
       btn.textContent = "Rejecting…";
       try {
-        await rejectSubmission(btn.dataset.id, currentUser.uid, trimmedReason);
+        await rejectSubmission(btn.dataset.id, currentUser.uid, reason);
         showToast("Submission rejected");
         showVerifySubmissions();
       } catch (err) {
@@ -2217,12 +2264,11 @@ function attachAdminHandlers(tab) {
 
     document.querySelectorAll(".admin-request-changes-sub").forEach(btn => {
       btn.addEventListener("click", async () => {
-        const comment = prompt("Describe the required changes for this submission:");
-        if (!comment || !comment.trim()) return;
-        const trimmedComment = comment.trim().slice(0, 1000);
+        const comment = await showInputModal("Describe the required changes for this submission:");
+        if (!comment) return;
         btn.disabled = true;
         try {
-          await requestChangesOnSubmission(btn.dataset.id, currentUser.uid, trimmedComment);
+          await requestChangesOnSubmission(btn.dataset.id, currentUser.uid, comment);
           btn.closest(".admin-card").remove();
           showToast("Requested changes on submission");
         } catch (err) { showToast(err.message); }
@@ -2243,12 +2289,11 @@ function attachAdminHandlers(tab) {
     });
     document.querySelectorAll(".admin-reject-sub").forEach(btn => {
       btn.addEventListener("click", async () => {
-        const reason = prompt("Reason for rejection:");
-        if (!reason || !reason.trim()) return;
-        const trimmedReason = reason.trim().slice(0, 1000);
+        const reason = await showInputModal("Reason for rejection:");
+        if (!reason) return;
         btn.disabled = true;
         try {
-          await rejectSubmission(btn.dataset.id, currentUser.uid, trimmedReason);
+          await rejectSubmission(btn.dataset.id, currentUser.uid, reason);
           btn.closest(".admin-card").remove();
           showToast("Submission rejected");
         } catch (err) { showToast(err.message); }
@@ -2311,12 +2356,11 @@ function attachAdminHandlers(tab) {
     });
     document.querySelectorAll(".admin-reject-er").forEach(btn => {
       btn.addEventListener("click", async () => {
-        const reason = prompt("Reason for rejection:");
-        if (!reason || !reason.trim()) return;
-        const trimmedReason = reason.trim().slice(0, 1000);
+        const reason = await showInputModal("Reason for rejection:");
+        if (!reason) return;
         btn.disabled = true;
         try {
-          await rejectEditRequest(btn.dataset.id, currentUser.uid, trimmedReason);
+          await rejectEditRequest(btn.dataset.id, currentUser.uid, reason);
           btn.closest(".admin-card").remove();
           showToast("Edit request rejected");
         } catch (err) { showToast(err.message); }
@@ -2654,12 +2698,11 @@ function bindERCardHandlers(container, appId, reloadFn) {
   });
   container.querySelectorAll(".er-reject-btn").forEach(btn => {
     btn.addEventListener("click", async () => {
-      const reason = prompt("Reason for rejection:");
-      if (!reason || !reason.trim()) return;
-      const trimmedReason = reason.trim().slice(0, 1000);
+      const reason = await showInputModal("Reason for rejection:");
+      if (!reason) return;
       btn.disabled = true;
       try {
-        await rejectEditRequest(btn.dataset.erId, currentUser.uid, trimmedReason);
+        await rejectEditRequest(btn.dataset.erId, currentUser.uid, reason);
         showToast("Rejected");
         reloadFn();
       } catch (err) { showToast(err.message); }

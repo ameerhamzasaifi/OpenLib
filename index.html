@@ -70,8 +70,8 @@
       <div class="header-actions">
         <span class="count-badge" id="total-count">— apps</span>
         <a href="/rankings" class="nav-link" id="ranking-nav-link" title="Rankings">🏆 Rankings</a>
-        <a href="/profile" class="nav-link" id="profile-nav-link" title="Profile" style="display:none;">👤 Profile</a>
-        <a href="/admin" class="nav-link nav-link-admin" id="admin-nav-link" title="Admin" style="display:none;">⚙️ Admin</a>
+        <a href="/profile" class="nav-link initially-hidden" id="profile-nav-link" title="Profile">👤 Profile</a>
+        <a href="/admin" class="nav-link nav-link-admin initially-hidden" id="admin-nav-link" title="Admin">⚙️ Admin</a>
 
         <!-- Auth Menu -->
         <div class="auth-menu" id="auth-menu">
@@ -111,7 +111,7 @@
     </section>
 
     <!-- ═══ RECOMMENDATIONS ═══ -->
-    <section class="recommendations-section" id="recommendations-section" style="display:none;" aria-label="Recommended apps"></section>
+    <section class="recommendations-section initially-hidden" id="recommendations-section" aria-label="Recommended apps"></section>
 
     <section class="grid-section" aria-label="App listing">
       <div class="section-meta">
@@ -122,22 +122,22 @@
   </main>
 
   <!-- ═══ DETAIL VIEW ═══ -->
-  <div id="detail-view" style="display:none;" class="view-section"></div>
+  <div id="detail-view" class="view-section initially-hidden"></div>
 
   <!-- ═══ RANKINGS VIEW ═══ -->
-  <div id="rankings-view" style="display:none;" class="view-section"></div>
+  <div id="rankings-view" class="view-section initially-hidden"></div>
 
   <!-- ═══ PROFILE VIEW ═══ -->
-  <div id="profile-view" style="display:none;" class="view-section"></div>
+  <div id="profile-view" class="view-section initially-hidden"></div>
 
   <!-- ═══ ORGANIZATION VIEW ═══ -->
-  <div id="org-view" style="display:none;" class="view-section"></div>
+  <div id="org-view" class="view-section initially-hidden"></div>
 
   <!-- ═══ ADMIN VIEW ═══ -->
-  <div id="admin-view" style="display:none;" class="view-section"></div>
+  <div id="admin-view" class="view-section initially-hidden"></div>
 
   <!-- ═══ VERIFY SUBMISSIONS VIEW ═══ -->
-  <div id="verify-view" style="display:none;" class="view-section"></div>
+  <div id="verify-view" class="view-section initially-hidden"></div>
 
   <!-- ── Footer ── -->
   <footer>
@@ -223,7 +223,7 @@
             <input type="url" id="sub-logo" placeholder="https://…/logo.png" class="logo-url-input">
             <span class="logo-or">or</span>
             <label class="logo-upload-label" for="sub-logo-file">📁 Upload</label>
-            <input type="file" id="sub-logo-file" accept=".jpg,.jpeg,.png,.svg" class="logo-file-input" style="display:none;">
+            <input type="file" id="sub-logo-file" accept=".jpg,.jpeg,.png,.svg" class="logo-file-input">
             <span class="logo-file-name" id="sub-logo-filename"></span>
           </div>
         </div>
@@ -452,7 +452,7 @@
               <input type="url" id="er-logo" placeholder="https://…/logo.png" class="logo-url-input">
               <span class="logo-or">or</span>
               <label class="logo-upload-label" for="er-logo-file">📁 Upload</label>
-              <input type="file" id="er-logo-file" accept=".jpg,.jpeg,.png,.svg" class="logo-file-input" style="display:none;">
+              <input type="file" id="er-logo-file" accept=".jpg,.jpeg,.png,.svg" class="logo-file-input">
               <span class="logo-file-name" id="er-logo-filename"></span>
             </div>
           </div>
@@ -750,17 +750,24 @@
     </div>
   </div>
 
-  <script>
-    globalThis.__FIREBASE_CONFIG__ = {
-      apiKey: "AIzaSyBFgiUsJBK2fFGCiTTQHHlkZ6Lo7clXFfg",
-      authDomain: "openlib-f7bf1.firebaseapp.com",
-      projectId: "openlib-f7bf1",
-      storageBucket: "openlib-f7bf1.firebasestorage.app",
-      messagingSenderId: "480795071552",
-      appId: "1:480795071552:web:9ee867197bfa5acd92bba5",
-      measurementId: "G-01WBRWH49J"
-    };
-  </script>
+  <!-- ═══ MODAL: ADMIN INPUT PROMPT ═══ -->
+  <div class="modal-overlay" id="input-prompt-modal" role="dialog" aria-modal="true" aria-labelledby="input-prompt-title">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title" id="input-prompt-title">Input Required</h2>
+        <button class="modal-close" aria-label="Close modal">✕</button>
+      </div>
+      <div class="form-group">
+        <label for="input-prompt-field" id="input-prompt-label">Reason</label>
+        <textarea id="input-prompt-field" rows="3" maxlength="1000" placeholder="Enter your response…"></textarea>
+      </div>
+      <div class="modal-actions-row">
+        <button class="btn btn-secondary" id="input-prompt-cancel">Cancel</button>
+        <button class="btn btn-primary" id="input-prompt-submit">Submit</button>
+      </div>
+    </div>
+  </div>
+
   <script type="module" src="script.js"></script>
 </body>
 </html>

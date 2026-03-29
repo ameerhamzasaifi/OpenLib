@@ -14,6 +14,7 @@ firebase-debug.log
 firebase-debug.*.log
 .firebaserc
 firebase-config.js
+bump-version.js
 
 # OS files
 .DS_Store

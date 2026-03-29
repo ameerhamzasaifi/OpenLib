@@ -5677,3 +5677,8 @@ a.added-by-link:hover {
     max-width: calc(100vw - 32px);
   }
 }
+
+/* [VULN-13R FIX] Replace inline style="display:none" with CSS class */
+.initially-hidden { display: none; }
+.logo-file-input { display: none; }
+.modal-actions-row { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1rem; }
