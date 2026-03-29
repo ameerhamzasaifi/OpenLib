@@ -5,17 +5,15 @@ import { getAuth, signInWithPopup, GoogleAuthProvider, GithubAuthProvider, signO
 import { getFirestore, collection, addDoc, query, where, getDocs, updateDoc, doc, setDoc, getDoc, orderBy, limit, increment, deleteDoc, runTransaction } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-storage.js";
 
-// Firebase configuration — loaded at runtime. Do NOT hardcode real values here.
-// Inject via a <script> tag setting globalThis.__FIREBASE_CONFIG__ before this module loads,
-// or replace placeholders in your CI/CD pipeline before deploy.
+// Firebase configuration
 const firebaseConfig = {
-  apiKey: globalThis.__FIREBASE_CONFIG__?.apiKey || "YOUR_API_KEY",
-  authDomain: globalThis.__FIREBASE_CONFIG__?.authDomain || "YOUR_PROJECT.firebaseapp.com",
-  projectId: globalThis.__FIREBASE_CONFIG__?.projectId || "YOUR_PROJECT_ID",
-  storageBucket: globalThis.__FIREBASE_CONFIG__?.storageBucket || "YOUR_PROJECT.firebasestorage.app",
-  messagingSenderId: globalThis.__FIREBASE_CONFIG__?.messagingSenderId || "YOUR_SENDER_ID",
-  appId: globalThis.__FIREBASE_CONFIG__?.appId || "YOUR_APP_ID",
-  measurementId: globalThis.__FIREBASE_CONFIG__?.measurementId || "YOUR_MEASUREMENT_ID"
+  apiKey: "AIzaSyBFgiUsJBK2fFGCiTTQHHlkZ6Lo7clXFfg",
+  authDomain: "openlib-f7bf1.firebaseapp.com",
+  projectId: "openlib-f7bf1",
+  storageBucket: "openlib-f7bf1.firebasestorage.app",
+  messagingSenderId: "480795071552",
+  appId: "1:480795071552:web:9ee867197bfa5acd92bba5",
+  measurementId: "G-01WBRWH49J"
 };
 
 // Initialize Firebase
