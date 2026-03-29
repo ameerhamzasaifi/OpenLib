@@ -19,3 +19,19 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+---
+
+TRADEMARK NOTICE
+
+"OpenLib" and the OpenLib name, logo, and branding are trademarks of
+Ameer Hamza Saifi. This MIT License does not grant permission to use the
+"OpenLib" name, logo, or any associated trademarks in a way that implies
+official affiliation, endorsement, or origin.
+
+You are free to fork, modify, and distribute this software under the MIT
+License, but any such derivative works must be released under a different
+name and must not use the "OpenLib" branding, logo, or identity.
+
+For permission requests regarding the trademark, open an issue at:
+https://github.com/ameerhamzasaifi/openlib/issues
