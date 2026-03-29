@@ -21,7 +21,7 @@ import {
   isAdminOrTeam, adminAddApp, adminUpdateApp, adminRemoveApp,
   getAllPendingSubmissions, getAllEditRequests, approveSubmission, rejectSubmission,
   requestChangesOnSubmission,
-  getAllSubmissions, getUserSubmissions, updateSubmission, getSubmissionComments, addSubmissionComment,
+  getAllSubmissions, getSubmission, getUserSubmissions, updateSubmission, getSubmissionComments, addSubmissionComment,
   followUser, unfollowUser, isFollowing,
   addAppReview, getAppReviews, markReviewHelpful, getUserReviewForApp, toggleReviewVote, getUserReviewVote,
   toggleBookmark, isBookmarked, getUserBookmarks,
@@ -1583,7 +1583,29 @@ async function showVerifySubmissions() {
 
   verifyView.innerHTML = `<div class="detail-loading">Loading submissions for review…</div>`;
 
-  const submissions = await getAllSubmissions();
+  let submissions = [];
+  let loadError = null;
+  try {
+    submissions = await getAllSubmissions();
+    console.log("[Verify] Loaded", submissions.length, "submissions");
+  } catch (e) {
+    console.error("[Verify] Failed to load submissions:", e);
+    loadError = e.message;
+  }
+
+  if (loadError) {
+    verifyView.innerHTML = `
+      <div class="verify-page">
+        <a href="/profile" class="back-link">← Back to profile</a>
+        <h1 class="verify-title">🛡️ Verify App Submissions</h1>
+        <div class="admin-error-banner">
+          <strong>⚠️ Failed to load submissions:</strong> ${esc(loadError)}
+          <p>This may be caused by missing Firestore indexes or permission issues. Check the browser console for details.</p>
+        </div>
+      </div>`;
+    return;
+  }
+
   const pendingCount = submissions.filter(s => s.status === "pending").length;
   const changesCount = submissions.filter(s => s.status === "changes_requested").length;
   const approvedCount = submissions.filter(s => s.status === "approved").length;
@@ -1639,8 +1661,11 @@ function renderVerifyCards(submissions, filter) {
 
   return filtered.map(sub => {
     const statusIcon = sub.status === "pending" ? "🟡" : sub.status === "approved" ? "🟢" : sub.status === "rejected" ? "🔴" : sub.status === "changes_requested" ? "🟠" : "⚪";
-    const statusLabel = sub.status === "changes_requested" ? "Changes Requested" : sub.status.charAt(0).toUpperCase() + sub.status.slice(1);
+    const statusLabel = sub.status === "changes_requested" ? "Changes Requested" : (sub.status || "unknown").charAt(0).toUpperCase() + (sub.status || "unknown").slice(1);
     const canAct = sub.status === "pending" || sub.status === "changes_requested";
+
+    // Helper: safe field display with "—" fallback
+    const sf = (val) => val != null && val !== "" && val !== undefined ? esc(val) : "—";
 
     return `
     <div class="verify-card" data-id="${esc(sub.id)}" data-status="${esc(sub.status)}">
@@ -1648,32 +1673,52 @@ function renderVerifyCards(submissions, filter) {
         <div class="verify-card-title">
           ${sub.logo ? `<img class="verify-card-logo" src="${esc(sub.logo)}" alt="" onerror="this.style.display='none'">` : `<div class="verify-card-logo-fallback">${esc((sub.name || "?").charAt(0))}</div>`}
           <div>
-            <strong class="verify-card-name">${esc(sub.name)}</strong>
-            <span class="badge badge-role">${esc(sub.category)}</span>
+            <strong class="verify-card-name">${sf(sub.name)}</strong>
+            <span class="badge badge-role">${sf(sub.category)}</span>
             <span class="sub-status-badge sub-status-${esc(sub.status)}">${statusIcon} ${statusLabel}</span>
           </div>
         </div>
-        <span class="verify-card-date">${new Date(sub.timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
+        <span class="verify-card-date">${sub.timestamp ? new Date(sub.timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}</span>
       </div>
 
       <div class="verify-card-body">
-        <div class="verify-field"><label>Description</label><p>${esc(sub.description)}</p></div>
-        <div class="verify-field"><label>Uses / Problem solved</label><p>${esc(sub.uses || "—")}</p></div>
+        <div class="verify-field"><label>Description</label><p>${sf(sub.description)}</p></div>
+        ${sub.fullDescription ? `<div class="verify-field"><label>Full Description</label><p>${sf(sub.fullDescription)}</p></div>` : ""}
+        <div class="verify-field"><label>Uses / Problem solved</label><p>${sf(sub.uses)}</p></div>
         <div class="verify-field-row">
-          <div class="verify-field"><label>Alternative of</label><p>${esc(sub.alternative || "—")}</p></div>
-          <div class="verify-field"><label>Maintainer</label><p>${esc(sub.maintainer || "—")}</p></div>
+          <div class="verify-field"><label>Alternative of</label><p>${sf(sub.alternative)}</p></div>
+          <div class="verify-field"><label>Maintainer</label><p>${sf(sub.maintainer)}</p></div>
         </div>
         <div class="verify-field-row">
-          <div class="verify-field"><label>Download</label><p><a href="${esc(sub.download)}" target="_blank" rel="noopener">${esc(sub.download || "—")}</a></p></div>
-          <div class="verify-field"><label>Source Code</label><p><a href="${esc(sub.source)}" target="_blank" rel="noopener">${esc(sub.source || "—")}</a></p></div>
+          <div class="verify-field"><label>Download</label><p>${sub.download ? `<a href="${esc(sub.download)}" target="_blank" rel="noopener">${esc(sub.download)}</a>` : "—"}</p></div>
+          <div class="verify-field"><label>Source Code</label><p>${sub.source ? `<a href="${esc(sub.source)}" target="_blank" rel="noopener">${esc(sub.source)}</a>` : "—"}</p></div>
         </div>
+        <div class="verify-field-row">
+          <div class="verify-field"><label>Website</label><p>${sub.website ? `<a href="${esc(sub.website)}" target="_blank" rel="noopener">${esc(sub.website)}</a>` : "—"}</p></div>
+          <div class="verify-field"><label>Documentation</label><p>${sub.docs ? `<a href="${esc(sub.docs)}" target="_blank" rel="noopener">${esc(sub.docs)}</a>` : "—"}</p></div>
+        </div>
+        <div class="verify-field-row">
+          <div class="verify-field"><label>Developer</label><p>${sf(sub.developer)}</p></div>
+          <div class="verify-field"><label>Developer URL</label><p>${sub.developerUrl ? `<a href="${esc(sub.developerUrl)}" target="_blank" rel="noopener">${esc(sub.developerUrl)}</a>` : "—"}</p></div>
+        </div>
+        <div class="verify-field-row">
+          <div class="verify-field"><label>License</label><p>${sf(sub.license)}</p></div>
+          <div class="verify-field"><label>Version</label><p>${sf(sub.version)}</p></div>
+          <div class="verify-field"><label>File Size</label><p>${sf(sub.fileSize)}</p></div>
+        </div>
+        ${sub.logo ? `<div class="verify-field"><label>Logo</label><p><img class="verify-card-logo-preview" src="${esc(sub.logo)}" alt="" onerror="this.style.display='none'"> <a href="${esc(sub.logo)}" target="_blank" rel="noopener">View</a></p></div>` : ""}
         <div class="verify-field">
           <label>Platforms</label>
-          <div class="verify-platforms">${(sub.platforms || []).map(p => `<span class="platform-tag">${platformIcon(p)} ${esc(p)}</span>`).join(" ") || "—"}</div>
+          <div class="verify-platforms">${(sub.platforms || []).length ? sub.platforms.map(p => `<span class="platform-tag">${platformIcon(p)} ${esc(p)}</span>`).join(" ") : "—"}</div>
         </div>
+        ${(sub.tags || []).length ? `<div class="verify-field"><label>Tags</label><div class="verify-tags">${sub.tags.map(t => `<span class="card-tag">${esc(t)}</span>`).join(" ")}</div></div>` : ""}
+        ${(sub.features || []).length ? `<div class="verify-field"><label>Features</label><ul class="sub-features-list">${sub.features.map(f => `<li>${esc(f)}</li>`).join("")}</ul></div>` : ""}
+        ${(sub.screenshots || []).length ? `<div class="verify-field"><label>Screenshots</label><div class="verify-screenshots">${sub.screenshots.map(s => `<a href="${esc(s)}" target="_blank" rel="noopener"><img class="verify-screenshot-thumb" src="${esc(s)}" alt="" onerror="this.style.display='none'"></a>`).join(" ")}</div></div>` : ""}
+        ${(sub.installMethods || []).length ? `<div class="verify-field"><label>Install Methods</label><div class="verify-install-methods">${sub.installMethods.map(m => `<code>${esc(m.label)}: ${esc(m.command)}</code>`).join("<br>")}</div></div>` : ""}
+        ${sub.systemRequirements ? `<div class="verify-field"><label>System Requirements</label><pre class="verify-sysreq">${esc(sub.systemRequirements)}</pre></div>` : ""}
         <div class="verify-field-row">
-          <div class="verify-field"><label>Submitted by</label><p>${esc(sub.userId?.slice(0, 16))}… ${sub.submitterEmail ? `(${esc(sub.submitterEmail)})` : ""}</p></div>
-          <div class="verify-field"><label>Date</label><p>${new Date(sub.timestamp).toLocaleString()}</p></div>
+          <div class="verify-field"><label>Submitted by</label><p>${esc(sub.userId ? sub.userId.slice(0, 16) : "—")}… ${sub.submitterEmail ? `(${esc(sub.submitterEmail)})` : ""}</p></div>
+          <div class="verify-field"><label>Date</label><p>${sub.timestamp ? new Date(sub.timestamp).toLocaleString() : "—"}</p></div>
         </div>
         ${sub.updatedAt && sub.updatedAt !== sub.timestamp ? `<div class="verify-field"><label>Last updated</label><p>${new Date(sub.updatedAt).toLocaleString()}</p></div>` : ""}
       </div>
@@ -1823,25 +1868,44 @@ async function showAdminDashboard() {
 
   if (!currentUser || !isAdmin) {
     adminView.innerHTML = `<div class="empty-state"><h3>Access Denied</h3><p>Admin access required.</p><a href="/">← Back</a></div>`;
+    console.warn("[Admin] Access denied — currentUser:", !!currentUser, "isAdmin:", isAdmin, "role:", userRecord?.role);
     return;
   }
 
   adminView.innerHTML = `<div class="detail-loading">Loading admin dashboard…</div>`;
 
-  const [submissions, editRequests, users, orgs] = await Promise.all([
-    getAllSubmissions(),
-    getAllEditRequests("open"),
-    getAllUsers(),
-    getAllOrganizations()
-  ]);
+  let submissions = [], editRequests = [], users = [], orgs = [];
+  let loadErrors = [];
+
+  try {
+    [submissions, editRequests, users, orgs] = await Promise.all([
+      getAllSubmissions().catch(e => { loadErrors.push("submissions: " + e.message); console.error("[Admin] Failed to load submissions:", e); return []; }),
+      getAllEditRequests("open").catch(e => { loadErrors.push("edit requests: " + e.message); console.error("[Admin] Failed to load edit requests:", e); return []; }),
+      getAllUsers().catch(e => { loadErrors.push("users: " + e.message); console.error("[Admin] Failed to load users:", e); return []; }),
+      getAllOrganizations().catch(e => { loadErrors.push("organizations: " + e.message); console.error("[Admin] Failed to load orgs:", e); return []; })
+    ]);
+  } catch (e) {
+    console.error("[Admin] Critical load error:", e);
+    loadErrors.push("critical: " + e.message);
+  }
 
   const pendingCount = submissions.filter(s => s.status === "pending").length;
   const changesCount = submissions.filter(s => s.status === "changes_requested").length;
+
+  const errorBanner = loadErrors.length ? `
+    <div class="admin-error-banner">
+      <strong>⚠️ Some data failed to load:</strong>
+      <ul>${loadErrors.map(e => `<li>${esc(e)}</li>`).join("")}</ul>
+      <p>This may be caused by missing Firestore indexes or permission issues. Check the browser console for details.</p>
+    </div>` : "";
+
+  console.log("[Admin] Loaded:", { submissions: submissions.length, editRequests: editRequests.length, users: users.length, orgs: orgs.length, errors: loadErrors });
 
   adminView.innerHTML = `
     <div class="admin-page">
       <a href="/" class="back-link">← Back to library</a>
       <h1 class="admin-title">⚙️ Admin Dashboard</h1>
+      ${errorBanner}
 
       <div class="admin-stats">
         <div class="admin-stat-card"><span class="stat-number">${pendingCount}</span><span class="stat-label">Pending Submissions</span></div>
@@ -1900,56 +1964,74 @@ function renderAdminSubmissions(submissions) {
 
   const cards = submissions.map(sub => {
     const statusIcon = sub.status === "pending" ? "🟡" : sub.status === "approved" ? "🟢" : sub.status === "rejected" ? "🔴" : sub.status === "changes_requested" ? "🟠" : "⚪";
-    const statusLabel = sub.status === "changes_requested" ? "Changes Requested" : sub.status.charAt(0).toUpperCase() + sub.status.slice(1);
-    const isPending = sub.status === "pending";
-    const isChangesReq = sub.status === "changes_requested";
-    const canAct = isPending || isChangesReq;
+    const statusLabel = sub.status === "changes_requested" ? "Changes Requested" : (sub.status || "unknown").charAt(0).toUpperCase() + (sub.status || "unknown").slice(1);
+    const canAct = sub.status === "pending" || sub.status === "changes_requested";
+
+    // Helper: render a field row, showing "—" for missing/undefined values
+    const field = (label, value, isLink) => {
+      const display = value != null && value !== "" && value !== undefined ? value : "—";
+      const content = isLink && display !== "—"
+        ? `<a href="${esc(display)}" target="_blank" rel="noopener">${esc(display)}</a>`
+        : esc(display);
+      return `<div class="sub-review-row"><span class="sub-review-label">${esc(label)}</span><span class="sub-review-value">${content}</span></div>`;
+    };
 
     return `
     <div class="admin-card sub-review-card" data-id="${esc(sub.id)}" data-status="${esc(sub.status)}">
       <div class="admin-card-header">
-        <strong>${esc(sub.name)}</strong>
-        <span class="badge badge-role">${esc(sub.category)}</span>
-        <span class="sub-status-badge sub-status-${esc(sub.status)}">${statusIcon} ${statusLabel}</span>
-        <span class="admin-card-date">${new Date(sub.timestamp).toLocaleDateString()}</span>
+        <strong>${esc(sub.name || "(No name)")}</strong>
+        <span class="badge badge-role">${esc(sub.category || "—")}</span>
+        <span class="sub-status-badge sub-status-${esc(sub.status || "unknown")}">${statusIcon} ${statusLabel}</span>
+        <span class="admin-card-date">${sub.timestamp ? new Date(sub.timestamp).toLocaleDateString() : "—"}</span>
       </div>
 
       <div class="sub-review-details">
-        <div class="sub-review-row">
-          <span class="sub-review-label">Description</span>
-          <span class="sub-review-value">${esc(sub.description)}</span>
-        </div>
-        <div class="sub-review-row">
-          <span class="sub-review-label">Uses</span>
-          <span class="sub-review-value">${esc(sub.uses || "—")}</span>
-        </div>
-        <div class="sub-review-row">
-          <span class="sub-review-label">Alternative of</span>
-          <span class="sub-review-value">${esc(sub.alternative || "—")}</span>
-        </div>
-        <div class="sub-review-row">
-          <span class="sub-review-label">Download</span>
-          <span class="sub-review-value"><a href="${esc(sub.download)}" target="_blank" rel="noopener">${esc(sub.download || "—")}</a></span>
-        </div>
-        <div class="sub-review-row">
-          <span class="sub-review-label">Source</span>
-          <span class="sub-review-value"><a href="${esc(sub.source)}" target="_blank" rel="noopener">${esc(sub.source || "—")}</a></span>
-        </div>
+        ${field("Description", sub.description)}
+        ${field("Full Description", sub.fullDescription)}
+        ${field("Uses", sub.uses)}
+        ${field("Alternative of", sub.alternative)}
+        ${field("Download", sub.download, true)}
+        ${field("Source", sub.source, true)}
+        ${field("Website", sub.website, true)}
+        ${field("Documentation", sub.docs, true)}
         <div class="sub-review-row">
           <span class="sub-review-label">Logo</span>
           <span class="sub-review-value">${sub.logo ? `<img class="sub-review-logo" src="${esc(sub.logo)}" alt="" onerror="this.style.display='none'"> <a href="${esc(sub.logo)}" target="_blank" rel="noopener">URL</a>` : "—"}</span>
         </div>
-        <div class="sub-review-row">
-          <span class="sub-review-label">Maintainer</span>
-          <span class="sub-review-value">${esc(sub.maintainer || "—")}</span>
-        </div>
+        ${field("Maintainer", sub.maintainer)}
+        ${field("Developer", sub.developer)}
+        ${field("Developer URL", sub.developerUrl, true)}
+        ${field("License", sub.license)}
+        ${field("Version", sub.version)}
+        ${field("File Size", sub.fileSize)}
         <div class="sub-review-row">
           <span class="sub-review-label">Platforms</span>
-          <span class="sub-review-value">${(sub.platforms || []).map(p => `<span class="platform-tag">${esc(p)}</span>`).join(" ") || "—"}</span>
+          <span class="sub-review-value">${(sub.platforms || []).length ? sub.platforms.map(p => `<span class="platform-tag">${platformIcon(p)} ${esc(p)}</span>`).join(" ") : "—"}</span>
         </div>
         <div class="sub-review-row">
+          <span class="sub-review-label">Tags</span>
+          <span class="sub-review-value">${(sub.tags || []).length ? sub.tags.map(t => `<span class="card-tag">${esc(t)}</span>`).join(" ") : "—"}</span>
+        </div>
+        <div class="sub-review-row">
+          <span class="sub-review-label">Features</span>
+          <span class="sub-review-value">${(sub.features || []).length ? `<ul class="sub-features-list">${sub.features.map(f => `<li>${esc(f)}</li>`).join("")}</ul>` : "—"}</span>
+        </div>
+        <div class="sub-review-row">
+          <span class="sub-review-label">Screenshots</span>
+          <span class="sub-review-value">${(sub.screenshots || []).length ? sub.screenshots.map(s => `<a href="${esc(s)}" target="_blank" rel="noopener" class="sub-screenshot-link">📸 ${esc(s.split('/').pop())}</a>`).join(" ") : "—"}</span>
+        </div>
+        <div class="sub-review-row">
+          <span class="sub-review-label">Install Methods</span>
+          <span class="sub-review-value">${(sub.installMethods || []).length ? sub.installMethods.map(m => `<code>${esc(m.label)}: ${esc(m.command)}</code>`).join("<br>") : "—"}</span>
+        </div>
+        ${field("System Requirements", sub.systemRequirements)}
+        <div class="sub-review-row sub-review-submitter-row">
           <span class="sub-review-label">Submitted by</span>
-          <span class="sub-review-value">${esc(sub.userId?.slice(0, 16))}… ${sub.submitterEmail ? `(${esc(sub.submitterEmail)})` : ""}</span>
+          <span class="sub-review-value">
+            <span class="sub-submitter-uid" title="${esc(sub.userId || "")}">${esc(sub.userId ? sub.userId.slice(0, 12) + "…" : "—")}</span>
+            ${sub.submitterEmail ? ` <span class="sub-submitter-email">(${esc(sub.submitterEmail)})</span>` : ""}
+            <button class="btn btn-sm btn-secondary sub-lookup-user-btn" data-uid="${esc(sub.userId || "")}" title="Lookup submitter profile">👤 Lookup</button>
+          </span>
         </div>
         ${sub.updatedAt ? `<div class="sub-review-row"><span class="sub-review-label">Last updated</span><span class="sub-review-value">${new Date(sub.updatedAt).toLocaleString()}</span></div>` : ""}
       </div>
@@ -2169,6 +2251,30 @@ function attachAdminHandlers(tab) {
           showToast("Submission rejected");
         } catch (err) { showToast(err.message); }
         btn.disabled = false;
+      });
+    });
+
+    // Lookup submitter user record
+    document.querySelectorAll(".sub-lookup-user-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const uid = btn.dataset.uid;
+        if (!uid) { showToast("No submitter UID"); return; }
+        btn.disabled = true;
+        btn.textContent = "Loading…";
+        try {
+          const record = await getUserRecord(uid);
+          if (record) {
+            const info = `${record.displayName || "—"} (${record.email || "—"})\nRole: ${record.role || "user"}\nProvider: ${(record.linkedProviders || []).join(", ") || record.provider || "—"}\nJoined: ${record.createdAt ? new Date(record.createdAt).toLocaleDateString() : "—"}`;
+            alert("Submitter Profile:\n\n" + info);
+          } else {
+            showToast("User record not found for UID: " + uid.slice(0, 12));
+          }
+        } catch (err) {
+          console.error("[Admin] User lookup failed:", err);
+          showToast("Lookup failed: " + err.message);
+        }
+        btn.disabled = false;
+        btn.textContent = "👤 Lookup";
       });
     });
   }
