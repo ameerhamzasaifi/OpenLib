@@ -5594,3 +5594,86 @@ a.added-by-link:hover {
   color: var(--text-2);
   margin: 4px 0;
 }
+
+/* ── Version Update Banner ── */
+#version-update-banner {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(120px);
+  z-index: 10000;
+  opacity: 0;
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.35s ease;
+  pointer-events: none;
+}
+#version-update-banner.visible {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+.version-banner-inner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 12px 20px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.45);
+  backdrop-filter: blur(12px);
+  max-width: 520px;
+  white-space: nowrap;
+}
+.version-banner-text {
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  color: var(--text);
+}
+.version-banner-text strong {
+  color: var(--accent);
+  font-weight: 600;
+}
+.version-banner-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.version-btn-update {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 16px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: #000;
+  cursor: pointer;
+  transition: background var(--transition), transform var(--transition);
+}
+.version-btn-update:hover {
+  background: #ffb51a;
+  transform: scale(1.04);
+}
+.version-btn-dismiss {
+  font-size: 15px;
+  padding: 4px 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: color var(--transition), background var(--transition);
+}
+.version-btn-dismiss:hover {
+  color: var(--text);
+  background: var(--bg-3);
+}
+@media (max-width: 540px) {
+  .version-banner-inner {
+    flex-direction: column;
+    white-space: normal;
+    text-align: center;
+    gap: 10px;
+    max-width: calc(100vw - 32px);
+  }
+}

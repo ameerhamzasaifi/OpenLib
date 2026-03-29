@@ -2,7 +2,7 @@
 
 A curated open-source app library. Discover, rate, and explore free software alternatives.
 
-[![Live](https://img.shields.io/badge/Live-Firebase-orange)](https://openlib-f7bf1.web.app) [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Live](https://img.shields.io/badge/Live-Firebase-orange)](https://openlib-f7bf1.web.app) [![License](https://img.shields.io/badge/license-MPL--2.0-green)](LICENSE)
 
 **Live:** https://openlib-f7bf1.web.app
 

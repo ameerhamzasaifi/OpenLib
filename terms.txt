@@ -8,7 +8,7 @@ these Terms and Conditions. If you do not agree, do not use the Service.
 2. DESCRIPTION OF SERVICE
 OpenLib is a curated open-source app library that allows users to discover,
 rate, review, and submit open-source software. The Service is provided
-free of charge and is itself open-source under the MIT License.
+free of charge and is itself open-source under the Mozilla Public License 2.0.
 
 3. USER ACCOUNTS
 
@@ -48,7 +48,7 @@ free of charge and is itself open-source under the MIT License.
 
 7. INTELLECTUAL PROPERTY
 
-  a) The OpenLib platform source code is licensed under the MIT License.
+  a) The OpenLib platform source code is licensed under the Mozilla Public License 2.0.
   b) App logos, names, and trademarks belong to their respective owners.
   c) User-submitted content remains the property of the original author.
 

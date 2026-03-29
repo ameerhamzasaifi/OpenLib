@@ -13,6 +13,7 @@
     "ignore": [
       "firebase.json",
       "firebase-config.template.js",
+      "bump-version.js",
       "firestore.rules",
       ".firebaserc",
       ".gitignore",

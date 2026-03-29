@@ -9,6 +9,8 @@ import {
   uploadLogoToStorage
 } from './firebase-config.js';
 
+import { checkForUpdates } from './version-check.js';
+
 import {
   createOrUpdateUserRecord, getUserRecord, updateUserProfile, updateUserRole,
   setAccountVerified, setTeamAccount, getAllUsers,
@@ -3741,6 +3743,9 @@ async function init() {
 
   initTheme();
   initAuth();
+
+  // Non-blocking version update check (runs in background)
+  checkForUpdates();
 
   // Load data from Firestore
   await loadApps();
