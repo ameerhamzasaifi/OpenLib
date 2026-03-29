@@ -33,4 +33,3 @@ A curated open-source app library. Discover, rate, and explore free software alt
 
 1. Fork → branch → change → PR
 2. Or submit apps directly on the live site via "+ Submit App"
-test
