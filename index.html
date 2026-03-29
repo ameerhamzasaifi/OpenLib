@@ -377,6 +377,31 @@
     </div>
   </div>
 
+  <!-- ═══ MODAL: ACCOUNT LINKING ═══ -->
+  <div class="modal-overlay" id="account-link-modal" role="dialog" aria-modal="true" aria-labelledby="account-link-title">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title" id="account-link-title">🔗 Account Already Exists</h2>
+        <button class="modal-close" id="link-modal-cancel-btn" aria-label="Close modal">✕</button>
+      </div>
+      <div class="login-prompt-body">
+        <p class="login-prompt-text">An account with <strong id="link-modal-email"></strong> already exists.</p>
+        <p class="login-prompt-sub">
+          You previously signed in with <strong id="link-modal-existing-provider"></strong>.
+          Sign in with that provider to automatically link your
+          <strong id="link-modal-attempted-provider"></strong> account — your data,
+          contributions, and ownership will remain unified under a single account.
+        </p>
+        <div class="login-prompt-buttons">
+          <button class="auth-option google" id="link-modal-signin-btn" data-provider="">
+            Sign in to link
+          </button>
+          <button class="auth-option link-cancel" id="link-modal-cancel-btn-secondary">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ═══ MODAL: EDIT REQUEST (PR-style) ═══ -->
   <div class="modal-overlay" id="edit-request-modal" role="dialog" aria-modal="true" aria-labelledby="edit-request-title">
     <div class="modal modal-wide">

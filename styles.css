@@ -1695,6 +1695,33 @@ a.added-by-link:hover {
   justify-content: center;
 }
 
+/* ── Account Linking Modal ── */
+#account-link-modal .login-prompt-text strong {
+  color: var(--accent);
+}
+
+#account-link-modal .login-prompt-sub strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.auth-option.link-cancel {
+  background: var(--surface-2);
+  color: var(--text-2);
+  border: 1px solid var(--border);
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 13px;
+  font-family: var(--font-body);
+  transition: background var(--transition), border-color var(--transition);
+}
+
+.auth-option.link-cancel:hover {
+  background: var(--bg-3);
+  border-color: var(--border-2);
+}
+
 /* ── Responsive additions ── */
 @media (max-width: 768px) {
   .nav-link {

@@ -16,25 +16,33 @@ export async function createOrUpdateUserRecord(user) {
     const ref = doc(db, "user_records", user.uid);
     const snap = await getDoc(ref);
     const now = new Date().toISOString();
-    const provider = user.providerData?.[0]?.providerId || "unknown";
+    const providers = user.providerData?.map(p => p.providerId) || [];
+    const primaryProvider = providers[0] || "unknown";
 
     if (snap.exists()) {
+      const existingData = snap.data();
+      // Merge linked providers: union of existing + current
+      const existingProviders = existingData.linkedProviders || [existingData.provider || "unknown"];
+      const mergedProviders = [...new Set([...existingProviders, ...providers])];
+
       await updateDoc(ref, {
-        displayName: user.displayName || snap.data().displayName,
-        email: user.email || snap.data().email,
-        photoURL: user.photoURL || snap.data().photoURL,
-        provider,
+        displayName: user.displayName || existingData.displayName,
+        email: user.email || existingData.email,
+        photoURL: user.photoURL || existingData.photoURL,
+        provider: primaryProvider,
+        linkedProviders: mergedProviders,
         lastLoginAt: now,
         updatedAt: now
       });
-      return { id: snap.id, ...snap.data(), lastLoginAt: now };
+      return { id: snap.id, ...existingData, lastLoginAt: now, linkedProviders: mergedProviders };
     } else {
       const record = {
         uid: user.uid,
         displayName: user.displayName || "Anonymous",
         email: user.email || "",
         photoURL: user.photoURL || "",
-        provider,
+        provider: primaryProvider,
+        linkedProviders: providers,
         role: "user",
         verified: false,
         teamAccount: false,
@@ -68,6 +76,20 @@ export async function getUserRecord(uid) {
     return snap.exists() ? { id: snap.id, ...snap.data() } : null;
   } catch (e) {
     console.error("Error getting user record:", e);
+    return null;
+  }
+}
+
+export async function findUserByEmail(email) {
+  try {
+    if (!email) return null;
+    const q = query(collection(db, "user_records"), where("email", "==", email));
+    const snap = await getDocs(q);
+    if (snap.empty) return null;
+    const d = snap.docs[0];
+    return { id: d.id, ...d.data() };
+  } catch (e) {
+    console.error("Error finding user by email:", e);
     return null;
   }
 }
