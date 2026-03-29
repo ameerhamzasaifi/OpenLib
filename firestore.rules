@@ -71,9 +71,13 @@ service cloud.firestore {
 
     // ── Submissions ──────────────────────────────────────────────────────────
     // [VULN-08 FIX] Added field validation on create
+    // Admins/team can read all submissions; normal users can only read their own
     match /submissions/{submissionId} {
-      allow read: if isSignedIn()
+      allow get: if isSignedIn()
         && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isAdmin()
+        || (isSignedIn()
+            && resource.data.userId == request.auth.uid);
       allow create: if isSignedIn()
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
@@ -84,7 +88,7 @@ service cloud.firestore {
         && request.resource.data.download.matches('https://.*')
         && request.resource.data.source is string
         && request.resource.data.source.matches('https://.*')
-        && request.resource.data.keys().size() <= 30;
+        && request.resource.data.keys().size() <= 35;
       allow update: if isAdmin()
         || (isSignedIn() && resource.data.userId == request.auth.uid
             && resource.data.status in ["pending", "changes_requested"]);

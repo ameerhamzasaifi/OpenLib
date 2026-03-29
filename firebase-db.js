@@ -904,6 +904,18 @@ export async function getAllSubmissions(statusFilter) {
   }
 }
 
+// Get a single submission by ID (for admin detail view)
+export async function getSubmission(submissionId) {
+  try {
+    const snap = await getDoc(doc(db, "submissions", submissionId));
+    if (!snap.exists()) return null;
+    return { id: snap.id, ...snap.data() };
+  } catch (e) {
+    console.error("Error getting submission:", e, "| ID:", submissionId);
+    return null;
+  }
+}
+
 // Get submissions for a specific user
 export async function getUserSubmissions(uid) {
   try {
@@ -928,7 +940,13 @@ export async function updateSubmission(submissionId, uid, updatedData) {
     throw new Error("Cannot update a submission that has been " + sub.status);
   }
 
-  const allowed = ["name", "logo", "category", "description", "uses", "alternative", "download", "source", "maintainer", "platforms"];
+  const allowed = [
+    "name", "logo", "category", "description", "fullDescription", "features",
+    "uses", "alternative", "download", "source", "website", "docs",
+    "maintainer", "developer", "developerUrl", "license", "version",
+    "fileSize", "tags", "screenshots", "installMethods", "systemRequirements",
+    "platforms"
+  ];
   const update = {};
   allowed.forEach(k => { if (updatedData[k] !== undefined) update[k] = updatedData[k]; });
   update.status = "pending";

@@ -5453,3 +5453,144 @@ a.added-by-link:hover {
     grid-template-columns: 1fr;
   }
 }
+
+/* ── Admin Error Banner ── */
+.admin-error-banner {
+  padding: 14px 18px;
+  border-radius: var(--radius-sm);
+  background: rgba(244, 67, 54, 0.08);
+  border: 1px solid rgba(244, 67, 54, 0.3);
+  color: var(--text);
+  margin: 12px 0 20px;
+  font-size: 13px;
+}
+
+.admin-error-banner strong {
+  color: var(--accent-2);
+}
+
+.admin-error-banner ul {
+  margin: 6px 0 4px 18px;
+  list-style: disc;
+}
+
+.admin-error-banner ul li {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.admin-error-banner p {
+  margin-top: 6px;
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+/* ── Submission Review Extended Fields ── */
+.sub-features-list {
+  margin: 4px 0 0 16px;
+  list-style: disc;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.sub-features-list li {
+  margin-bottom: 2px;
+}
+
+.sub-screenshot-link {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--blue);
+  text-decoration: none;
+  margin: 2px 4px 2px 0;
+}
+
+.sub-screenshot-link:hover {
+  background: var(--surface-2);
+}
+
+.sub-submitter-uid {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.sub-submitter-email {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.sub-lookup-user-btn {
+  font-size: 11px !important;
+  padding: 2px 8px !important;
+  margin-left: 6px;
+}
+
+.sub-review-submitter-row {
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+  margin-top: 4px;
+}
+
+/* ── Verify Extended Fields ── */
+.verify-card-logo-preview {
+  width: 48px;
+  height: 48px;
+  border-radius: 6px;
+  object-fit: contain;
+  vertical-align: middle;
+  margin-right: 8px;
+}
+
+.verify-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.verify-screenshots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.verify-screenshot-thumb {
+  width: 80px;
+  height: 50px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: transform var(--transition);
+}
+
+.verify-screenshot-thumb:hover {
+  transform: scale(1.05);
+}
+
+.verify-install-methods code {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 2px 6px;
+  background: var(--bg-3);
+  border-radius: 4px;
+  margin: 2px 0;
+}
+
+.verify-sysreq {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--bg-3);
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-2);
+  margin: 4px 0;
+}
