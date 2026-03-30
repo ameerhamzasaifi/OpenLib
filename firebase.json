@@ -10,6 +10,7 @@
     "public": ".",
     "cleanUrls": true,
     "trailingSlash": false,
+    "predeploy": ["node bump-version.js"],
     "ignore": [
       "firebase.json",
       "firebase-config.template.js",

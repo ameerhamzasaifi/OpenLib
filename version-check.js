@@ -1,22 +1,15 @@
 // ── Version Update Detection ─────────────────────────────────────────────────
-// Non-blocking client-side check: compares local version against Firestore
-// config/app_version document. Shows a dismissible banner when outdated.
+// Fully automatic: a predeploy hook stamps DEPLOY_TIMESTAMP on every
+// `firebase deploy`. When an admin visits, the timestamp is auto-pushed to
+// Firestore. Other users with older builds see a dismissible update banner.
 
-import { doc, getDoc } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
+import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
 import { db } from './firebase-config.js';
 
-// ── Current app version (bumped by deploy script) ────────────────────────────
-const APP_VERSION = "1.0.0";
+// ── Auto-stamped by predeploy hook — DO NOT EDIT MANUALLY ────────────────────
+const DEPLOY_TIMESTAMP = 1774904007;
 
-// [VULN-11N FIX] Strict version string validation to prevent injection
-const SEMVER_RE = /^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$/;
-const MAX_VERSION_LEN = 30;
-
-function isValidVersion(v) {
-  return typeof v === "string" && v.length <= MAX_VERSION_LEN && SEMVER_RE.test(v);
-}
-
-const LS_KEY = "openlib_app_version";
+const LS_KEY = "openlib_deploy_ts";
 const SS_DISMISS_KEY = "openlib_update_dismissed";
 
 /**
@@ -25,56 +18,48 @@ const SS_DISMISS_KEY = "openlib_update_dismissed";
  */
 export async function checkForUpdates() {
   try {
-    // Skip if user already dismissed this session
     if (sessionStorage.getItem(SS_DISMISS_KEY)) return;
+    if (!DEPLOY_TIMESTAMP) return; // local dev — not stamped
 
-    const remoteVersion = await fetchRemoteVersion();
-    if (!remoteVersion) return; // offline or fetch failed — silently bail
-
-    const localVersion = localStorage.getItem(LS_KEY);
-
-    // First visit — seed localStorage, no prompt needed
-    if (!localVersion) {
-      localStorage.setItem(LS_KEY, remoteVersion);
-      return;
-    }
-
-    // Versions match — nothing to do
-    if (localVersion === remoteVersion) return;
-
-    // Mismatch: also check against the hardcoded build version
-    // If the build itself is already current, just update localStorage silently
-    if (APP_VERSION === remoteVersion) {
-      localStorage.setItem(LS_KEY, remoteVersion);
-      return;
-    }
-
-    // Genuine mismatch — show update banner
-    showUpdateBanner(remoteVersion);
-  } catch (_) {
-    // Swallow all errors — version check must never break the app
-  }
-}
-
-async function fetchRemoteVersion() {
-  try {
     const snap = await getDoc(doc(db, "config", "app_version"));
-    if (snap.exists()) {
-      const version = snap.data().version || null;
-      // [VULN-11N FIX] Reject invalid version strings from Firestore
-      if (version && !isValidVersion(version)) {
-        console.warn("Remote version string failed validation, ignoring:", version);
-        return null;
+    const remoteTs = snap.exists() ? (snap.data().deployTimestamp || 0) : 0;
+
+    if (DEPLOY_TIMESTAMP >= remoteTs) {
+      // This build is current or newer
+      if (DEPLOY_TIMESTAMP > remoteTs) {
+        // Newer build — auto-push to Firestore (only succeeds for admins)
+        autoSyncVersion();
       }
-      return version;
+      localStorage.setItem(LS_KEY, String(DEPLOY_TIMESTAMP));
+      return;
     }
-    return null;
+
+    // This build is outdated
+    const localTs = Number(localStorage.getItem(LS_KEY) || "0");
+    if (localTs >= remoteTs) return; // already seen / dismissed
+
+    showUpdateBanner();
   } catch (_) {
-    return null; // offline / permission error — fail silently
+    // Version check must never break the app
   }
 }
 
-function showUpdateBanner(newVersion) {
+/**
+ * Auto-push current deploy timestamp to Firestore.
+ * Only succeeds for admin users (Firestore rules reject others silently).
+ */
+async function autoSyncVersion() {
+  try {
+    await setDoc(doc(db, "config", "app_version"), {
+      deployTimestamp: DEPLOY_TIMESTAMP,
+      updatedAt: new Date().toISOString()
+    });
+  } catch (_) {
+    // Not admin — silently ignore, Firestore rules will reject
+  }
+}
+
+function showUpdateBanner() {
   // Prevent duplicates
   if (document.getElementById("version-update-banner")) return;
 
@@ -83,7 +68,7 @@ function showUpdateBanner(newVersion) {
   banner.setAttribute("role", "alert");
   banner.innerHTML =
     `<div class="version-banner-inner">` +
-      `<span class="version-banner-text">A new version of OpenLib is available <strong>(${escText(newVersion)})</strong></span>` +
+      `<span class="version-banner-text">A new version of OpenLib is available</span>` +
       `<div class="version-banner-actions">` +
         `<button class="version-btn-update" id="version-btn-update">Update</button>` +
         `<button class="version-btn-dismiss" id="version-btn-dismiss" aria-label="Dismiss">✕</button>` +
@@ -95,13 +80,13 @@ function showUpdateBanner(newVersion) {
   // Trigger entrance animation on next frame
   requestAnimationFrame(() => banner.classList.add("visible"));
 
-  document.getElementById("version-btn-update").addEventListener("click", () => applyUpdate(newVersion));
+  document.getElementById("version-btn-update").addEventListener("click", () => applyUpdate());
   document.getElementById("version-btn-dismiss").addEventListener("click", () => dismissBanner(banner));
 }
 
-async function applyUpdate(newVersion) {
-  // Update stored version
-  localStorage.setItem(LS_KEY, newVersion);
+async function applyUpdate() {
+  // Update stored timestamp
+  localStorage.setItem(LS_KEY, String(DEPLOY_TIMESTAMP));
 
   // Clear service worker caches if present
   if ("caches" in window) {
@@ -129,10 +114,4 @@ function dismissBanner(banner) {
   banner.addEventListener("transitionend", () => banner.remove(), { once: true });
   // Fallback removal if transition doesn't fire
   setTimeout(() => { if (banner.parentNode) banner.remove(); }, 500);
-}
-
-function escText(str) {
-  const el = document.createElement("span");
-  el.textContent = String(str ?? "");
-  return el.innerHTML;
 }
