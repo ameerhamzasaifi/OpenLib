@@ -28,7 +28,8 @@ import {
   addAppReview, getAppReviews, markReviewHelpful, getUserReviewForApp, toggleReviewVote, getUserReviewVote,
   toggleBookmark, isBookmarked, getUserBookmarks,
   trackDownload,
-  submitOwnershipClaim
+  submitOwnershipClaim,
+  resolveContributorProfile, getOfficialProfile, isOfficialApp
 } from './firebase-db.js';
 
 // ── State ────────────────────────────────────────────────────────────────────
@@ -161,12 +162,20 @@ function platformIcon(p) {
 }
 
 function addedByBadge(addedBy) {
-  if (!addedBy) return '<span class="added-by-badge team">OpenLib</span>';
-  if (addedBy.type === "openlib-team") {
-    return '<span class="added-by-badge team">OpenLib</span>';
+  // Synchronous card-level badge — uses isOfficialApp for fast rendering
+  if (!addedBy || addedBy.type === "openlib-team" || addedBy.role === "admin") {
+    return `<span class="added-by-badge team" title="Curated by the OpenLib team">
+      <span class="added-by-avatar-mini official-avatar-mini">OL</span> OpenLib
+    </span>`;
   }
+  const name = esc(addedBy.name || "Anonymous");
   const profileLink = addedBy.uid ? `href="/profile/${esc(addedBy.uid)}"` : "";
-  return `<a ${profileLink} class="added-by-badge user added-by-link">👤 ${esc(addedBy.name || "Anonymous")}</a>`;
+  const avatarMini = addedBy.photoURL
+    ? `<img class="added-by-avatar-mini" src="${esc(addedBy.photoURL)}" alt="" referrerpolicy="no-referrer">`
+    : `<span class="added-by-avatar-mini">${esc((addedBy.name || "A").charAt(0))}</span>`;
+  return `<a ${profileLink} class="added-by-badge user added-by-link" title="Added by ${name}">
+    ${avatarMini} ${name}
+  </a>`;
 }
 
 function buildCard(app) {
@@ -390,12 +399,13 @@ async function showAppDetail(appId) {
     </div>` : "";
 
   // Security badges
+  const isOfficialEntry = isOfficialApp(app);
   const securityHtml = `
     <div class="detail-section security-badges">
       <h3>Security & Trust</h3>
       <div class="trust-badges">
         ${app.source ? '<span class="trust-badge trust-verified">✅ Open Source Verified</span>' : ''}
-        ${app.addedBy?.type === "openlib-team" ? '<span class="trust-badge trust-team">🛡️ OpenLib Reviewed</span>' : ''}
+        ${isOfficialEntry ? '<span class="trust-badge trust-team">🛡️ OpenLib Reviewed</span>' : ''}
         <span class="trust-badge trust-source">🔗 ${app.source?.includes("github.com") ? "GitHub" : app.source?.includes("gitlab") ? "GitLab" : app.source?.includes("bitbucket") ? "Bitbucket" : app.source?.includes("codeberg") ? "Codeberg" : app.source?.includes("sourceforge") ? "SourceForge" : "Official"} Source</span>
       </div>
     </div>`;
@@ -436,57 +446,40 @@ async function showAppDetail(appId) {
       </div>
     </div>` : "";
 
-  // Fetch creator profile — show OpenLib profile for admin/team apps
+  // Resolve contributor profile — uses role-based attribution system
   let creatorHtml = "";
-  const isTeamOrAdminApp = !app.addedBy || app.addedBy.type === "openlib-team" || app.addedBy.role === "admin";
+  const contributor = await resolveContributorProfile(app);
 
-  if (isTeamOrAdminApp) {
-    // Show OpenLib profile for team/admin-added apps
+  if (contributor.displayType === "official") {
     creatorHtml = `
       <div class="detail-section creator-section">
         <h3>Added By</h3>
         <div class="creator-card openlib-creator-card">
-          <div class="creator-card-avatar-fallback openlib-avatar">OL</div>
+          <div class="creator-card-avatar-fallback openlib-avatar">${esc(contributor.avatarText)}</div>
           <div class="creator-card-info">
-            <span class="creator-card-name">OpenLib <span class="badge badge-role badge-admin">Official</span></span>
-            <span class="creator-card-bio">Curated by the OpenLib team</span>
+            <span class="creator-card-name">${esc(contributor.displayName)} <span class="badge badge-role badge-admin">${esc(contributor.badge)}</span></span>
+            <span class="creator-card-bio">${esc(contributor.bio)}</span>
           </div>
         </div>
       </div>`;
-  } else if (app.addedBy?.uid) {
-    const creator = await getUserRecord(app.addedBy.uid);
-    if (creator) {
-      const isCreatorAdmin = ["admin", "openlib-team"].includes(creator.role);
-      if (isCreatorAdmin) {
-        creatorHtml = `
-          <div class="detail-section creator-section">
-            <h3>Added By</h3>
-            <div class="creator-card openlib-creator-card">
-              <div class="creator-card-avatar-fallback openlib-avatar">OL</div>
-              <div class="creator-card-info">
-                <span class="creator-card-name">OpenLib <span class="badge badge-role badge-admin">Official</span></span>
-                <span class="creator-card-bio">Curated by the OpenLib team</span>
-              </div>
-            </div>
-          </div>`;
-      } else {
-        const creatorAvatar = creator.photoURL
-          ? `<img class="creator-card-avatar" src="${esc(creator.photoURL)}" alt="" referrerpolicy="no-referrer">`
-          : `<div class="creator-card-avatar-fallback">${esc((creator.displayName || "U").charAt(0))}</div>`;
-        creatorHtml = `
-          <div class="detail-section creator-section">
-            <h3>Added By</h3>
-            <a href="/profile/${esc(app.addedBy.uid)}" class="creator-card">
-              ${creatorAvatar}
-              <div class="creator-card-info">
-                <span class="creator-card-name">${esc(creator.displayName || "Anonymous")} ${verifiedBadge(creator)} ${roleBadge(creator.role)}</span>
-                ${creator.bio ? `<span class="creator-card-bio">${esc(creator.bio)}</span>` : ""}
-                <span class="creator-card-joined">Joined ${new Date(creator.createdAt).toLocaleDateString("en-US", { month: "long", year: "numeric" })}</span>
-              </div>
-            </a>
-          </div>`;
-      }
-    }
+  } else if (contributor.displayType === "user") {
+    const creatorAvatar = contributor.avatarURL
+      ? `<img class="creator-card-avatar" src="${esc(contributor.avatarURL)}" alt="" referrerpolicy="no-referrer">`
+      : `<div class="creator-card-avatar-fallback">${esc(contributor.avatarText)}</div>`;
+    const profileTag = contributor.profileLink ? "a" : "div";
+    const profileAttr = contributor.profileLink ? `href="${esc(contributor.profileLink)}"` : "";
+    creatorHtml = `
+      <div class="detail-section creator-section">
+        <h3>Added By</h3>
+        <${profileTag} ${profileAttr} class="creator-card">
+          ${creatorAvatar}
+          <div class="creator-card-info">
+            <span class="creator-card-name">${esc(contributor.displayName)} ${contributor.teamAccount ? '<span class="badge badge-team" title="Team Account">⚡ Team</span>' : ""} ${contributor.verified ? '<span class="badge badge-verified" title="Verified">✓ Verified</span>' : ""} ${roleBadge(contributor.role)}</span>
+            ${contributor.bio ? `<span class="creator-card-bio">${esc(contributor.bio)}</span>` : ""}
+            ${contributor.createdAt ? `<span class="creator-card-joined">Joined ${new Date(contributor.createdAt).toLocaleDateString("en-US", { month: "long", year: "numeric" })}</span>` : ""}
+          </div>
+        </${profileTag}>
+      </div>`;
   }
 
   // Claim ownership section — show for logged-in users who don't already own the app

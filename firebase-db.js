@@ -808,6 +808,23 @@ export async function approveSubmission(submissionId, adminUid) {
   const admin = await getUserRecord(adminUid);
   const id = sub.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
+  // Resolve addedBy attribution based on submitter's actual role
+  const submitter = await getUserRecord(sub.userId);
+  let addedByData;
+  if (submitter && ["admin", "openlib-team"].includes(submitter.role)) {
+    // Admin/team submissions are attributed to OpenLib Official
+    addedByData = { type: "openlib-team", name: "OpenLib Team", uid: sub.userId, role: submitter.role };
+  } else {
+    // Regular user submissions show the user's profile
+    addedByData = {
+      type: "user",
+      name: submitter?.displayName || "Anonymous",
+      uid: sub.userId,
+      role: submitter?.role || "user",
+      photoURL: submitter?.photoURL || ""
+    };
+  }
+
   const appData = {
     name: sub.name,
     logo: sub.logo || "",
@@ -835,7 +852,7 @@ export async function approveSubmission(submissionId, adminUid) {
     likes: 0,
     dislikes: 0,
     views: 0,
-    addedBy: { type: "user", name: "User", uid: sub.userId },
+    addedBy: addedByData,
     ownerType: sub.ownerType || "user",
     ownerId: sub.ownerId || sub.userId,
     createdAt: now,
@@ -1262,4 +1279,115 @@ export async function submitOwnershipClaim(appId, user) {
     createdAt: now,
     updatedAt: now
   });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  CONTRIBUTOR ATTRIBUTION — Role-based display resolution
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const OPENLIB_OFFICIAL_PROFILE = {
+  displayType: "official",
+  displayName: "OpenLib",
+  badge: "Official",
+  avatarText: "OL",
+  avatarURL: null,
+  bio: "Curated by the OpenLib team.",
+  profileLink: null,
+  role: "openlib-team",
+  verified: true
+};
+
+/**
+ * Resolves the contributor display profile for an app.
+ * - If app was added by openlib-team or has no addedBy → official profile
+ * - If addedBy.uid exists, fetch user_record and check role
+ *   - admin/openlib-team role → official profile (override)
+ *   - regular user → user's public profile from user_records
+ * Returns a normalized contributor object for UI rendering.
+ */
+export async function resolveContributorProfile(app) {
+  if (!app) return { ...OPENLIB_OFFICIAL_PROFILE };
+
+  const addedBy = app.addedBy;
+
+  // No addedBy data or explicitly openlib-team type → official
+  if (!addedBy || addedBy.type === "openlib-team") {
+    return { ...OPENLIB_OFFICIAL_PROFILE };
+  }
+
+  // Has a UID — look up the user record for authoritative role check
+  if (addedBy.uid) {
+    try {
+      const creator = await getUserRecord(addedBy.uid);
+      if (!creator) {
+        // User record deleted/missing — fall back to addedBy data
+        return {
+          displayType: "user",
+          displayName: addedBy.name || "Anonymous",
+          badge: null,
+          avatarText: (addedBy.name || "A").charAt(0),
+          avatarURL: null,
+          bio: null,
+          profileLink: `/profile/${addedBy.uid}`,
+          role: "user",
+          verified: false,
+          uid: addedBy.uid
+        };
+      }
+
+      // Admin or team member → show official profile regardless of addedBy.type
+      if (["admin", "openlib-team"].includes(creator.role)) {
+        return { ...OPENLIB_OFFICIAL_PROFILE };
+      }
+
+      // Regular user — return their public profile data
+      return {
+        displayType: "user",
+        displayName: creator.displayName || "Anonymous",
+        badge: null,
+        avatarText: (creator.displayName || "A").charAt(0),
+        avatarURL: creator.photoURL || null,
+        bio: creator.bio || null,
+        profileLink: `/profile/${addedBy.uid}`,
+        role: creator.role || "user",
+        verified: creator.verified || false,
+        teamAccount: creator.teamAccount || false,
+        uid: addedBy.uid,
+        createdAt: creator.createdAt || null
+      };
+    } catch (e) {
+      console.error("Error resolving contributor profile:", e);
+    }
+  }
+
+  // Fallback for addedBy with type "user" but no uid
+  return {
+    displayType: "user",
+    displayName: addedBy.name || "Anonymous",
+    badge: null,
+    avatarText: (addedBy.name || "A").charAt(0),
+    avatarURL: null,
+    bio: null,
+    profileLink: null,
+    role: addedBy.role || "user",
+    verified: false,
+    uid: null
+  };
+}
+
+/**
+ * Returns the static OpenLib Official profile (no async needed).
+ * Use for quick checks / card rendering when role is already known.
+ */
+export function getOfficialProfile() {
+  return { ...OPENLIB_OFFICIAL_PROFILE };
+}
+
+/**
+ * Quick synchronous check: does this app's addedBy indicate official origin?
+ * For fast card rendering without fetching user_records.
+ */
+export function isOfficialApp(app) {
+  if (!app || !app.addedBy) return true;
+  return app.addedBy.type === "openlib-team" || app.addedBy.role === "admin";
 }

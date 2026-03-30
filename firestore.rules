@@ -32,10 +32,15 @@ service cloud.firestore {
     // ── Apps ──────────────────────────────────────────────────────────────────
     // [VULN-02 FIX] Restricted app-owner updates to safe fields only.
     // [VULN-02B FIX] Re-added counter fields with type validation for signed-in users.
+    // [ROLE-01 FIX] Only admins can create apps; addedBy.type "openlib-team" restricted to admin role.
     match /apps/{appId} {
       allow read: if true;
-      allow create: if isAdmin();
+      allow create: if isAdmin()
+        // Prevent non-admin from setting official status even if they bypass client
+        && (request.resource.data.addedBy.type != "openlib-team"
+            || getUserRole() in ["admin", "openlib-team"]);
       allow update: if isAdmin()
+        // Admins can update anything, but non-admins cannot change addedBy or ownerType to official
         || (isSignedIn() && resource.data.addedBy.uid == request.auth.uid
             && request.resource.data.diff(resource.data).affectedKeys()
                .hasOnly(["description", "fullDescription", "logo", "website",
@@ -43,7 +48,9 @@ service cloud.firestore {
                          "alternative", "tags", "screenshots", "installMethods",
                          "systemRequirements", "platforms", "fileSize",
                          "developer", "developerUrl", "license", "version",
-                         "updatedAt"]))
+                         "updatedAt"])
+            && request.resource.data.addedBy.type == resource.data.addedBy.type
+            && request.resource.data.ownerType == resource.data.ownerType)
         // Counter fields: any signed-in user can update only counters with type validation
         || (isSignedIn()
             && request.resource.data.diff(resource.data)
@@ -86,6 +93,7 @@ service cloud.firestore {
 
     // ── Submissions ──────────────────────────────────────────────────────────
     // [VULN-08 FIX] Added field validation on create
+    // [ROLE-02 FIX] Submissions cannot claim official/team status — enforced server-side
     // Admins/team can read all submissions; normal users can only read their own
     match /submissions/{submissionId} {
       allow get: if isSignedIn()
@@ -103,10 +111,22 @@ service cloud.firestore {
         && request.resource.data.download.matches('https://.*')
         && request.resource.data.source is string
         && request.resource.data.source.matches('https://.*')
-        && request.resource.data.keys().size() <= 35;
+        && request.resource.data.keys().size() <= 35
+        // Prevent non-admin users from claiming official status on submissions
+        && (!request.resource.data.keys().hasAny(["addedBy"])
+            || request.resource.data.addedBy.type != "openlib-team"
+            || getUserRole() in ["admin", "openlib-team"])
+        && (!request.resource.data.keys().hasAny(["ownerType"])
+            || request.resource.data.ownerType != "openlib-team"
+            || getUserRole() in ["admin", "openlib-team"]);
       allow update: if isAdmin()
         || (isSignedIn() && resource.data.userId == request.auth.uid
-            && resource.data.status in ["pending", "changes_requested"]);
+            && resource.data.status in ["pending", "changes_requested"]
+            // Users cannot upgrade ownerType or addedBy.type to official on update
+            && (!request.resource.data.keys().hasAny(["ownerType"])
+                || request.resource.data.ownerType != "openlib-team")
+            && (!request.resource.data.keys().hasAny(["addedBy"])
+                || request.resource.data.addedBy.type != "openlib-team"));
       allow delete: if isAdmin();
     }
 
