@@ -1391,3 +1391,207 @@ export function isOfficialApp(app) {
   if (!app || !app.addedBy) return true;
   return app.addedBy.type === "openlib-team" || app.addedBy.role === "admin";
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  OPENLIB TEAM MANAGEMENT — Collection: openlib_config/team
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const DEFAULT_TEAM_PERMISSIONS = {
+  canApproveSubmissions: true,
+  canRejectSubmissions: true,
+  canRequestChanges: true,
+  canAddApps: false,
+  canEditApps: true,
+  canDeleteApps: false,
+  canManageUsers: false,
+  canManageOrgs: false,
+  canViewReports: true,
+  canMergeEditRequests: false,
+  canManageTeam: false
+};
+
+const ADMIN_PERMISSIONS = {
+  canApproveSubmissions: true,
+  canRejectSubmissions: true,
+  canRequestChanges: true,
+  canAddApps: true,
+  canEditApps: true,
+  canDeleteApps: true,
+  canManageUsers: true,
+  canManageOrgs: true,
+  canViewReports: true,
+  canMergeEditRequests: true,
+  canManageTeam: true
+};
+
+/**
+ * Get all team members (admin + openlib-team roles).
+ */
+export async function getTeamMembers() {
+  try {
+    const q1 = query(collection(db, "user_records"), where("role", "in", ["admin", "openlib-team"]));
+    const snap = await getDocs(q1);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (e) {
+    console.error("Error getting team members:", e);
+    return [];
+  }
+}
+
+/**
+ * Get OpenLib account config (description, about, links etc).
+ */
+export async function getOpenLibConfig() {
+  try {
+    const snap = await getDoc(doc(db, "openlib_config", "profile"));
+    if (snap.exists()) return snap.data();
+    // Return defaults if not yet configured
+    return {
+      displayName: "OpenLib",
+      bio: "A curated open-source app library. Discover, rate, and explore the best free and open-source software alternatives.",
+      website: "https://openlib-f7bf1.web.app",
+      github: "https://github.com/ameerhamzasaifi/openlib",
+      avatarText: "OL",
+      established: "2024"
+    };
+  } catch (e) {
+    console.error("Error getting OpenLib config:", e);
+    return null;
+  }
+}
+
+/**
+ * Update OpenLib account config (admin-only).
+ */
+export async function updateOpenLibConfig(data, adminUid) {
+  if (!(await isAdminOrTeam(adminUid))) throw new Error("Unauthorized");
+  const admin = await getUserRecord(adminUid);
+  if (admin.role !== "admin") throw new Error("Only admins can update the OpenLib profile");
+  const allowed = ["displayName", "bio", "website", "github", "avatarText", "established"];
+  const update = {};
+  allowed.forEach(k => { if (data[k] !== undefined) update[k] = data[k]; });
+  update.updatedAt = new Date().toISOString();
+  update.updatedBy = adminUid;
+  await setDoc(doc(db, "openlib_config", "profile"), update, { merge: true });
+}
+
+/**
+ * Get permissions for a specific team member.
+ * Admin role always returns full permissions.
+ */
+export async function getTeamMemberPermissions(uid) {
+  const user = await getUserRecord(uid);
+  if (!user) return null;
+  if (user.role === "admin") return { ...ADMIN_PERMISSIONS };
+  if (user.role !== "openlib-team") return null;
+
+  try {
+    const snap = await getDoc(doc(db, "openlib_config", `permissions_${uid}`));
+    if (snap.exists()) return { ...DEFAULT_TEAM_PERMISSIONS, ...snap.data() };
+    return { ...DEFAULT_TEAM_PERMISSIONS };
+  } catch (e) {
+    console.error("Error getting team permissions:", e);
+    return { ...DEFAULT_TEAM_PERMISSIONS };
+  }
+}
+
+/**
+ * Update permissions for a team member (admin-only).
+ * Cannot modify admin permissions — they always have full access.
+ */
+export async function updateTeamMemberPermissions(targetUid, permissions, adminUid) {
+  const admin = await getUserRecord(adminUid);
+  if (!admin || admin.role !== "admin") throw new Error("Only admins can set team permissions");
+
+  const target = await getUserRecord(targetUid);
+  if (!target) throw new Error("User not found");
+  if (target.role === "admin") throw new Error("Cannot restrict admin permissions");
+  if (target.role !== "openlib-team") throw new Error("User is not a team member");
+
+  const validKeys = Object.keys(DEFAULT_TEAM_PERMISSIONS);
+  const sanitized = {};
+  validKeys.forEach(k => {
+    if (permissions[k] !== undefined) sanitized[k] = !!permissions[k];
+  });
+  sanitized.updatedAt = new Date().toISOString();
+  sanitized.updatedBy = adminUid;
+
+  await setDoc(doc(db, "openlib_config", `permissions_${targetUid}`), sanitized, { merge: true });
+}
+
+/**
+ * Add a user as a team member (admin-only).
+ * Sets their role to "openlib-team" and creates default permissions.
+ */
+export async function addTeamMember(targetUid, adminUid) {
+  const admin = await getUserRecord(adminUid);
+  if (!admin || admin.role !== "admin") throw new Error("Only admins can add team members");
+
+  const target = await getUserRecord(targetUid);
+  if (!target) throw new Error("User not found");
+  if (["admin", "openlib-team"].includes(target.role)) throw new Error("User is already a team member");
+
+  await updateDoc(doc(db, "user_records", targetUid), {
+    role: "openlib-team",
+    updatedAt: new Date().toISOString()
+  });
+
+  await setDoc(doc(db, "openlib_config", `permissions_${targetUid}`), {
+    ...DEFAULT_TEAM_PERMISSIONS,
+    addedBy: adminUid,
+    addedAt: new Date().toISOString()
+  });
+}
+
+/**
+ * Remove a team member (admin-only). Reverts role to "user".
+ */
+export async function removeTeamMember(targetUid, adminUid) {
+  const admin = await getUserRecord(adminUid);
+  if (!admin || admin.role !== "admin") throw new Error("Only admins can remove team members");
+
+  const target = await getUserRecord(targetUid);
+  if (!target) throw new Error("User not found");
+  if (target.role === "admin") throw new Error("Cannot remove an admin from the team");
+
+  await updateDoc(doc(db, "user_records", targetUid), {
+    role: "user",
+    updatedAt: new Date().toISOString()
+  });
+
+  // Clean up permissions doc
+  try {
+    await deleteDoc(doc(db, "openlib_config", `permissions_${targetUid}`));
+  } catch (e) { /* ignore if doesn't exist */ }
+}
+
+/**
+ * Get team activity stats — apps curated, submissions reviewed, etc.
+ */
+export async function getTeamStats() {
+  try {
+    const members = await getTeamMembers();
+    const memberUids = members.map(m => m.id);
+
+    // Count apps added by team
+    let teamAppCount = 0;
+    const appsSnap = await getDocs(collection(db, "apps"));
+    appsSnap.docs.forEach(d => {
+      const data = d.data();
+      if (data.addedBy?.type === "openlib-team" || memberUids.includes(data.addedBy?.uid)) {
+        teamAppCount++;
+      }
+    });
+
+    return {
+      memberCount: members.length,
+      adminCount: members.filter(m => m.role === "admin").length,
+      teamCount: members.filter(m => m.role === "openlib-team").length,
+      appsCurated: teamAppCount,
+      totalApps: appsSnap.size
+    };
+  } catch (e) {
+    console.error("Error getting team stats:", e);
+    return { memberCount: 0, adminCount: 0, teamCount: 0, appsCurated: 0, totalApps: 0 };
+  }
+}

@@ -299,5 +299,15 @@ service cloud.firestore {
       // Only admins can update (approve/reject) or delete
       allow update, delete: if isAdmin();
     }
+
+    // ── OpenLib Config (team profile & permissions) ──────────────────────────
+    match /openlib_config/{docId} {
+      // Public can read the profile doc; team members can read permissions
+      allow read: if docId == "profile"
+        || (isSignedIn() && (isAdmin()
+            || docId == ("permissions_" + request.auth.uid)));
+      // Only admins can write
+      allow write: if isAdmin();
+    }
   }
 }

@@ -29,7 +29,10 @@ import {
   toggleBookmark, isBookmarked, getUserBookmarks,
   trackDownload,
   submitOwnershipClaim,
-  resolveContributorProfile, getOfficialProfile, isOfficialApp
+  resolveContributorProfile, getOfficialProfile, isOfficialApp,
+  getTeamMembers, getOpenLibConfig, updateOpenLibConfig,
+  getTeamMemberPermissions, updateTeamMemberPermissions,
+  addTeamMember, removeTeamMember, getTeamStats
 } from './firebase-db.js';
 
 // ── State ────────────────────────────────────────────────────────────────────
@@ -283,7 +286,7 @@ function buildFilters() {
 
 // ── App Detail Page ──────────────────────────────────────────────────────────
 async function showAppDetail(appId) {
-  const views = ["home-view", "rankings-view", "profile-view", "org-view", "admin-view", "verify-view"];
+  const views = ["home-view", "rankings-view", "profile-view", "org-view", "admin-view", "verify-view", "team-view", "team-manage-view"];
   views.forEach(v => { const el = document.getElementById(v); if (el) el.style.display = "none"; });
   const detailView = document.getElementById("detail-view");
   detailView.style.display = "block";
@@ -1203,7 +1206,7 @@ function renderRecommendations() {
 
 // ── Profile View ─────────────────────────────────────────────────────────────
 async function showProfile(uid) {
-  const views = ["home-view", "detail-view", "rankings-view", "org-view", "admin-view", "verify-view"];
+  const views = ["home-view", "detail-view", "rankings-view", "org-view", "admin-view", "verify-view", "team-view", "team-manage-view"];
   views.forEach(v => { const el = document.getElementById(v); if (el) el.style.display = "none"; });
   const profileView = document.getElementById("profile-view");
   profileView.style.display = "block";
@@ -1469,7 +1472,7 @@ async function showProfile(uid) {
 
 // ── Organization View ────────────────────────────────────────────────────────
 async function showOrgView(orgId) {
-  const views = ["home-view", "detail-view", "rankings-view", "profile-view", "admin-view", "verify-view"];
+  const views = ["home-view", "detail-view", "rankings-view", "profile-view", "admin-view", "verify-view", "team-view", "team-manage-view"];
   views.forEach(v => { const el = document.getElementById(v); if (el) el.style.display = "none"; });
   const orgView = document.getElementById("org-view");
   orgView.style.display = "block";
@@ -1612,7 +1615,7 @@ async function showOrgView(orgId) {
 
 // ── Verify Submissions (Team-only screen) ────────────────────────────────────
 async function showVerifySubmissions() {
-  const allViews = ["home-view", "detail-view", "rankings-view", "profile-view", "org-view", "admin-view"];
+  const allViews = ["home-view", "detail-view", "rankings-view", "profile-view", "org-view", "admin-view", "team-view", "team-manage-view"];
   allViews.forEach(v => { const el = document.getElementById(v); if (el) el.style.display = "none"; });
   const verifyView = document.getElementById("verify-view");
   verifyView.style.display = "block";
@@ -1901,9 +1904,521 @@ async function loadVerifyComments(submissionId) {
   }
 }
 
+// ── Public OpenLib Team Page ─────────────────────────────────────────────────
+async function showOpenLibTeamPage() {
+  const views = ["home-view", "detail-view", "rankings-view", "profile-view", "org-view", "admin-view", "verify-view", "team-manage-view"];
+  views.forEach(v => { const el = document.getElementById(v); if (el) el.style.display = "none"; });
+  const teamView = document.getElementById("team-view");
+  teamView.style.display = "block";
+
+  teamView.innerHTML = `<div class="detail-loading">Loading OpenLib team…</div>`;
+
+  let config, members, stats;
+  try {
+    [config, members, stats] = await Promise.all([
+      getOpenLibConfig(),
+      getTeamMembers(),
+      getTeamStats()
+    ]);
+  } catch (e) {
+    teamView.innerHTML = `<div class="empty-state"><h3>Failed to load</h3><p>${esc(e.message)}</p><a href="/">← Back</a></div>`;
+    return;
+  }
+
+  if (!config) config = { displayName: "OpenLib", bio: "A curated open-source app library.", website: "", github: "" };
+  if (!members) members = [];
+
+  const admins = members.filter(m => m.role === "admin");
+  const teamMembers = members.filter(m => m.role === "openlib-team");
+  const canManage = isAdmin;
+
+  // Count apps curated by team
+  const teamApps = apps.filter(a => isOfficialApp(a));
+
+  teamView.innerHTML = `
+    <div class="team-page">
+      <a href="/" class="back-link">← Back to library</a>
+
+      <!-- OpenLib Profile Header -->
+      <div class="team-profile-header">
+        <div class="team-profile-avatar">
+          <div class="creator-card-avatar-fallback openlib-avatar team-avatar-lg">${esc(config.avatarText || "OL")}</div>
+        </div>
+        <div class="team-profile-info">
+          <h1 class="team-profile-name">${esc(config.displayName || "OpenLib")} <span class="badge badge-role badge-admin">Official</span></h1>
+          <p class="team-profile-bio">${esc(config.bio || "")}</p>
+          <div class="team-profile-links">
+            ${config.website ? `<a href="${esc(config.website)}" target="_blank" rel="noopener" class="team-link">🌐 Website</a>` : ""}
+            ${config.github ? `<a href="${esc(config.github)}" target="_blank" rel="noopener" class="team-link">💻 GitHub</a>` : ""}
+            ${config.established ? `<span class="team-link-text">📅 Est. ${esc(config.established)}</span>` : ""}
+          </div>
+        </div>
+        ${canManage ? `<a href="/team/manage" class="btn btn-secondary team-manage-btn" id="team-manage-link">⚙️ Manage Team</a>` : ""}
+      </div>
+
+      <!-- Team Stats -->
+      <div class="team-stats-grid">
+        <div class="team-stat-card">
+          <span class="stat-number">${stats?.appsCurated || teamApps.length}</span>
+          <span class="stat-label">Apps Curated</span>
+        </div>
+        <div class="team-stat-card">
+          <span class="stat-number">${stats?.totalApps || apps.length}</span>
+          <span class="stat-label">Total Apps</span>
+        </div>
+        <div class="team-stat-card">
+          <span class="stat-number">${admins.length}</span>
+          <span class="stat-label">Admins</span>
+        </div>
+        <div class="team-stat-card">
+          <span class="stat-number">${teamMembers.length}</span>
+          <span class="stat-label">Team Members</span>
+        </div>
+      </div>
+
+      <!-- Admins Section -->
+      <div class="team-section">
+        <h2 class="team-section-title">👑 Admins</h2>
+        <p class="team-section-desc">Full platform control — manage apps, users, teams, and all settings.</p>
+        <div class="team-members-grid">
+          ${admins.length ? admins.map(m => renderTeamMemberCard(m, "admin")).join("") : `<p class="team-empty">No admins configured.</p>`}
+        </div>
+      </div>
+
+      <!-- Team Members Section -->
+      <div class="team-section">
+        <h2 class="team-section-title">⚡ Team Members</h2>
+        <p class="team-section-desc">Review submissions, curate apps, and assist with platform moderation. Permissions set by admins.</p>
+        <div class="team-members-grid">
+          ${teamMembers.length ? teamMembers.map(m => renderTeamMemberCard(m, "openlib-team")).join("") : `<p class="team-empty">No team members yet.</p>`}
+        </div>
+      </div>
+
+      <!-- Curated Apps Preview -->
+      <div class="team-section">
+        <h2 class="team-section-title">📦 Recently Curated</h2>
+        <div class="team-curated-grid">
+          ${teamApps.slice(0, 8).map(a => `
+            <a href="/app/${esc(a.id)}" class="team-curated-card">
+              ${a.logo ? `<img class="team-curated-logo" src="${esc(a.logo)}" alt="" onerror="this.style.display='none'">` : `<div class="team-curated-logo-fallback">${esc(a.name.charAt(0))}</div>`}
+              <span class="team-curated-name">${esc(a.name)}</span>
+              <span class="team-curated-cat">${esc(a.category)}</span>
+            </a>
+          `).join("")}
+          ${teamApps.length === 0 ? `<p class="team-empty">No curated apps yet.</p>` : ""}
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Manage link click handler
+  teamView.querySelector("#team-manage-link")?.addEventListener("click", e => {
+    e.preventDefault();
+    navigateTo("/team/manage");
+  });
+
+  // Member profile links
+  teamView.querySelectorAll(".team-member-link").forEach(link => {
+    link.addEventListener("click", e => {
+      e.preventDefault();
+      navigateTo(link.getAttribute("href"));
+    });
+  });
+
+  // Curated app links
+  teamView.querySelectorAll(".team-curated-card").forEach(link => {
+    link.addEventListener("click", e => {
+      e.preventDefault();
+      navigateTo(link.getAttribute("href"));
+    });
+  });
+}
+
+function renderTeamMemberCard(member, role) {
+  const avatarHtml = member.photoURL
+    ? `<img class="team-member-avatar" src="${esc(member.photoURL)}" alt="" referrerpolicy="no-referrer">`
+    : `<div class="team-member-avatar-fallback">${esc((member.displayName || "?").charAt(0))}</div>`;
+  const roleLabel = role === "admin" ? "Admin" : "Team";
+  const roleClass = role === "admin" ? "badge-admin" : "badge-team-role";
+  const joinDate = member.createdAt ? new Date(member.createdAt).toLocaleDateString("en-US", { month: "short", year: "numeric" }) : "";
+
+  return `
+    <a href="/profile/${esc(member.id)}" class="team-member-card team-member-link">
+      ${avatarHtml}
+      <div class="team-member-info">
+        <span class="team-member-name">
+          ${esc(member.displayName || "Anonymous")}
+          <span class="badge badge-role ${roleClass}">${roleLabel}</span>
+          ${member.verified ? '<span class="badge badge-verified" title="Verified">✓</span>' : ""}
+        </span>
+        ${member.bio ? `<span class="team-member-bio">${esc(member.bio)}</span>` : ""}
+        <span class="team-member-meta">
+          ${joinDate ? `Joined ${joinDate}` : ""}
+          ${member.activity ? ` · ${member.activity.appsAdded || 0} apps added` : ""}
+        </span>
+      </div>
+    </a>`;
+}
+
+// ── Team Management Page (Admin-only) ────────────────────────────────────────
+async function showTeamManagePage() {
+  const views = ["home-view", "detail-view", "rankings-view", "profile-view", "org-view", "admin-view", "verify-view", "team-view"];
+  views.forEach(v => { const el = document.getElementById(v); if (el) el.style.display = "none"; });
+  const manageView = document.getElementById("team-manage-view");
+  manageView.style.display = "block";
+
+  if (!currentUser || !isAdmin) {
+    manageView.innerHTML = `<div class="empty-state"><h3>Access Denied</h3><p>Only admins can manage the team.</p><a href="/team">← Back to team page</a></div>`;
+    return;
+  }
+
+  manageView.innerHTML = `<div class="detail-loading">Loading team management…</div>`;
+
+  let config, members, allUsers;
+  try {
+    [config, members, allUsers] = await Promise.all([
+      getOpenLibConfig(),
+      getTeamMembers(),
+      getAllUsers()
+    ]);
+  } catch (e) {
+    manageView.innerHTML = `<div class="empty-state"><h3>Failed to load</h3><p>${esc(e.message)}</p><a href="/team">← Back</a></div>`;
+    return;
+  }
+
+  if (!config) config = {};
+  const nonTeamUsers = allUsers.filter(u => !["admin", "openlib-team"].includes(u.role));
+
+  // Load permissions for all team members
+  const memberPermissions = {};
+  for (const m of members) {
+    try {
+      memberPermissions[m.id] = await getTeamMemberPermissions(m.id);
+    } catch (e) {
+      memberPermissions[m.id] = null;
+    }
+  }
+
+  manageView.innerHTML = `
+    <div class="team-manage-page">
+      <a href="/team" class="back-link">← Back to team page</a>
+      <h1 class="admin-title">⚙️ Team Management</h1>
+
+      <!-- Tabs -->
+      <div class="admin-tabs">
+        <button class="admin-tab active" data-tab="tm-profile">OpenLib Profile</button>
+        <button class="admin-tab" data-tab="tm-members">Team Members (${members.length})</button>
+        <button class="admin-tab" data-tab="tm-permissions">Permissions</button>
+        <button class="admin-tab" data-tab="tm-add">Add Member</button>
+      </div>
+
+      <div class="admin-tab-content" id="tm-tab-content">
+        ${renderTMProfileTab(config)}
+      </div>
+    </div>
+  `;
+
+  // Tab switching
+  manageView.querySelectorAll(".admin-tab").forEach(tab => {
+    tab.addEventListener("click", () => {
+      manageView.querySelectorAll(".admin-tab").forEach(t => t.classList.remove("active"));
+      tab.classList.add("active");
+      const panel = document.getElementById("tm-tab-content");
+      switch (tab.dataset.tab) {
+        case "tm-profile": panel.innerHTML = renderTMProfileTab(config); break;
+        case "tm-members": panel.innerHTML = renderTMMembersTab(members); break;
+        case "tm-permissions": panel.innerHTML = renderTMPermissionsTab(members, memberPermissions); break;
+        case "tm-add": panel.innerHTML = renderTMAddMemberTab(nonTeamUsers); break;
+      }
+      attachTMHandlers(tab.dataset.tab, { config, members, memberPermissions, nonTeamUsers });
+    });
+  });
+
+  attachTMHandlers("tm-profile", { config, members, memberPermissions, nonTeamUsers });
+}
+
+function renderTMProfileTab(config) {
+  return `
+    <div class="tm-section">
+      <h3>OpenLib Account Settings</h3>
+      <p class="tm-desc">Configure the public OpenLib profile shown on the team page and contributor attribution.</p>
+      <form id="tm-profile-form" class="tm-form">
+        <div class="form-group">
+          <label for="tm-display-name">Display Name</label>
+          <input type="text" id="tm-display-name" value="${esc(config.displayName || "OpenLib")}" maxlength="50">
+        </div>
+        <div class="form-group">
+          <label for="tm-bio">Bio / Description</label>
+          <textarea id="tm-bio" rows="3" maxlength="500">${esc(config.bio || "")}</textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="tm-website">Website</label>
+            <input type="url" id="tm-website" value="${esc(config.website || "")}" placeholder="https://…">
+          </div>
+          <div class="form-group">
+            <label for="tm-github">GitHub</label>
+            <input type="url" id="tm-github" value="${esc(config.github || "")}" placeholder="https://github.com/…">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="tm-avatar-text">Avatar Text</label>
+            <input type="text" id="tm-avatar-text" value="${esc(config.avatarText || "OL")}" maxlength="4">
+          </div>
+          <div class="form-group">
+            <label for="tm-established">Established</label>
+            <input type="text" id="tm-established" value="${esc(config.established || "")}" maxlength="10" placeholder="2024">
+          </div>
+        </div>
+        <div class="form-msg" role="alert"></div>
+        <button type="submit" class="btn btn-primary">Save Profile</button>
+      </form>
+    </div>`;
+}
+
+function renderTMMembersTab(members) {
+  const admins = members.filter(m => m.role === "admin");
+  const team = members.filter(m => m.role === "openlib-team");
+
+  return `
+    <div class="tm-section">
+      <h3>Current Team (${members.length})</h3>
+
+      <h4 class="tm-sub-title">👑 Admins (${admins.length})</h4>
+      <div class="tm-members-list">
+        ${admins.map(m => renderTMMemberRow(m, false)).join("")}
+      </div>
+
+      <h4 class="tm-sub-title" style="margin-top:20px">⚡ Team Members (${team.length})</h4>
+      <div class="tm-members-list">
+        ${team.length ? team.map(m => renderTMMemberRow(m, true)).join("") : `<p class="team-empty">No team members. Use the "Add Member" tab.</p>`}
+      </div>
+    </div>`;
+}
+
+function renderTMMemberRow(member, canRemove) {
+  const avatarHtml = member.photoURL
+    ? `<img class="tm-member-avatar" src="${esc(member.photoURL)}" alt="" referrerpolicy="no-referrer">`
+    : `<div class="tm-member-avatar-fallback">${esc((member.displayName || "?").charAt(0))}</div>`;
+  const roleLabel = member.role === "admin" ? "Admin" : "Team";
+  const roleClass = member.role === "admin" ? "badge-admin" : "badge-team-role";
+  const lastLogin = member.lastLoginAt ? new Date(member.lastLoginAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Never";
+
+  return `
+    <div class="tm-member-row" data-uid="${esc(member.id)}">
+      ${avatarHtml}
+      <div class="tm-member-info">
+        <span class="tm-member-name">${esc(member.displayName || "Anonymous")} <span class="badge badge-role ${roleClass}">${roleLabel}</span></span>
+        <span class="tm-member-email">${esc(member.email || "")}</span>
+        <span class="tm-member-meta">Last active: ${lastLogin}</span>
+      </div>
+      <div class="tm-member-actions">
+        ${canRemove ? `<button class="btn btn-sm btn-danger tm-remove-btn" data-uid="${esc(member.id)}" data-name="${esc(member.displayName)}">Remove</button>` : `<span class="tm-role-fixed">Protected</span>`}
+      </div>
+    </div>`;
+}
+
+function renderTMPermissionsTab(members, memberPermissions) {
+  const team = members.filter(m => m.role === "openlib-team");
+  if (!team.length) {
+    return `<div class="tm-section"><h3>Permissions</h3><p class="team-empty">No team members to configure. Add members first.</p></div>`;
+  }
+
+  const permLabels = {
+    canApproveSubmissions: "Approve Submissions",
+    canRejectSubmissions: "Reject Submissions",
+    canRequestChanges: "Request Changes",
+    canAddApps: "Add Apps Directly",
+    canEditApps: "Edit Apps",
+    canDeleteApps: "Delete Apps",
+    canManageUsers: "Manage Users",
+    canManageOrgs: "Manage Organizations",
+    canViewReports: "View Reports",
+    canMergeEditRequests: "Merge Edit Requests",
+    canManageTeam: "Manage Team"
+  };
+
+  return `
+    <div class="tm-section">
+      <h3>Team Permissions</h3>
+      <p class="tm-desc">Configure what each team member can do. Admins always have full access.</p>
+
+      ${team.map(m => {
+        const perms = memberPermissions[m.id] || {};
+        return `
+          <div class="tm-perm-card" data-uid="${esc(m.id)}">
+            <div class="tm-perm-header">
+              ${m.photoURL ? `<img class="tm-member-avatar-sm" src="${esc(m.photoURL)}" alt="" referrerpolicy="no-referrer">` : ""}
+              <strong>${esc(m.displayName || "Anonymous")}</strong>
+            </div>
+            <div class="tm-perm-grid">
+              ${Object.entries(permLabels).map(([key, label]) => `
+                <label class="tm-perm-toggle">
+                  <input type="checkbox" class="tm-perm-check" data-uid="${esc(m.id)}" data-perm="${esc(key)}" ${perms[key] ? "checked" : ""}>
+                  <span>${label}</span>
+                </label>
+              `).join("")}
+            </div>
+            <button class="btn btn-sm btn-primary tm-save-perms-btn" data-uid="${esc(m.id)}">Save Permissions</button>
+          </div>`;
+      }).join("")}
+    </div>`;
+}
+
+function renderTMAddMemberTab(nonTeamUsers) {
+  return `
+    <div class="tm-section">
+      <h3>Add Team Member</h3>
+      <p class="tm-desc">Select a registered user to add to the OpenLib team. They'll get the "openlib-team" role with default permissions (which you can customize in the Permissions tab).</p>
+
+      <div class="tm-search-wrap">
+        <input type="search" id="tm-user-search" placeholder="Search by name or email…" class="tm-search-input" autocomplete="off">
+      </div>
+
+      <div class="tm-user-list" id="tm-user-list">
+        ${nonTeamUsers.slice(0, 20).map(u => renderTMUserRow(u)).join("")}
+        ${nonTeamUsers.length > 20 ? `<p class="tm-more-note">Showing 20 of ${nonTeamUsers.length} users. Use search to find specific users.</p>` : ""}
+        ${nonTeamUsers.length === 0 ? `<p class="team-empty">No eligible users found.</p>` : ""}
+      </div>
+    </div>`;
+}
+
+function renderTMUserRow(user) {
+  const avatarHtml = user.photoURL
+    ? `<img class="tm-member-avatar-sm" src="${esc(user.photoURL)}" alt="" referrerpolicy="no-referrer">`
+    : `<div class="tm-member-avatar-fallback-sm">${esc((user.displayName || "?").charAt(0))}</div>`;
+  return `
+    <div class="tm-user-row" data-uid="${esc(user.id)}">
+      ${avatarHtml}
+      <div class="tm-user-info">
+        <span class="tm-user-name">${esc(user.displayName || "Anonymous")}</span>
+        <span class="tm-user-email">${esc(user.email || "")}</span>
+      </div>
+      <button class="btn btn-sm btn-primary tm-add-user-btn" data-uid="${esc(user.id)}" data-name="${esc(user.displayName || "this user")}">+ Add to Team</button>
+    </div>`;
+}
+
+function attachTMHandlers(tab, data) {
+  const manageView = document.getElementById("team-manage-view");
+
+  switch (tab) {
+    case "tm-profile": {
+      const form = document.getElementById("tm-profile-form");
+      form?.addEventListener("submit", async e => {
+        e.preventDefault();
+        const btn = form.querySelector(".btn-primary");
+        btn.disabled = true;
+        btn.textContent = "Saving…";
+        try {
+          await updateOpenLibConfig({
+            displayName: document.getElementById("tm-display-name").value.trim(),
+            bio: document.getElementById("tm-bio").value.trim(),
+            website: document.getElementById("tm-website").value.trim(),
+            github: document.getElementById("tm-github").value.trim(),
+            avatarText: document.getElementById("tm-avatar-text").value.trim() || "OL",
+            established: document.getElementById("tm-established").value.trim()
+          }, currentUser.uid);
+          showFormSuccess(form, "Profile saved!");
+        } catch (err) {
+          showFormError(form, err.message);
+        } finally {
+          btn.disabled = false;
+          btn.textContent = "Save Profile";
+        }
+      });
+      break;
+    }
+
+    case "tm-members": {
+      manageView.querySelectorAll(".tm-remove-btn").forEach(btn => {
+        btn.addEventListener("click", async () => {
+          const name = btn.dataset.name || "this member";
+          if (!confirm(`Remove ${name} from the OpenLib team? Their role will revert to "user".`)) return;
+          btn.disabled = true;
+          btn.textContent = "Removing…";
+          try {
+            await removeTeamMember(btn.dataset.uid, currentUser.uid);
+            showToast(`${name} removed from team`);
+            showTeamManagePage();
+          } catch (err) {
+            showToast(err.message);
+            btn.disabled = false;
+            btn.textContent = "Remove";
+          }
+        });
+      });
+      break;
+    }
+
+    case "tm-permissions": {
+      manageView.querySelectorAll(".tm-save-perms-btn").forEach(btn => {
+        btn.addEventListener("click", async () => {
+          const uid = btn.dataset.uid;
+          const checks = manageView.querySelectorAll(`.tm-perm-check[data-uid="${uid}"]`);
+          const perms = {};
+          checks.forEach(c => { perms[c.dataset.perm] = c.checked; });
+          btn.disabled = true;
+          btn.textContent = "Saving…";
+          try {
+            await updateTeamMemberPermissions(uid, perms, currentUser.uid);
+            showToast("Permissions updated");
+          } catch (err) {
+            showToast(err.message);
+          } finally {
+            btn.disabled = false;
+            btn.textContent = "Save Permissions";
+          }
+        });
+      });
+      break;
+    }
+
+    case "tm-add": {
+      const searchInput = document.getElementById("tm-user-search");
+      const userList = document.getElementById("tm-user-list");
+
+      searchInput?.addEventListener("input", () => {
+        const term = searchInput.value.trim().toLowerCase();
+        const filtered = data.nonTeamUsers.filter(u =>
+          (u.displayName || "").toLowerCase().includes(term) ||
+          (u.email || "").toLowerCase().includes(term)
+        ).slice(0, 20);
+        userList.innerHTML = filtered.length
+          ? filtered.map(u => renderTMUserRow(u)).join("")
+          : `<p class="team-empty">No matching users.</p>`;
+        attachTMAddButtons();
+      });
+
+      attachTMAddButtons();
+      break;
+    }
+  }
+}
+
+function attachTMAddButtons() {
+  document.querySelectorAll(".tm-add-user-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const name = btn.dataset.name || "this user";
+      if (!confirm(`Add ${name} to the OpenLib team?`)) return;
+      btn.disabled = true;
+      btn.textContent = "Adding…";
+      try {
+        await addTeamMember(btn.dataset.uid, currentUser.uid);
+        showToast(`${name} added to the team!`);
+        showTeamManagePage();
+      } catch (err) {
+        showToast(err.message);
+        btn.disabled = false;
+        btn.textContent = "+ Add to Team";
+      }
+    });
+  });
+}
+
 // ── Admin Dashboard ──────────────────────────────────────────────────────────
 async function showAdminDashboard() {
-  const views = ["home-view", "detail-view", "rankings-view", "profile-view", "org-view", "verify-view"];
+  const views = ["home-view", "detail-view", "rankings-view", "profile-view", "org-view", "verify-view", "team-view", "team-manage-view"];
   views.forEach(v => { const el = document.getElementById(v); if (el) el.style.display = "none"; });
   const adminView = document.getElementById("admin-view");
   adminView.style.display = "block";
@@ -2799,7 +3314,7 @@ async function loadSubComments(submissionId) {
 
 // ── Rankings Page ────────────────────────────────────────────────────────────
 function showRankings() {
-  const views = ["home-view", "detail-view", "profile-view", "org-view", "admin-view", "verify-view"];
+  const views = ["home-view", "detail-view", "profile-view", "org-view", "admin-view", "verify-view", "team-view", "team-manage-view"];
   views.forEach(v => { const el = document.getElementById(v); if (el) el.style.display = "none"; });
   const rankView = document.getElementById("rankings-view");
   rankView.style.display = "block";
@@ -3489,6 +4004,12 @@ function handleRoute() {
   } else if (path === "/verify") {
     updatePageMeta({ title: "Verify Submissions — OpenLib", description: "Review and verify app submissions.", url: `${BASE_URL}/verify` });
     showVerifySubmissions();
+  } else if (path === "/team/manage") {
+    updatePageMeta({ title: "Team Management — OpenLib", description: "Manage the OpenLib team.", url: `${BASE_URL}/team/manage` });
+    showTeamManagePage();
+  } else if (path === "/team") {
+    updatePageMeta({ title: "OpenLib Team — OpenLib", description: "Meet the OpenLib team — admins and contributors curating the open-source app library.", url: `${BASE_URL}/team` });
+    showOpenLibTeamPage();
   } else {
     updatePageMeta({
       title: "OpenLib — Open Source App Library",
@@ -3500,7 +4021,7 @@ function handleRoute() {
 }
 
 function showHome() {
-  const views = ["detail-view", "rankings-view", "profile-view", "org-view", "admin-view", "verify-view"];
+  const views = ["detail-view", "rankings-view", "profile-view", "org-view", "admin-view", "verify-view", "team-view", "team-manage-view"];
   views.forEach(v => { const el = document.getElementById(v); if (el) el.style.display = "none"; });
   document.getElementById("home-view").style.display = "block";
   buildFilters();
@@ -3509,7 +4030,7 @@ function showHome() {
 }
 
 async function showReviewsPage(appId) {
-  const views = ["home-view", "rankings-view", "profile-view", "org-view", "admin-view", "verify-view"];
+  const views = ["home-view", "rankings-view", "profile-view", "org-view", "admin-view", "verify-view", "team-view", "team-manage-view"];
   views.forEach(v => { const el = document.getElementById(v); if (el) el.style.display = "none"; });
   const detailView = document.getElementById("detail-view");
   detailView.style.display = "block";
@@ -3633,7 +4154,7 @@ async function showReviewsPage(appId) {
 }
 
 async function showEditRequestsPage(appId) {
-  const views = ["home-view", "rankings-view", "profile-view", "org-view", "admin-view", "verify-view"];
+  const views = ["home-view", "rankings-view", "profile-view", "org-view", "admin-view", "verify-view", "team-view", "team-manage-view"];
   views.forEach(v => { const el = document.getElementById(v); if (el) el.style.display = "none"; });
   const detailView = document.getElementById("detail-view");
   detailView.style.display = "block";
@@ -3698,7 +4219,7 @@ async function showEditRequestsPage(appId) {
 }
 
 async function showVersionHistoryPage(appId) {
-  const views = ["home-view", "rankings-view", "profile-view", "org-view", "admin-view", "verify-view"];
+  const views = ["home-view", "rankings-view", "profile-view", "org-view", "admin-view", "verify-view", "team-view", "team-manage-view"];
   views.forEach(v => { const el = document.getElementById(v); if (el) el.style.display = "none"; });
   const detailView = document.getElementById("detail-view");
   detailView.style.display = "block";
@@ -3935,6 +4456,7 @@ async function init() {
   // Nav links
   document.getElementById("profile-nav-link")?.addEventListener("click", e => { e.preventDefault(); navigateTo("/profile"); });
   document.getElementById("admin-nav-link")?.addEventListener("click", e => { e.preventDefault(); navigateTo("/admin"); });
+  document.getElementById("team-nav-link")?.addEventListener("click", e => { e.preventDefault(); navigateTo("/team"); });
 
   // Create organization form
   document.getElementById("create-org-form")?.addEventListener("submit", async e => {
