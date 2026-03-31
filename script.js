@@ -32,7 +32,10 @@ import {
   resolveContributorProfile, getOfficialProfile, isOfficialApp,
   getTeamMembers, getOpenLibConfig, updateOpenLibConfig,
   getTeamMemberPermissions, updateTeamMemberPermissions,
-  addTeamMember, removeTeamMember, getTeamStats
+  addTeamMember, removeTeamMember, getTeamStats,
+  getAllReports, getReport, updateReportStatus,
+  logModerationAction, getModerationLog,
+  setAppModerationStatus, restoreExpiredSuspensions, getReportStats
 } from './firebase-db.js';
 
 // ── State ────────────────────────────────────────────────────────────────────
@@ -258,6 +261,9 @@ function getFiltered() {
   const q = document.getElementById("search-input").value.toLowerCase().trim();
   const active = document.querySelector(".filter-btn.active")?.dataset.filter || "All";
   return apps.filter(app => {
+    // Hide restricted/removed apps from public view (admins still see them in admin panel)
+    const modStatus = app.moderationStatus || "active";
+    if (modStatus !== "active" && !isAdmin) return false;
     const cat = active === "All" || app.category === active;
     const srch = !q
       || app.name.toLowerCase().includes(q)
@@ -501,9 +507,22 @@ async function showAppDetail(appId) {
     isAdmin
   );
 
+  // Moderation status banner
+  const modStatus = app.moderationStatus || "active";
+  const modBannerHtml = modStatus !== "active" ? `
+    <div class="mod-banner mod-banner-${esc(modStatus)}">
+      <span class="mod-banner-icon">${modStatus === "restricted" ? "⚠️" : "🚫"}</span>
+      <div class="mod-banner-text">
+        <strong>This app is currently ${modStatus === "restricted" ? "restricted" : "removed"}.</strong>
+        ${app.moderationReason ? `<span>${esc(app.moderationReason)}</span>` : ""}
+        ${app.suspendUntil ? `<span>Suspension expires: ${new Date(app.suspendUntil).toLocaleDateString()}</span>` : ""}
+      </div>
+    </div>` : "";
+
   detailView.innerHTML = `
     <div class="detail-page">
       <a href="/" class="back-link">← Back to library</a>
+      ${modBannerHtml}
       <div class="detail-header">
         ${logoHtml}
         <div class="detail-header-text">
@@ -2431,23 +2450,28 @@ async function showAdminDashboard() {
 
   adminView.innerHTML = `<div class="detail-loading">Loading admin dashboard…</div>`;
 
-  let submissions = [], editRequests = [], users = [], orgs = [];
+  let submissions = [], editRequests = [], users = [], orgs = [], reports = [];
   let loadErrors = [];
 
   try {
-    [submissions, editRequests, users, orgs] = await Promise.all([
+    [submissions, editRequests, users, orgs, reports] = await Promise.all([
       getAllSubmissions().catch(e => { loadErrors.push("submissions: " + e.message); console.error("[Admin] Failed to load submissions:", e); return []; }),
       getAllEditRequests("open").catch(e => { loadErrors.push("edit requests: " + e.message); console.error("[Admin] Failed to load edit requests:", e); return []; }),
       getAllUsers().catch(e => { loadErrors.push("users: " + e.message); console.error("[Admin] Failed to load users:", e); return []; }),
-      getAllOrganizations().catch(e => { loadErrors.push("organizations: " + e.message); console.error("[Admin] Failed to load orgs:", e); return []; })
+      getAllOrganizations().catch(e => { loadErrors.push("organizations: " + e.message); console.error("[Admin] Failed to load orgs:", e); return []; }),
+      getAllReports().catch(e => { loadErrors.push("reports: " + e.message); console.error("[Admin] Failed to load reports:", e); return []; })
     ]);
   } catch (e) {
     console.error("[Admin] Critical load error:", e);
     loadErrors.push("critical: " + e.message);
   }
 
+  // Auto-restore expired suspensions
+  restoreExpiredSuspensions(currentUser.uid).catch(() => {});
+
   const pendingCount = submissions.filter(s => s.status === "pending").length;
   const changesCount = submissions.filter(s => s.status === "changes_requested").length;
+  const pendingReports = reports.filter(r => r.status === "pending" || r.status === "under_review").length;
 
   const errorBanner = loadErrors.length ? `
     <div class="admin-error-banner">
@@ -2468,14 +2492,15 @@ async function showAdminDashboard() {
         <div class="admin-stat-card"><span class="stat-number">${pendingCount}</span><span class="stat-label">Pending Submissions</span></div>
         <div class="admin-stat-card"><span class="stat-number">${changesCount}</span><span class="stat-label">Changes Requested</span></div>
         <div class="admin-stat-card"><span class="stat-number">${editRequests.length}</span><span class="stat-label">Open Edit Requests</span></div>
+        <div class="admin-stat-card"><span class="stat-number">${pendingReports}</span><span class="stat-label">Open Reports</span></div>
         <div class="admin-stat-card"><span class="stat-number">${users.length}</span><span class="stat-label">Users</span></div>
-        <div class="admin-stat-card"><span class="stat-number">${orgs.length}</span><span class="stat-label">Organizations</span></div>
         <div class="admin-stat-card"><span class="stat-number">${apps.length}</span><span class="stat-label">Apps</span></div>
       </div>
 
       <div class="admin-tabs">
         <button class="admin-tab active" data-tab="submissions">Submissions</button>
         <button class="admin-tab" data-tab="edit-requests">Edit Requests</button>
+        <button class="admin-tab" data-tab="reports">Reports${pendingReports ? ` <span class="tab-badge">${pendingReports}</span>` : ""}</button>
         <button class="admin-tab" data-tab="users">Users</button>
         <button class="admin-tab" data-tab="add-app">Add App</button>
       </div>
@@ -2496,6 +2521,7 @@ async function showAdminDashboard() {
       switch (tab.dataset.tab) {
         case "submissions": panel.innerHTML = renderAdminSubmissions(submissions); break;
         case "edit-requests": panel.innerHTML = renderAdminEditRequests(editRequests); break;
+        case "reports": panel.innerHTML = renderAdminReports(reports); break;
         case "users": panel.innerHTML = renderAdminUsers(users); break;
         case "add-app": panel.innerHTML = renderAdminAddApp(); break;
       }
@@ -2731,6 +2757,67 @@ function renderAdminAddApp() {
     </form>`;
 }
 
+// ── Admin Reports Tab ────────────────────────────────────────────────────────
+function renderAdminReports(reports) {
+  if (!reports.length) return `<p class="admin-empty">No reports submitted yet.</p>`;
+
+  const statusFilters = `
+    <div class="sub-filters">
+      <button class="sub-filter-btn active" data-filter="all">All (${reports.length})</button>
+      <button class="sub-filter-btn" data-filter="pending">🟡 Pending (${reports.filter(r => r.status === "pending").length})</button>
+      <button class="sub-filter-btn" data-filter="under_review">🔵 Under Review (${reports.filter(r => r.status === "under_review").length})</button>
+      <button class="sub-filter-btn" data-filter="resolved">🟢 Resolved (${reports.filter(r => r.status === "resolved").length})</button>
+      <button class="sub-filter-btn" data-filter="rejected">🔴 Rejected (${reports.filter(r => r.status === "rejected").length})</button>
+    </div>`;
+
+  const cards = reports.map(r => {
+    const statusIcon = r.status === "pending" ? "🟡" : r.status === "under_review" ? "🔵" : r.status === "resolved" ? "🟢" : r.status === "rejected" ? "🔴" : "⚪";
+    const statusLabel = r.status === "under_review" ? "Under Review" : (r.status || "unknown").charAt(0).toUpperCase() + (r.status || "unknown").slice(1);
+    const canAct = r.status === "pending" || r.status === "under_review";
+    const date = r.timestamp ? new Date(r.timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
+    const reportedApp = apps.find(a => a.id === r.appId);
+    const appModStatus = reportedApp?.moderationStatus || "active";
+
+    return `
+      <div class="report-card" data-report-id="${esc(r.id)}" data-status="${esc(r.status)}">
+        <div class="report-card-header">
+          <div class="report-card-title">
+            <span class="report-status-icon">${statusIcon}</span>
+            <strong>${esc(r.appName || r.appId)}</strong>
+            <span class="badge badge-role">${esc(statusLabel)}</span>
+            ${appModStatus !== "active" ? `<span class="badge badge-mod-${esc(appModStatus)}">${appModStatus === "restricted" ? "⚠️ Restricted" : "🚫 Removed"}</span>` : ""}
+          </div>
+          <span class="report-card-date">${date}</span>
+        </div>
+        <div class="report-card-body">
+          <div class="report-field"><span class="report-field-label">Reason:</span> <span class="report-field-value">${esc(r.reason)}</span></div>
+          <div class="report-field"><span class="report-field-label">Details:</span> <span class="report-field-value">${esc(r.details || "No additional details")}</span></div>
+          <div class="report-field"><span class="report-field-label">Reporter:</span> <span class="report-field-value">${esc(r.userId || "Anonymous")}</span> <button class="btn btn-secondary btn-xs report-lookup-user" data-uid="${esc(r.userId || "")}">👤 Lookup</button></div>
+          <div class="report-field"><span class="report-field-label">App:</span> <a href="/app/${esc(r.appId)}" class="report-app-link">${esc(r.appName || r.appId)} →</a></div>
+          ${r.adminNotes ? `<div class="report-field"><span class="report-field-label">Admin Notes:</span> <span class="report-field-value">${esc(r.adminNotes)}</span></div>` : ""}
+          ${r.resolvedBy ? `<div class="report-field"><span class="report-field-label">Resolved by:</span> <span class="report-field-value">${esc(r.resolvedBy)}</span></div>` : ""}
+        </div>
+        ${canAct ? `
+        <div class="report-card-actions">
+          <div class="report-actions-row">
+            <button class="btn btn-primary btn-sm report-resolve-btn" data-id="${esc(r.id)}">✅ Resolve</button>
+            <button class="btn btn-secondary btn-sm report-reject-btn" data-id="${esc(r.id)}">❌ Reject</button>
+            <button class="btn btn-secondary btn-sm report-review-btn" data-id="${esc(r.id)}">🔍 Mark Under Review</button>
+          </div>
+          <div class="report-enforcement-row">
+            <span class="report-enforcement-label">Enforcement:</span>
+            <button class="btn btn-warning btn-sm report-restrict-btn" data-app-id="${esc(r.appId)}" data-app-name="${esc(r.appName || r.appId)}">⚠️ Restrict App</button>
+            <button class="btn btn-danger btn-sm report-remove-btn" data-app-id="${esc(r.appId)}" data-app-name="${esc(r.appName || r.appId)}">🚫 Remove App</button>
+            <button class="btn btn-secondary btn-sm report-suspend-btn" data-app-id="${esc(r.appId)}" data-app-name="${esc(r.appName || r.appId)}">⏱️ Timed Suspension</button>
+            ${appModStatus !== "active" ? `<button class="btn btn-secondary btn-sm report-restore-btn" data-app-id="${esc(r.appId)}" data-app-name="${esc(r.appName || r.appId)}">♻️ Restore App</button>` : ""}
+          </div>
+        </div>` : ""}
+      </div>`;
+  }).join("");
+
+  return statusFilters + `<div class="report-cards">${cards}</div>`;
+}
+
 function attachAdminHandlers(tab) {
   if (tab === "submissions") {
     // Status filter buttons
@@ -2907,6 +2994,150 @@ function attachAdminHandlers(tab) {
           showToast(current ? "Team status removed" : "Marked as Team account!");
           showAdminDashboard();
         } catch (err) { showToast(err.message); }
+      });
+    });
+  }
+
+  if (tab === "reports") {
+    // Status filter buttons
+    document.querySelectorAll(".sub-filter-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".sub-filter-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        const filter = btn.dataset.filter;
+        document.querySelectorAll(".report-card").forEach(card => {
+          card.style.display = (filter === "all" || card.dataset.status === filter) ? "" : "none";
+        });
+      });
+    });
+
+    // Resolve report
+    document.querySelectorAll(".report-resolve-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const notes = await showInputModal("Resolution notes (optional):");
+        btn.disabled = true;
+        try {
+          await updateReportStatus(btn.dataset.id, "resolved", currentUser.uid, notes || "");
+          showToast("Report resolved");
+          showAdminDashboard();
+        } catch (err) { showToast(err.message); }
+        btn.disabled = false;
+      });
+    });
+
+    // Reject report
+    document.querySelectorAll(".report-reject-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const notes = await showInputModal("Rejection reason:");
+        if (!notes) return;
+        btn.disabled = true;
+        try {
+          await updateReportStatus(btn.dataset.id, "rejected", currentUser.uid, notes);
+          showToast("Report rejected");
+          showAdminDashboard();
+        } catch (err) { showToast(err.message); }
+        btn.disabled = false;
+      });
+    });
+
+    // Mark under review
+    document.querySelectorAll(".report-review-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        btn.disabled = true;
+        try {
+          await updateReportStatus(btn.dataset.id, "under_review", currentUser.uid, "");
+          showToast("Report marked as under review");
+          showAdminDashboard();
+        } catch (err) { showToast(err.message); }
+        btn.disabled = false;
+      });
+    });
+
+    // Restrict app
+    document.querySelectorAll(".report-restrict-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const reason = await showInputModal(`Reason for restricting "${btn.dataset.appName}":`);
+        if (!reason) return;
+        btn.disabled = true;
+        try {
+          await setAppModerationStatus(btn.dataset.appId, "restricted", currentUser.uid, reason);
+          showToast("App restricted");
+          await loadApps();
+          showAdminDashboard();
+        } catch (err) { showToast(err.message); }
+        btn.disabled = false;
+      });
+    });
+
+    // Remove app
+    document.querySelectorAll(".report-remove-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const reason = await showInputModal(`Reason for removing "${btn.dataset.appName}":`);
+        if (!reason) return;
+        btn.disabled = true;
+        try {
+          await setAppModerationStatus(btn.dataset.appId, "removed", currentUser.uid, reason);
+          showToast("App removed from public listing");
+          await loadApps();
+          showAdminDashboard();
+        } catch (err) { showToast(err.message); }
+        btn.disabled = false;
+      });
+    });
+
+    // Timed suspension
+    document.querySelectorAll(".report-suspend-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const daysStr = await showInputModal(`Suspend "${btn.dataset.appName}" for how many days?`);
+        if (!daysStr) return;
+        const days = parseInt(daysStr, 10);
+        if (isNaN(days) || days < 1 || days > 365) { showToast("Enter a number between 1 and 365"); return; }
+        const reason = await showInputModal("Reason for suspension:");
+        if (!reason) return;
+        btn.disabled = true;
+        try {
+          const suspendUntil = new Date(Date.now() + days * 86400000).toISOString();
+          await setAppModerationStatus(btn.dataset.appId, "restricted", currentUser.uid, reason, { suspendUntil });
+          showToast(`App suspended for ${days} day(s)`);
+          await loadApps();
+          showAdminDashboard();
+        } catch (err) { showToast(err.message); }
+        btn.disabled = false;
+      });
+    });
+
+    // Restore app
+    document.querySelectorAll(".report-restore-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        btn.disabled = true;
+        try {
+          await setAppModerationStatus(btn.dataset.appId, "active", currentUser.uid, "Restored by admin");
+          showToast("App restored");
+          await loadApps();
+          showAdminDashboard();
+        } catch (err) { showToast(err.message); }
+        btn.disabled = false;
+      });
+    });
+
+    // Lookup reporter
+    document.querySelectorAll(".report-lookup-user").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const uid = btn.dataset.uid;
+        if (!uid) { showToast("No reporter UID"); return; }
+        btn.disabled = true;
+        btn.textContent = "Loading…";
+        try {
+          const record = await getUserRecord(uid);
+          if (record) {
+            const info = `${record.displayName || "—"} (${record.email || "—"})\nRole: ${record.role || "user"}\nProvider: ${(record.linkedProviders || []).join(", ") || record.provider || "—"}\nJoined: ${record.createdAt ? new Date(record.createdAt).toLocaleDateString() : "—"}`;
+            alert("Reporter Profile:\n\n" + info);
+          } else {
+            showToast("User record not found");
+          }
+        } catch (err) { showToast("Lookup failed: " + err.message); }
+        btn.disabled = false;
+        btn.textContent = "👤 Lookup";
       });
     });
   }

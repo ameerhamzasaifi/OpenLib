@@ -121,6 +121,22 @@
         { "fieldPath": "appId", "order": "ASCENDING" },
         { "fieldPath": "versionNumber", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "moderation_log",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "appId", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "reports",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

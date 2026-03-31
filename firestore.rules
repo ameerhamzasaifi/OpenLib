@@ -171,6 +171,13 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // ── Moderation Log (audit trail for enforcement actions) ─────────────────
+    match /moderation_log/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin();
+      allow update, delete: if false;
+    }
+
     // ── User Records ─────────────────────────────────────────────────────────
     // [VULN-05 FIX] Owners cannot modify role, verified, teamAccount, or uid
     match /user_records/{uid} {

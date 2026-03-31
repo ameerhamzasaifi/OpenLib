@@ -1595,3 +1595,153 @@ export async function getTeamStats() {
     return { memberCount: 0, adminCount: 0, teamCount: 0, appsCurated: 0, totalApps: 0 };
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  REPORTS & MODERATION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Fetch all reports, ordered newest first.
+ */
+export async function getAllReports() {
+  const snap = await getDocs(query(collection(db, "reports"), orderBy("timestamp", "desc")));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+/**
+ * Get a single report by ID.
+ */
+export async function getReport(reportId) {
+  const snap = await getDoc(doc(db, "reports", reportId));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+/**
+ * Update report status & add admin notes (admin-only).
+ */
+export async function updateReportStatus(reportId, status, adminUid, notes) {
+  if (!(await isAdminOrTeam(adminUid))) throw new Error("Unauthorized");
+  const validStatuses = ["pending", "under_review", "resolved", "rejected"];
+  if (!validStatuses.includes(status)) throw new Error("Invalid status");
+
+  await updateDoc(doc(db, "reports", reportId), {
+    status,
+    resolvedBy: adminUid,
+    resolvedAt: new Date().toISOString(),
+    adminNotes: notes || ""
+  });
+}
+
+/**
+ * Log a moderation action for audit trail.
+ */
+export async function logModerationAction(action) {
+  await addDoc(collection(db, "moderation_log"), {
+    ...action,
+    timestamp: new Date().toISOString()
+  });
+}
+
+/**
+ * Get moderation log entries, optionally filtered by appId.
+ */
+export async function getModerationLog(appId) {
+  let q;
+  if (appId) {
+    q = query(collection(db, "moderation_log"), where("appId", "==", appId), orderBy("timestamp", "desc"));
+  } else {
+    q = query(collection(db, "moderation_log"), orderBy("timestamp", "desc"));
+  }
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+/**
+ * Set an app's moderation status (active, restricted, removed).
+ * Logs the action for transparency.
+ */
+export async function setAppModerationStatus(appId, moderationStatus, adminUid, reason, opts = {}) {
+  if (!(await isAdminOrTeam(adminUid))) throw new Error("Unauthorized");
+  const validStatuses = ["active", "restricted", "removed"];
+  if (!validStatuses.includes(moderationStatus)) throw new Error("Invalid moderation status");
+
+  const appRef = doc(db, "apps", appId);
+  const appSnap = await getDoc(appRef);
+  if (!appSnap.exists()) throw new Error("App not found");
+
+  const updateData = {
+    moderationStatus,
+    moderatedBy: adminUid,
+    moderatedAt: new Date().toISOString(),
+    moderationReason: reason || ""
+  };
+
+  // Timed suspension — store restore timestamp
+  if (opts.suspendUntil) {
+    updateData.suspendUntil = opts.suspendUntil;
+  } else {
+    updateData.suspendUntil = null;
+  }
+
+  await updateDoc(appRef, updateData);
+
+  // Log the action
+  await logModerationAction({
+    type: moderationStatus === "active" ? "restore" : moderationStatus === "restricted" ? "restrict" : "remove",
+    appId,
+    appName: appSnap.data().name || appId,
+    adminUid,
+    reason: reason || "",
+    suspendUntil: opts.suspendUntil || null
+  });
+}
+
+/**
+ * Check all apps for expired suspensions and restore them.
+ * Called on admin dashboard load.
+ */
+export async function restoreExpiredSuspensions(adminUid) {
+  if (!(await isAdminOrTeam(adminUid))) return [];
+  const now = new Date().toISOString();
+  const q = query(
+    collection(db, "apps"),
+    where("moderationStatus", "==", "restricted"),
+  );
+  const snap = await getDocs(q);
+  const restored = [];
+  for (const d of snap.docs) {
+    const data = d.data();
+    if (data.suspendUntil && data.suspendUntil <= now) {
+      await updateDoc(doc(db, "apps", d.id), {
+        moderationStatus: "active",
+        suspendUntil: null,
+        moderatedAt: new Date().toISOString(),
+        moderationReason: "Auto-restored after suspension expired"
+      });
+      await logModerationAction({
+        type: "auto_restore",
+        appId: d.id,
+        appName: data.name || d.id,
+        adminUid: "system",
+        reason: "Suspension period expired"
+      });
+      restored.push(d.id);
+    }
+  }
+  return restored;
+}
+
+/**
+ * Get report statistics.
+ */
+export async function getReportStats() {
+  const snap = await getDocs(collection(db, "reports"));
+  const reports = snap.docs.map(d => d.data());
+  return {
+    total: reports.length,
+    pending: reports.filter(r => r.status === "pending").length,
+    underReview: reports.filter(r => r.status === "under_review").length,
+    resolved: reports.filter(r => r.status === "resolved").length,
+    rejected: reports.filter(r => r.status === "rejected").length
+  };
+}

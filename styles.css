@@ -4324,6 +4324,215 @@ a.added-by-link:hover {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════
+   REPORT MODERATION & ENFORCEMENT
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+/* Tab badge (notification count) */
+.tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #e53935;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+/* Report cards list */
+.report-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.report-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+
+.report-card:hover {
+  border-color: var(--accent);
+}
+
+.report-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--bg-3);
+  border-bottom: 1px solid var(--border);
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.report-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 14px;
+}
+
+.report-status-icon {
+  font-size: 14px;
+}
+
+.report-card-date {
+  font-size: 11px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.report-card-body {
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.report-field {
+  font-size: 13px;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.report-field-label {
+  font-weight: 600;
+  color: var(--text-2);
+  min-width: 80px;
+  flex-shrink: 0;
+}
+
+.report-field-value {
+  color: var(--text);
+  word-break: break-word;
+}
+
+.report-app-link {
+  color: var(--blue);
+  text-decoration: none;
+  font-size: 13px;
+}
+
+.report-app-link:hover {
+  text-decoration: underline;
+}
+
+/* Report action buttons */
+.report-card-actions {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.report-actions-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.report-enforcement-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+}
+
+.report-enforcement-label {
+  font-size: 11px;
+  color: var(--text-3);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Button variants for moderation */
+.btn-warning {
+  background: #ff9800;
+  color: #0c0c0f;
+  border: none;
+  font-weight: 600;
+}
+
+.btn-warning:hover {
+  background: #f57c00;
+}
+
+.btn-xs {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+/* Moderation status badges */
+.badge-mod-restricted {
+  background: rgba(255, 152, 0, 0.15);
+  color: #ff9800;
+  border: 1px solid rgba(255, 152, 0, 0.3);
+}
+
+.badge-mod-removed {
+  background: rgba(229, 57, 53, 0.15);
+  color: #e53935;
+  border: 1px solid rgba(229, 57, 53, 0.3);
+}
+
+/* Moderation banner on app detail page */
+.mod-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 16px;
+}
+
+.mod-banner-restricted {
+  background: rgba(255, 152, 0, 0.1);
+  border: 1px solid rgba(255, 152, 0, 0.3);
+  color: #ff9800;
+}
+
+.mod-banner-removed {
+  background: rgba(229, 57, 53, 0.1);
+  border: 1px solid rgba(229, 57, 53, 0.3);
+  color: #e53935;
+}
+
+.mod-banner-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.mod-banner-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.mod-banner-text strong {
+  font-size: 14px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
    OPENLIB TEAM PAGE
    ═══════════════════════════════════════════════════════════════════════════════ */
 
@@ -4923,6 +5132,20 @@ a.added-by-link:hover {
 
   .tm-member-row, .tm-user-row {
     flex-wrap: wrap;
+  }
+
+  .report-card-header {
+    flex-direction: column;
+  }
+
+  .report-actions-row,
+  .report-enforcement-row {
+    flex-direction: column;
+  }
+
+  .report-field {
+    flex-direction: column;
+    gap: 2px;
   }
 }
 
