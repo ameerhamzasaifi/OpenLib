@@ -24,14 +24,6 @@ Curated open-source app library. Discover, rate, and explore free software alter
 
 Vanilla JS · Firebase Auth (Google, GitHub) · Cloud Firestore · Firebase Hosting
 
-## Setup
-
-1. Clone the repo
-2. Copy `firebase-config.template.js` → `firebase-config.js` and fill in your Firebase credentials
-3. `firebase deploy`
-
-The predeploy hook auto-stamps the version for update detection.
-
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
