@@ -1,35 +1,41 @@
 # OpenLib
 
-A curated open-source app library. Discover, rate, and explore free software alternatives.
+Curated open-source app library. Discover, rate, and explore free software alternatives.
 
 [![Live](https://img.shields.io/badge/Live-Firebase-orange)](https://openlib-f7bf1.web.app) [![License](https://img.shields.io/badge/license-MPL--2.0-green)](LICENSE)
 
-**Live:** https://openlib-f7bf1.web.app
-
----
-
-## Stack
-
-| Layer | Tech |
-|-------|------|
-| Frontend | Vanilla JS (ES modules), HTML5, CSS3 |
-| Routing | Hash-based (`#/app/{id}`, `#/rankings`, `#/profile`) |
-| Database | Firebase |
-| Auth | Firebase Auth (Google, GitHub) |
-| Hosting | Firebase Hosting |
+**https://openlib-f7bf1.web.app**
 
 ## Features
 
-- Search and filter by category/platform
-- Star ratings, likes/dislikes, view counts
-- Rankings page (community-scored)
-- User profiles and organizations
-- App submissions with team review
-- Edit requests with code-review workflow
-- Admin dashboard (roles, verification, moderation)
-- Dark/light theme, responsive, keyboard shortcuts (Alt+S, Alt+F)
+- Search, filter by category/platform, keyboard shortcuts (Alt+S, Alt+F)
+- Ratings, likes/dislikes, reviews, view counts, rankings
+- User profiles, organizations, followers
+- App submissions with team review workflow
+- Edit requests with diff viewer and merge system
+- Report moderation with enforcement actions (restrict, remove, timed suspensions)
+- Admin dashboard — submissions, edit requests, reports, user management
+- Role system — user, contributor, maintainer, admin, team
+- Team page with public profile and admin management panel
+- Version history with restore, ownership claims, bookmarks
+- Dark/light theme, fully responsive
+
+## Stack
+
+Vanilla JS · Firebase Auth (Google, GitHub) · Cloud Firestore · Firebase Hosting
+
+## Setup
+
+1. Clone the repo
+2. Copy `firebase-config.template.js` → `firebase-config.js` and fill in your Firebase credentials
+3. `firebase deploy`
+
+The predeploy hook auto-stamps the version for update detection.
 
 ## Contributing
 
-1. Fork → branch → change → PR
-2. Or submit apps directly on the live site via "+ Submit App"
+See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+[MPL-2.0](LICENSE)
