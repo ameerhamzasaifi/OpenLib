@@ -56,6 +56,12 @@ function esc(str) {
   return div.innerHTML;
 }
 
+// URL-safe escaping for src/href attributes — preserves & but prevents attribute breakout
+function escUrl(str) {
+  const s = String(str ?? "");
+  return s.replace(/"/g, "%22").replace(/'/g, "%27").replace(/</g, "%3C").replace(/>/g, "%3E");
+}
+
 // ── [VULN-14R FIX] Modal-based input prompt (replaces browser prompt()) ──────
 function showInputModal(title, placeholder = "Enter your response…") {
   return new Promise((resolve) => {
@@ -177,7 +183,7 @@ function addedByBadge(addedBy) {
   const name = esc(addedBy.name || "Anonymous");
   const profileLink = addedBy.uid ? `href="/profile/${esc(addedBy.uid)}"` : "";
   const avatarMini = addedBy.photoURL
-    ? `<img class="added-by-avatar-mini" src="${esc(addedBy.photoURL)}" alt="" referrerpolicy="no-referrer">`
+    ? `<img class="added-by-avatar-mini" src="${escUrl(addedBy.photoURL)}" alt="" referrerpolicy="no-referrer">`
     : `<span class="added-by-avatar-mini">${esc((addedBy.name || "A").charAt(0))}</span>`;
   return `<a ${profileLink} class="added-by-badge user added-by-link" title="Added by ${name}">
     ${avatarMini} ${name}
@@ -188,7 +194,7 @@ function buildCard(app) {
   const rank = getAppRank(app.id);
   const plates = (app.platforms || []).map(p => `<span class="platform-tag">${platformIcon(p)} ${esc(p)}</span>`).join("");
   const logoHtml = app.logo
-    ? `<img class="app-logo" src="${esc(app.logo)}" alt="${esc(app.name)} logo" data-app-id="${esc(app.id)}">`
+    ? `<img class="app-logo" src="${escUrl(app.logo)}" alt="${esc(app.name)} logo" data-app-id="${esc(app.id)}">`
     : `<div class="app-logo-fallback">${esc(app.name.charAt(0))}</div>`;
   const tags = (app.tags || []).slice(0, 3);
   const tagsHtml = tags.length ? `<div class="card-tags">${tags.map(t => `<span class="card-tag">${esc(t)}</span>`).join("")}</div>` : "";
@@ -332,7 +338,7 @@ async function showAppDetail(appId) {
   const rankMovement = prevRank ? prevRank - rank : 0;
   const plates = (app.platforms || []).map(p => `<span class="platform-tag">${platformIcon(p)} ${esc(p)}</span>`).join("");
   const logoHtml = app.logo
-    ? `<img class="detail-logo" src="${esc(app.logo)}" alt="${esc(app.name)} logo" onerror="this.style.display='none'">`
+    ? `<img class="detail-logo" src="${escUrl(app.logo)}" alt="${esc(app.name)} logo" onerror="this.style.display='none'">`
     : `<div class="detail-logo-fallback">${esc(app.name.charAt(0))}</div>`;
 
   // Generate tags HTML
@@ -345,7 +351,7 @@ async function showAppDetail(appId) {
     <div class="detail-section">
       <h3>Screenshots</h3>
       <div class="screenshots-gallery">
-        ${screenshots.map((url, i) => `<img class="screenshot-thumb" src="${esc(url)}" alt="Screenshot ${i+1}" data-full="${esc(url)}" loading="lazy">`).join("")}
+        ${screenshots.map((url, i) => `<img class="screenshot-thumb" src="${escUrl(url)}" alt="Screenshot ${i+1}" data-full="${escUrl(url)}" loading="lazy">`).join("")}
       </div>
     </div>` : "";
 
@@ -440,7 +446,7 @@ async function showAppDetail(appId) {
       <div class="similar-grid">
         ${similarApps.map(sa => {
           const saLogo = sa.logo
-            ? `<img class="similar-logo" src="${esc(sa.logo)}" alt="" onerror="this.style.display='none'">`
+            ? `<img class="similar-logo" src="${escUrl(sa.logo)}" alt="" onerror="this.style.display='none'">`
             : `<div class="similar-logo-fallback">${esc(sa.name.charAt(0))}</div>`;
           return `
             <a href="/app/${esc(sa.id)}" class="similar-card">
@@ -473,7 +479,7 @@ async function showAppDetail(appId) {
       </div>`;
   } else if (contributor.displayType === "organization") {
     const orgAvatar = contributor.avatarURL
-      ? `<img class="creator-card-avatar" src="${esc(contributor.avatarURL)}" alt="" referrerpolicy="no-referrer">`
+      ? `<img class="creator-card-avatar" src="${escUrl(contributor.avatarURL)}" alt="" referrerpolicy="no-referrer">`
       : `<div class="creator-card-avatar-fallback">${esc(contributor.avatarText)}</div>`;
     creatorHtml = `
       <div class="detail-section creator-section">
@@ -488,7 +494,7 @@ async function showAppDetail(appId) {
       </div>`;
   } else if (contributor.displayType === "user") {
     const creatorAvatar = contributor.avatarURL
-      ? `<img class="creator-card-avatar" src="${esc(contributor.avatarURL)}" alt="" referrerpolicy="no-referrer">`
+      ? `<img class="creator-card-avatar" src="${escUrl(contributor.avatarURL)}" alt="" referrerpolicy="no-referrer">`
       : `<div class="creator-card-avatar-fallback">${esc(contributor.avatarText)}</div>`;
     const profileTag = contributor.profileLink ? "a" : "div";
     const profileAttr = contributor.profileLink ? `href="${esc(contributor.profileLink)}"` : "";
@@ -841,7 +847,7 @@ function openScreenshotLightbox(src) {
   overlay.className = "lightbox-overlay";
   overlay.innerHTML = `
     <div class="lightbox-content">
-      <img src="${esc(src)}" alt="Screenshot" class="lightbox-img">
+      <img src="${escUrl(src)}" alt="Screenshot" class="lightbox-img">
       <button class="lightbox-close">✕</button>
     </div>
   `;
@@ -861,7 +867,7 @@ function renderReviewCard(r, showVoteState = false) {
     <div class="review-card">
       <div class="review-card-header">
         <div class="review-author">
-          ${r.authorPhoto ? `<img class="review-avatar" src="${esc(r.authorPhoto)}" alt="" referrerpolicy="no-referrer">` : `<div class="review-avatar-fallback">${esc((r.authorName || "U").charAt(0))}</div>`}
+          ${r.authorPhoto ? `<img class="review-avatar" src="${escUrl(r.authorPhoto)}" alt="" referrerpolicy="no-referrer">` : `<div class="review-avatar-fallback">${esc((r.authorName || "U").charAt(0))}</div>`}
           <span class="review-author-name">${esc(r.authorName)}</span>
           <span class="review-date">${date}</span>
         </div>
@@ -1066,7 +1072,7 @@ function openEditRequestModal(appId, appName, app, directEdit = false) {
   submitterEl.innerHTML = `
     <div class="er-submitter-card">
       ${currentUser.photoURL
-        ? `<img class="er-avatar" src="${esc(currentUser.photoURL)}" alt="" referrerpolicy="no-referrer">`
+        ? `<img class="er-avatar" src="${escUrl(currentUser.photoURL)}" alt="" referrerpolicy="no-referrer">`
         : `<div class="er-avatar-fallback">${esc((currentUser.displayName || currentUser.email || "U").charAt(0))}</div>`}
       <div class="er-submitter-info">
         <span class="er-submitter-name">${esc(currentUser.displayName || "User")}</span>
@@ -1235,7 +1241,7 @@ function renderRecommendations() {
     <div class="rec-grid">
       ${recs.map(app => {
         const logoHtml = app.logo
-          ? `<img class="rec-logo" src="${esc(app.logo)}" alt="" onerror="this.style.display='none'">`
+          ? `<img class="rec-logo" src="${escUrl(app.logo)}" alt="" onerror="this.style.display='none'">`
           : `<div class="rec-logo-fallback">${esc(app.name.charAt(0))}</div>`;
         return `
           <a href="/app/${esc(app.id)}" class="rec-card">
@@ -1288,7 +1294,7 @@ async function showProfile(uid) {
   }
 
   const avatarHtml = record.photoURL
-    ? `<img class="profile-avatar" src="${esc(record.photoURL)}" alt="" referrerpolicy="no-referrer">`
+    ? `<img class="profile-avatar" src="${escUrl(record.photoURL)}" alt="" referrerpolicy="no-referrer">`
     : `<div class="profile-avatar-fallback">${esc((record.displayName || "U").charAt(0))}</div>`;
 
   profileView.innerHTML = `
@@ -1541,7 +1547,7 @@ async function showOrgView(orgId) {
     <div class="org-page">
       <a href="/" class="back-link">← Back to library</a>
       <div class="org-header">
-        ${org.logoURL ? `<img class="org-logo" src="${esc(org.logoURL)}" alt="" onerror="this.style.display='none'">` : `<div class="org-logo-fallback">🏢</div>`}
+        ${org.logoURL ? `<img class="org-logo" src="${escUrl(org.logoURL)}" alt="" onerror="this.style.display='none'">` : `<div class="org-logo-fallback">🏢</div>`}
         <div class="org-header-text">
           <h1 class="org-name">${esc(org.name)} ${org.verified ? '<span class="badge badge-verified">✓ Verified</span>' : ""}</h1>
           ${org.ownerType === "corporation" ? `<span class="badge badge-corp">🏛 Corporation: ${esc(org.corporationName || "")}</span>` : ""}
@@ -1764,7 +1770,7 @@ function renderVerifyCards(submissions, filter) {
     <div class="verify-card" data-id="${esc(sub.id)}" data-status="${esc(sub.status)}">
       <div class="verify-card-header">
         <div class="verify-card-title">
-          ${sub.logo ? `<img class="verify-card-logo" src="${esc(sub.logo)}" alt="" onerror="this.style.display='none'">` : `<div class="verify-card-logo-fallback">${esc((sub.name || "?").charAt(0))}</div>`}
+          ${sub.logo ? `<img class="verify-card-logo" src="${escUrl(sub.logo)}" alt="" onerror="this.style.display='none'">` : `<div class="verify-card-logo-fallback">${esc((sub.name || "?").charAt(0))}</div>`}
           <div>
             <strong class="verify-card-name">${sf(sub.name)}</strong>
             <span class="badge badge-role">${sf(sub.category)}</span>
@@ -1799,14 +1805,14 @@ function renderVerifyCards(submissions, filter) {
           <div class="verify-field"><label>Version</label><p>${sf(sub.version)}</p></div>
           <div class="verify-field"><label>File Size</label><p>${sf(sub.fileSize)}</p></div>
         </div>
-        ${sub.logo ? `<div class="verify-field"><label>Logo</label><p><img class="verify-card-logo-preview" src="${esc(sub.logo)}" alt="" onerror="this.style.display='none'"> <a href="${esc(sub.logo)}" target="_blank" rel="noopener">View</a></p></div>` : ""}
+        ${sub.logo ? `<div class="verify-field"><label>Logo</label><p><img class="verify-card-logo-preview" src="${escUrl(sub.logo)}" alt="" onerror="this.style.display='none'"> <a href="${escUrl(sub.logo)}" target="_blank" rel="noopener">View</a></p></div>` : ""}
         <div class="verify-field">
           <label>Platforms</label>
           <div class="verify-platforms">${(sub.platforms || []).length ? sub.platforms.map(p => `<span class="platform-tag">${platformIcon(p)} ${esc(p)}</span>`).join(" ") : "—"}</div>
         </div>
         ${(sub.tags || []).length ? `<div class="verify-field"><label>Tags</label><div class="verify-tags">${sub.tags.map(t => `<span class="card-tag">${esc(t)}</span>`).join(" ")}</div></div>` : ""}
         ${(sub.features || []).length ? `<div class="verify-field"><label>Features</label><ul class="sub-features-list">${sub.features.map(f => `<li>${esc(f)}</li>`).join("")}</ul></div>` : ""}
-        ${(sub.screenshots || []).length ? `<div class="verify-field"><label>Screenshots</label><div class="verify-screenshots">${sub.screenshots.map(s => `<a href="${esc(s)}" target="_blank" rel="noopener"><img class="verify-screenshot-thumb" src="${esc(s)}" alt="" onerror="this.style.display='none'"></a>`).join(" ")}</div></div>` : ""}
+        ${(sub.screenshots || []).length ? `<div class="verify-field"><label>Screenshots</label><div class="verify-screenshots">${sub.screenshots.map(s => `<a href="${escUrl(s)}" target="_blank" rel="noopener"><img class="verify-screenshot-thumb" src="${escUrl(s)}" alt="" onerror="this.style.display='none'"></a>`).join(" ")}</div></div>` : ""}
         ${(sub.installMethods || []).length ? `<div class="verify-field"><label>Install Methods</label><div class="verify-install-methods">${sub.installMethods.map(m => `<code>${esc(m.label)}: ${esc(m.command)}</code>`).join("<br>")}</div></div>` : ""}
         ${sub.systemRequirements ? `<div class="verify-field"><label>System Requirements</label><pre class="verify-sysreq">${esc(sub.systemRequirements)}</pre></div>` : ""}
         <div class="verify-field-row">
@@ -1940,7 +1946,7 @@ async function loadVerifyComments(submissionId) {
                         c.type === "resubmission" ? "comment-resubmission" : "";
       return `
         <div class="er-comment ${typeClass}">
-          ${c.authorPhoto ? `<img class="er-avatar-sm" src="${esc(c.authorPhoto)}" alt="" referrerpolicy="no-referrer">` : ""}
+          ${c.authorPhoto ? `<img class="er-avatar-sm" src="${escUrl(c.authorPhoto)}" alt="" referrerpolicy="no-referrer">` : ""}
           <span class="er-comment-author">${esc(c.authorName)}</span>
           <span class="er-comment-text">${esc(c.text)}</span>
           <span class="er-comment-time">${new Date(c.createdAt).toLocaleDateString()}</span>
@@ -2047,7 +2053,7 @@ async function showOpenLibTeamPage() {
         <div class="team-curated-grid">
           ${teamApps.slice(0, 8).map(a => `
             <a href="/app/${esc(a.id)}" class="team-curated-card">
-              ${a.logo ? `<img class="team-curated-logo" src="${esc(a.logo)}" alt="" onerror="this.style.display='none'">` : `<div class="team-curated-logo-fallback">${esc(a.name.charAt(0))}</div>`}
+              ${a.logo ? `<img class="team-curated-logo" src="${escUrl(a.logo)}" alt="" onerror="this.style.display='none'">` : `<div class="team-curated-logo-fallback">${esc(a.name.charAt(0))}</div>`}
               <span class="team-curated-name">${esc(a.name)}</span>
               <span class="team-curated-cat">${esc(a.category)}</span>
             </a>
@@ -2083,7 +2089,7 @@ async function showOpenLibTeamPage() {
 
 function renderTeamMemberCard(member, role) {
   const avatarHtml = member.photoURL
-    ? `<img class="team-member-avatar" src="${esc(member.photoURL)}" alt="" referrerpolicy="no-referrer">`
+    ? `<img class="team-member-avatar" src="${escUrl(member.photoURL)}" alt="" referrerpolicy="no-referrer">`
     : `<div class="team-member-avatar-fallback">${esc((member.displayName || "?").charAt(0))}</div>`;
   const roleLabel = role === "admin" ? "Admin" : "Team";
   const roleClass = role === "admin" ? "badge-admin" : "badge-team-role";
@@ -2246,7 +2252,7 @@ function renderTMMembersTab(members) {
 
 function renderTMMemberRow(member, canRemove) {
   const avatarHtml = member.photoURL
-    ? `<img class="tm-member-avatar" src="${esc(member.photoURL)}" alt="" referrerpolicy="no-referrer">`
+    ? `<img class="tm-member-avatar" src="${escUrl(member.photoURL)}" alt="" referrerpolicy="no-referrer">`
     : `<div class="tm-member-avatar-fallback">${esc((member.displayName || "?").charAt(0))}</div>`;
   const roleLabel = member.role === "admin" ? "Admin" : "Team";
   const roleClass = member.role === "admin" ? "badge-admin" : "badge-team-role";
@@ -2296,7 +2302,7 @@ function renderTMPermissionsTab(members, memberPermissions) {
         return `
           <div class="tm-perm-card" data-uid="${esc(m.id)}">
             <div class="tm-perm-header">
-              ${m.photoURL ? `<img class="tm-member-avatar-sm" src="${esc(m.photoURL)}" alt="" referrerpolicy="no-referrer">` : ""}
+              ${m.photoURL ? `<img class="tm-member-avatar-sm" src="${escUrl(m.photoURL)}" alt="" referrerpolicy="no-referrer">` : ""}
               <strong>${esc(m.displayName || "Anonymous")}</strong>
             </div>
             <div class="tm-perm-grid">
@@ -2333,7 +2339,7 @@ function renderTMAddMemberTab(nonTeamUsers) {
 
 function renderTMUserRow(user) {
   const avatarHtml = user.photoURL
-    ? `<img class="tm-member-avatar-sm" src="${esc(user.photoURL)}" alt="" referrerpolicy="no-referrer">`
+    ? `<img class="tm-member-avatar-sm" src="${escUrl(user.photoURL)}" alt="" referrerpolicy="no-referrer">`
     : `<div class="tm-member-avatar-fallback-sm">${esc((user.displayName || "?").charAt(0))}</div>`;
   return `
     <div class="tm-user-row" data-uid="${esc(user.id)}">
@@ -2607,7 +2613,7 @@ function renderAdminSubmissions(submissions) {
         ${field("Documentation", sub.docs, true)}
         <div class="sub-review-row">
           <span class="sub-review-label">Logo</span>
-          <span class="sub-review-value">${sub.logo ? `<img class="sub-review-logo" src="${esc(sub.logo)}" alt="" onerror="this.style.display='none'"> <a href="${esc(sub.logo)}" target="_blank" rel="noopener">URL</a>` : "—"}</span>
+          <span class="sub-review-value">${sub.logo ? `<img class="sub-review-logo" src="${escUrl(sub.logo)}" alt="" onerror="this.style.display='none'"> <a href="${escUrl(sub.logo)}" target="_blank" rel="noopener">URL</a>` : "—"}</span>
         </div>
         ${field("Maintainer", sub.maintainer)}
         ${field("Developer", sub.developer)}
@@ -2629,7 +2635,7 @@ function renderAdminSubmissions(submissions) {
         </div>
         <div class="sub-review-row">
           <span class="sub-review-label">Screenshots</span>
-          <span class="sub-review-value">${(sub.screenshots || []).length ? sub.screenshots.map(s => `<a href="${esc(s)}" target="_blank" rel="noopener" class="sub-screenshot-link">📸 ${esc(s.split('/').pop())}</a>`).join(" ") : "—"}</span>
+          <span class="sub-review-value">${(sub.screenshots || []).length ? sub.screenshots.map(s => `<a href="${escUrl(s)}" target="_blank" rel="noopener" class="sub-screenshot-link">📸 ${esc(s.split('/').pop())}</a>`).join(" ") : "—"}</span>
         </div>
         <div class="sub-review-row">
           <span class="sub-review-label">Install Methods</span>
@@ -2715,7 +2721,7 @@ function renderAdminUsers(users) {
       ${users.map(u => `
         <div class="admin-user-card" data-uid="${esc(u.uid)}">
           <div class="admin-user-header">
-            ${u.photoURL ? `<img class="admin-user-avatar" src="${esc(u.photoURL)}" alt="" referrerpolicy="no-referrer">` : `<div class="admin-user-avatar-fallback">${esc((u.displayName || "U").charAt(0))}</div>`}
+            ${u.photoURL ? `<img class="admin-user-avatar" src="${escUrl(u.photoURL)}" alt="" referrerpolicy="no-referrer">` : `<div class="admin-user-avatar-fallback">${esc((u.displayName || "U").charAt(0))}</div>`}
             <div class="admin-user-info">
               <span class="admin-user-name">${esc(u.displayName)} ${verifiedBadge(u)}</span>
               <span class="admin-user-email">${esc(u.email)}</span>
@@ -2741,47 +2747,160 @@ function renderAdminUsers(users) {
 
 function renderAdminAddApp() {
   return `
-    <form id="admin-add-app-form" class="admin-form">
-      <div class="form-row">
-        <div class="form-group"><label>App Name *</label><input type="text" id="aa-name" required maxlength="100"></div>
-        <div class="form-group"><label>Category *</label>
-          <select id="aa-category" required>
-            <option value="">— Pick —</option>
-            <option value="Communication">Communication</option><option value="Design">Design</option>
-            <option value="Finance">Finance</option><option value="Media">Media</option>
-            <option value="Productivity">Productivity</option><option value="Security">Security</option>
-            <option value="Utility">Utility</option><option value="Other">Other</option>
-          </select>
+    <form id="admin-add-app-form" class="admin-form admin-form-full">
+      <!-- ── Section: Basic Info ── -->
+      <fieldset class="admin-fieldset">
+        <legend class="admin-fieldset-legend">Basic Info</legend>
+        <div class="form-row">
+          <div class="form-group"><label for="aa-name">App Name <span class="required">*</span></label><input type="text" id="aa-name" required maxlength="100" placeholder="e.g. Inkscape"></div>
+          <div class="form-group"><label for="aa-category">Category <span class="required">*</span></label>
+            <select id="aa-category" required>
+              <option value="">— Pick —</option>
+              <option value="Communication">Communication</option><option value="Design">Design</option>
+              <option value="Finance">Finance</option><option value="Media">Media</option>
+              <option value="Productivity">Productivity</option><option value="Security">Security</option>
+              <option value="Utility">Utility</option><option value="Other">Other</option>
+            </select>
+          </div>
         </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group"><label>Logo URL</label><input type="url" id="aa-logo"></div>
-        <div class="form-group"><label>Alternative of *</label><input type="text" id="aa-alternative" required maxlength="100"></div>
-      </div>
-      <div class="form-group"><label>Description *</label><textarea id="aa-description" rows="2" required maxlength="300"></textarea></div>
-      <div class="form-group"><label>Uses *</label><textarea id="aa-uses" rows="2" required maxlength="300"></textarea></div>
-      <div class="form-row">
-        <div class="form-group"><label>Download URL *</label><input type="url" id="aa-download" required></div>
-        <div class="form-group"><label>Source URL *</label><input type="url" id="aa-source" required></div>
-      </div>
-      <div class="form-row">
-        <div class="form-group"><label>Maintainer *</label>
-          <select id="aa-maintainer" required><option value="individual">Individual</option><option value="organization">Organization</option></select>
+        <div class="form-group">
+          <label for="aa-logo">Logo <span class="optional">(URL or upload — .jpg, .jpeg, .png, .svg)</span></label>
+          <div class="logo-input-group">
+            <input type="url" id="aa-logo" placeholder="https://…/logo.png" class="logo-url-input">
+            <span class="logo-or">or</span>
+            <label class="logo-upload-label" for="aa-logo-file">📁 Upload</label>
+            <input type="file" id="aa-logo-file" accept=".jpg,.jpeg,.png,.svg" class="logo-file-input">
+            <span class="logo-file-name" id="aa-logo-filename"></span>
+          </div>
         </div>
-      </div>
-      <div class="form-group">
-        <label>Platforms *</label>
-        <div class="checkbox-group">
-          <label class="checkbox-label"><input type="checkbox" name="aa-platforms" value="Linux"> Linux</label>
-          <label class="checkbox-label"><input type="checkbox" name="aa-platforms" value="Windows"> Windows</label>
-          <label class="checkbox-label"><input type="checkbox" name="aa-platforms" value="macOS"> macOS</label>
-          <label class="checkbox-label"><input type="checkbox" name="aa-platforms" value="Android"> Android</label>
-          <label class="checkbox-label"><input type="checkbox" name="aa-platforms" value="iOS"> iOS</label>
-          <label class="checkbox-label"><input type="checkbox" name="aa-platforms" value="Web"> Web</label>
+        <div class="form-group"><label for="aa-description">Short Description <span class="required">*</span></label><textarea id="aa-description" rows="2" required maxlength="300" placeholder="One-sentence app description."></textarea></div>
+        <div class="form-group"><label for="aa-full-description">Full Description <span class="optional">(optional)</span></label><textarea id="aa-full-description" rows="4" maxlength="5000" placeholder="Detailed description with features, highlights, who it's for…"></textarea></div>
+        <div class="form-group"><label for="aa-uses">Uses / Problem it solves <span class="required">*</span></label><textarea id="aa-uses" rows="2" required maxlength="300" placeholder="What specific problem does this app solve?"></textarea></div>
+        <div class="form-group"><label for="aa-alternative">Alternative of <span class="required">*</span></label><input type="text" id="aa-alternative" required maxlength="100" placeholder="e.g. Adobe Photoshop"></div>
+      </fieldset>
+
+      <!-- ── Section: Links ── -->
+      <fieldset class="admin-fieldset">
+        <legend class="admin-fieldset-legend">Links</legend>
+        <div class="form-row">
+          <div class="form-group"><label for="aa-download">Download URL <span class="required">*</span></label><input type="url" id="aa-download" required placeholder="https://appname.org/download"></div>
+          <div class="form-group"><label for="aa-source">Source URL <span class="required">*</span></label><input type="url" id="aa-source" required placeholder="https://github.com/…"></div>
         </div>
-      </div>
+        <div class="form-row">
+          <div class="form-group"><label for="aa-website">Website URL <span class="optional">(optional)</span></label><input type="url" id="aa-website" placeholder="https://appname.org"></div>
+          <div class="form-group"><label for="aa-docs">Docs URL <span class="optional">(optional)</span></label><input type="url" id="aa-docs" placeholder="https://docs.appname.org"></div>
+        </div>
+      </fieldset>
+
+      <!-- ── Section: Developer Info ── -->
+      <fieldset class="admin-fieldset">
+        <legend class="admin-fieldset-legend">Developer Info</legend>
+        <div class="form-row">
+          <div class="form-group"><label for="aa-maintainer">Maintainer Type <span class="required">*</span></label>
+            <select id="aa-maintainer" required>
+              <option value="individual">Individual</option>
+              <option value="organization">Organization</option>
+              <option value="admin">Admin / OpenLib Team</option>
+            </select>
+          </div>
+          <div class="form-group"><label for="aa-developer">Developer Name <span class="optional">(optional)</span></label><input type="text" id="aa-developer" maxlength="100" placeholder="e.g. OBS Project"></div>
+        </div>
+        <div class="form-group"><label for="aa-developer-url">Developer URL <span class="optional">(optional)</span></label><input type="url" id="aa-developer-url" placeholder="https://github.com/developer"></div>
+      </fieldset>
+
+      <!-- ── Section: Metadata ── -->
+      <fieldset class="admin-fieldset">
+        <legend class="admin-fieldset-legend">Metadata</legend>
+        <div class="form-row">
+          <div class="form-group"><label for="aa-version">Version <span class="optional">(optional)</span></label><input type="text" id="aa-version" maxlength="30" placeholder="e.g. 3.4.1"></div>
+          <div class="form-group"><label for="aa-license">License <span class="required">*</span></label>
+            <select id="aa-license" required>
+              <option value="">— Select —</option>
+              <option value="MIT">MIT</option>
+              <option value="GPL-3.0">GPL-3.0</option>
+              <option value="GPL-2.0">GPL-2.0</option>
+              <option value="Apache-2.0">Apache-2.0</option>
+              <option value="BSD-3-Clause">BSD-3-Clause</option>
+              <option value="BSD-2-Clause">BSD-2-Clause</option>
+              <option value="MPL-2.0">MPL-2.0</option>
+              <option value="AGPL-3.0">AGPL-3.0</option>
+              <option value="LGPL-3.0">LGPL-3.0</option>
+              <option value="ISC">ISC</option>
+              <option value="Unlicense">Unlicense</option>
+              <option value="Proprietary">Proprietary</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label for="aa-filesize">File Size <span class="optional">(optional)</span></label><input type="text" id="aa-filesize" maxlength="30" placeholder="e.g. 45 MB"></div>
+          <div class="form-group"><label for="aa-tags">Tags <span class="optional">(comma-separated)</span></label><input type="text" id="aa-tags" maxlength="200" placeholder="privacy, encryption, chat"></div>
+        </div>
+        <div class="form-group"><label for="aa-features">Key Features <span class="optional">(one per line)</span></label><textarea id="aa-features" rows="4" maxlength="2000" placeholder="🎥 Live streaming&#10;🎙 Audio mixing&#10;🖥 Multi-scene support"></textarea></div>
+      </fieldset>
+
+      <!-- ── Section: Media ── -->
+      <fieldset class="admin-fieldset">
+        <legend class="admin-fieldset-legend">Media</legend>
+        <div class="form-group"><label for="aa-screenshots">Screenshot URLs <span class="optional">(one per line)</span></label><textarea id="aa-screenshots" rows="3" maxlength="2000" placeholder="https://…/screenshot1.png&#10;https://…/screenshot2.png"></textarea></div>
+      </fieldset>
+
+      <!-- ── Section: System & Installation ── -->
+      <fieldset class="admin-fieldset">
+        <legend class="admin-fieldset-legend">System &amp; Installation</legend>
+        <div class="form-group">
+          <label>Supported Platforms <span class="required">*</span></label>
+          <div class="checkbox-group">
+            <label class="checkbox-label"><input type="checkbox" name="aa-platforms" value="Linux"> 🐧 Linux</label>
+            <label class="checkbox-label"><input type="checkbox" name="aa-platforms" value="Windows"> 🪟 Windows</label>
+            <label class="checkbox-label"><input type="checkbox" name="aa-platforms" value="macOS"> 🍎 macOS</label>
+            <label class="checkbox-label"><input type="checkbox" name="aa-platforms" value="Android"> 🤖 Android</label>
+            <label class="checkbox-label"><input type="checkbox" name="aa-platforms" value="iOS"> 📱 iOS</label>
+            <label class="checkbox-label"><input type="checkbox" name="aa-platforms" value="Web"> 🌐 Web</label>
+          </div>
+        </div>
+        <div class="form-group"><label for="aa-install-methods">Installation Methods <span class="optional">(one per line: label | command or URL)</span></label><textarea id="aa-install-methods" rows="3" maxlength="2000" placeholder="apt | sudo apt install appname&#10;brew | brew install appname&#10;winget | winget install AppName"></textarea></div>
+        <div class="form-group"><label for="aa-sysreq">System Requirements <span class="optional">(optional)</span></label><textarea id="aa-sysreq" rows="2" maxlength="1000" placeholder="RAM: 4 GB minimum&#10;Storage: 500 MB&#10;OS: Windows 10+, macOS 11+"></textarea></div>
+      </fieldset>
+
+      <!-- ── Section: Admin / Moderation ── -->
+      <fieldset class="admin-fieldset admin-fieldset-mod">
+        <legend class="admin-fieldset-legend">🔒 Admin Controls</legend>
+        <div class="form-row">
+          <div class="form-group"><label for="aa-added-by">Added By <span class="required">*</span></label>
+            <select id="aa-added-by" required>
+              <option value="openlib" selected>OpenLib (Official)</option>
+              <option value="admin">Admin (current user)</option>
+              <option value="user">Specific User</option>
+              <option value="organization">Organization</option>
+            </select>
+          </div>
+          <div class="form-group" id="aa-owner-id-group" style="display:none;">
+            <label for="aa-owner-id">Owner UID / Org ID</label>
+            <input type="text" id="aa-owner-id" maxlength="128" placeholder="User UID or Organization ID">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label for="aa-visibility">Visibility</label>
+            <select id="aa-visibility">
+              <option value="active" selected>Public (Active)</option>
+              <option value="restricted">Restricted</option>
+            </select>
+          </div>
+          <div class="form-group"><label for="aa-verified">Open-Source Verified</label>
+            <select id="aa-verified">
+              <option value="true" selected>Yes</option>
+              <option value="false">No</option>
+            </select>
+          </div>
+        </div>
+      </fieldset>
+
       <div class="form-msg" role="alert"></div>
-      <button type="submit" class="btn btn-primary">Add App (Admin)</button>
+      <div class="admin-form-actions">
+        <button type="submit" class="btn btn-primary btn-lg">🚀 Publish App (Admin)</button>
+        <button type="reset" class="btn btn-secondary">Reset Form</button>
+      </div>
     </form>`;
 }
 
@@ -3171,35 +3290,118 @@ function attachAdminHandlers(tab) {
   }
 
   if (tab === "add-app") {
+    // Toggle owner ID field visibility based on "Added By" selection
+    const addedBySelect = document.getElementById("aa-added-by");
+    const ownerIdGroup = document.getElementById("aa-owner-id-group");
+    if (addedBySelect && ownerIdGroup) {
+      addedBySelect.addEventListener("change", () => {
+        const val = addedBySelect.value;
+        ownerIdGroup.style.display = (val === "user" || val === "organization") ? "" : "none";
+        const ownerInput = document.getElementById("aa-owner-id");
+        if (ownerInput) ownerInput.required = (val === "user" || val === "organization");
+      });
+    }
+
+    // Logo file upload preview
+    const logoFileInput = document.getElementById("aa-logo-file");
+    const logoFilename = document.getElementById("aa-logo-filename");
+    if (logoFileInput && logoFilename) {
+      logoFileInput.addEventListener("change", () => {
+        logoFilename.textContent = logoFileInput.files[0]?.name || "";
+      });
+    }
+
     document.getElementById("admin-add-app-form")?.addEventListener("submit", async e => {
       e.preventDefault();
       const form = e.target;
+      const submitBtn = form.querySelector("button[type='submit']");
+      clearFormMsg(form);
+
+      // Validate platforms
       const platforms = [...form.querySelectorAll("input[name='aa-platforms']:checked")].map(el => el.value);
       if (!platforms.length) { showFormError(form, "Select at least one platform."); return; }
 
-      const aaLogo = document.getElementById("aa-logo").value.trim();
-      if (aaLogo && !isValidLogoURL(aaLogo)) { showFormError(form, "Logo URL must end in .jpg, .jpeg, .png, or .svg"); return; }
+      // Handle logo: file upload takes priority over URL
+      let logoUrl = document.getElementById("aa-logo").value.trim();
+      const logoFile = document.getElementById("aa-logo-file")?.files[0];
+      if (logoFile) {
+        try {
+          submitBtn.disabled = true;
+          submitBtn.textContent = "Uploading logo…";
+          logoUrl = await uploadLogoToStorage(logoFile, document.getElementById("aa-name").value.trim());
+        } catch (uploadErr) {
+          showFormError(form, "Logo upload failed: " + uploadErr.message);
+          submitBtn.disabled = false;
+          submitBtn.textContent = "🚀 Publish App (Admin)";
+          return;
+        }
+      } else if (logoUrl && !isValidLogoURL(logoUrl)) {
+        showFormError(form, "Logo URL must be https and end in .jpg, .jpeg, .png, .svg, or .webp");
+        return;
+      }
+
+      // Parse multi-line / comma fields
+      const featuresRaw = document.getElementById("aa-features").value.trim();
+      const features = featuresRaw ? featuresRaw.split("\n").map(f => f.trim()).filter(Boolean) : [];
+
+      const tagsRaw = document.getElementById("aa-tags").value.trim();
+      const tags = tagsRaw ? tagsRaw.split(",").map(t => t.trim().toLowerCase()).filter(Boolean) : [];
+
+      const screenshotsRaw = document.getElementById("aa-screenshots").value.trim();
+      const screenshots = screenshotsRaw ? screenshotsRaw.split("\n").map(u => u.trim()).filter(Boolean) : [];
+
+      const installRaw = document.getElementById("aa-install-methods").value.trim();
+      const installMethods = installRaw ? installRaw.split("\n").map(line => {
+        const parts = line.split("|");
+        if (parts.length >= 2) return { label: parts[0].trim(), command: parts.slice(1).join("|").trim() };
+        return null;
+      }).filter(Boolean) : [];
 
       const appData = {
         name: document.getElementById("aa-name").value.trim(),
-        logo: aaLogo,
+        logo: logoUrl,
         category: document.getElementById("aa-category").value,
         description: document.getElementById("aa-description").value.trim(),
+        fullDescription: document.getElementById("aa-full-description").value.trim(),
         uses: document.getElementById("aa-uses").value.trim(),
         alternative: document.getElementById("aa-alternative").value.trim(),
         download: document.getElementById("aa-download").value.trim(),
         source: document.getElementById("aa-source").value.trim(),
+        website: document.getElementById("aa-website").value.trim(),
+        docs: document.getElementById("aa-docs").value.trim(),
         maintainer: document.getElementById("aa-maintainer").value,
-        platforms
+        developer: document.getElementById("aa-developer").value.trim(),
+        developerUrl: document.getElementById("aa-developer-url").value.trim(),
+        version: document.getElementById("aa-version").value.trim() || "1.0.0",
+        license: document.getElementById("aa-license").value,
+        fileSize: document.getElementById("aa-filesize").value.trim(),
+        features,
+        tags,
+        screenshots,
+        installMethods,
+        systemRequirements: document.getElementById("aa-sysreq").value.trim(),
+        platforms,
+        // Internal admin control fields (prefixed with _)
+        _addedByType: document.getElementById("aa-added-by").value,
+        _ownerId: document.getElementById("aa-owner-id").value.trim(),
+        _visibility: document.getElementById("aa-visibility").value,
+        _verified: document.getElementById("aa-verified").value
       };
 
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Publishing…";
       try {
         await adminAddApp(appData, currentUser.uid);
-        showFormSuccess(form, "App added successfully!");
+        showFormSuccess(form, "App published successfully!");
         form.reset();
+        if (ownerIdGroup) ownerIdGroup.style.display = "none";
+        if (logoFilename) logoFilename.textContent = "";
         await loadApps();
       } catch (err) {
         showFormError(form, err.message);
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "🚀 Publish App (Admin)";
       }
     });
   }
@@ -3213,7 +3415,7 @@ function renderVersionCard(v, appId, opts = {}) {
   const typeLabel = v.type === "initial" ? "Initial" : v.type === "restore" ? "Restore" : v.type === "ownership_transfer" ? "Transfer" : "Edit";
   const vNum = v.versionNumber != null ? `#${v.versionNumber}` : "";
   const avatar = v.authorPhoto
-    ? `<img class="er-comment-avatar" src="${esc(v.authorPhoto)}" alt="" referrerpolicy="no-referrer">`
+    ? `<img class="er-comment-avatar" src="${escUrl(v.authorPhoto)}" alt="" referrerpolicy="no-referrer">`
     : `<div class="er-comment-avatar-fallback">${esc((v.authorName || "U").charAt(0))}</div>`;
   const canRestore = isAdmin && v.fullSnapshot && Object.keys(v.fullSnapshot).length > 0;
 
@@ -3372,7 +3574,7 @@ function renderERCard(er, appId, opts = {}) {
   const changedFields = Object.keys(er.changes || {}).filter(k => k !== "reason");
   const submitter = er.submitter || {};
   const avatarHtml = submitter.photoURL
-    ? `<img class="er-avatar-sm" src="${esc(submitter.photoURL)}" alt="" referrerpolicy="no-referrer">`
+    ? `<img class="er-avatar-sm" src="${escUrl(submitter.photoURL)}" alt="" referrerpolicy="no-referrer">`
     : `<div class="er-avatar-sm-fallback">${esc((submitter.displayName || "U").charAt(0))}</div>`;
   const approvals = er.approvals || [];
   const canReview = isAdmin && er.status === "open";
@@ -3515,7 +3717,7 @@ async function loadERComments(editRequestId) {
     const renderComment = c => {
       const typeClass = c.type === "approval" ? "comment-approval" : c.type === "rejection" ? "comment-rejection" : c.type === "merge" ? "comment-merge" : "";
       const avatar = c.authorPhoto
-        ? `<img class="er-comment-avatar" src="${esc(c.authorPhoto)}" alt="" referrerpolicy="no-referrer">`
+        ? `<img class="er-comment-avatar" src="${escUrl(c.authorPhoto)}" alt="" referrerpolicy="no-referrer">`
         : `<div class="er-comment-avatar-fallback">${esc((c.authorName || "U").charAt(0))}</div>`;
       return `
         <div class="er-comment ${typeClass}">
@@ -3560,7 +3762,7 @@ async function loadSubComments(submissionId) {
                         c.type === "comment" ? "" : "";
       return `
         <div class="er-comment ${typeClass}">
-          ${c.authorPhoto ? `<img class="er-avatar-sm" src="${esc(c.authorPhoto)}" alt="" referrerpolicy="no-referrer">` : ""}
+          ${c.authorPhoto ? `<img class="er-avatar-sm" src="${escUrl(c.authorPhoto)}" alt="" referrerpolicy="no-referrer">` : ""}
           <span class="er-comment-author">${esc(c.authorName)}</span>
           <span class="er-comment-text">${esc(c.text)}</span>
           <span class="er-comment-time">${new Date(c.createdAt).toLocaleDateString()}</span>
@@ -3589,7 +3791,7 @@ function showRankings() {
         ${ranked.map((app, i) => {
           const score = calcRankScore(app).toFixed(0);
           const logoHtml = app.logo
-            ? `<img class="rank-logo" src="${esc(app.logo)}" alt="" onerror="this.style.display='none'">`
+            ? `<img class="rank-logo" src="${escUrl(app.logo)}" alt="" onerror="this.style.display='none'">`
             : `<div class="rank-logo-fallback">${esc(app.name.charAt(0))}</div>`;
           return `
             <a href="/app/${esc(app.id)}" class="ranking-item ${i < 3 ? 'top-' + (i+1) : ''}">
@@ -4004,7 +4206,7 @@ async function updateAuthUI(user) {
     if (profileLink) profileLink.style.display = "inline-flex";
 
     const avatarHtml = user.photoURL
-      ? `<img class="auth-avatar" src="${esc(user.photoURL)}" alt="" referrerpolicy="no-referrer">`
+      ? `<img class="auth-avatar" src="${escUrl(user.photoURL)}" alt="" referrerpolicy="no-referrer">`
       : `<span id="auth-icon">✓</span>`;
     trigger.innerHTML = `${avatarHtml}<span id="auth-label">${esc(user.displayName || "Account")}</span>`;
     const providerName = user.providerData?.[0]?.providerId === "github.com" ? "GitHub" : "Google";
@@ -4014,7 +4216,7 @@ async function updateAuthUI(user) {
     ).join(" + ");
     content.innerHTML = `
       <div class="user-info">
-        ${user.photoURL ? `<img class="auth-dropdown-avatar" src="${esc(user.photoURL)}" alt="" referrerpolicy="no-referrer">` : ""}
+        ${user.photoURL ? `<img class="auth-dropdown-avatar" src="${escUrl(user.photoURL)}" alt="" referrerpolicy="no-referrer">` : ""}
         <div class="user-name">${esc(user.displayName || "User")} ${verifiedBadge(userRecord)}</div>
         <div class="user-email">${esc(user.email || "")}</div>
         <div class="user-provider">Signed in via ${esc(linkedDisplay || providerName)}</div>

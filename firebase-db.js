@@ -708,15 +708,57 @@ export async function adminAddApp(appData, adminUid) {
   const existing = await getDoc(doc(db, "apps", id));
   if (existing.exists()) throw new Error("App with this ID already exists");
 
+  // Resolve addedBy and ownership from admin controls
+  let addedBy, ownerType, ownerId;
+  const addedByType = appData._addedByType || "openlib";
+  const explicitOwnerId = appData._ownerId || null;
+
+  if (addedByType === "user" && explicitOwnerId) {
+    const ownerRecord = await getUserRecord(explicitOwnerId);
+    addedBy = {
+      type: "user",
+      name: ownerRecord?.displayName || "Anonymous",
+      uid: explicitOwnerId,
+      role: ownerRecord?.role || "user",
+      photoURL: ownerRecord?.photoURL || ""
+    };
+    ownerType = "user";
+    ownerId = explicitOwnerId;
+  } else if (addedByType === "organization" && explicitOwnerId) {
+    const org = await getOrganization(explicitOwnerId);
+    addedBy = {
+      type: "user",
+      name: org?.name || "Organization",
+      uid: adminUid,
+      role: admin?.role || "admin"
+    };
+    ownerType = "organization";
+    ownerId = explicitOwnerId;
+  } else if (addedByType === "admin") {
+    addedBy = { type: "openlib-team", name: admin?.displayName || "Admin", uid: adminUid, role: admin?.role || "admin" };
+    ownerType = "openlib-team";
+    ownerId = adminUid;
+  } else {
+    addedBy = { type: "openlib-team", name: "OpenLib Team", uid: adminUid };
+    ownerType = "openlib-team";
+    ownerId = adminUid;
+  }
+
+  // Strip internal control fields before saving
+  const { _addedByType, _ownerId, _visibility, _verified, ...cleanData } = appData;
+
   const fullData = {
-    ...appData,
+    ...cleanData,
     id,
     likes: 0,
     dislikes: 0,
     views: 0,
-    addedBy: { type: "openlib-team", name: "OpenLib Team", uid: adminUid },
-    ownerType: "openlib-team",
-    ownerId: adminUid,
+    downloads: 0,
+    addedBy,
+    ownerType,
+    ownerId,
+    moderationStatus: _visibility || "active",
+    openSourceVerified: _verified === "true" || _verified === true,
     createdAt: now,
     updatedAt: now
   };
@@ -725,7 +767,7 @@ export async function adminAddApp(appData, adminUid) {
 
   await createAppVersion(id, {
     changes: {},
-    commitMessage: "Initial app listing by OpenLib Team",
+    commitMessage: "Initial app listing by " + (addedByType === "openlib" ? "OpenLib Team" : admin?.displayName || "Admin"),
     authorUid: adminUid,
     type: "initial"
   });

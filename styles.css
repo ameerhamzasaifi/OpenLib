@@ -3129,6 +3129,44 @@ a.added-by-link:hover {
   max-width: 600px;
 }
 
+.admin-form-full {
+  max-width: 800px;
+}
+
+/* ── Admin Form Fieldsets ── */
+.admin-fieldset {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 18px 18px 6px;
+  margin-bottom: 18px;
+  background: var(--surface);
+}
+
+.admin-fieldset-legend {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-2);
+  padding: 0 8px;
+  letter-spacing: 0.3px;
+}
+
+.admin-fieldset-mod {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.admin-fieldset-mod .admin-fieldset-legend {
+  color: var(--accent);
+}
+
+.admin-form-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: 8px;
+}
+
 /* ── Admin Users List ── */
 
 .admin-users-list {
