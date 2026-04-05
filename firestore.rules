@@ -51,14 +51,14 @@ service cloud.firestore {
                          "updatedAt"])
             && request.resource.data.addedBy.type == resource.data.addedBy.type
             && request.resource.data.ownerType == resource.data.ownerType)
-        // Counter fields: any signed-in user can update only counters with type validation
+        // Views counter: anyone (including anonymous) can increment views only
+        || (request.resource.data.diff(resource.data)
+                 .affectedKeys().hasOnly(["views"])
+            && request.resource.data.views is int)
+        // Other counters: signed-in users can update counter fields
         || (isSignedIn()
             && request.resource.data.diff(resource.data)
-                 .affectedKeys().hasOnly(["likes", "dislikes", "views", "downloads"])
-            && request.resource.data.likes is int
-            && request.resource.data.dislikes is int
-            && request.resource.data.views is int
-            && request.resource.data.downloads is int);
+                 .affectedKeys().hasOnly(["likes", "dislikes", "views", "downloads"]));
       allow delete: if isAdmin();
     }
 
