@@ -170,9 +170,9 @@ function platformIcon(p) {
 function addedByBadge(addedBy) {
   // Synchronous card-level badge — uses isOfficialApp for fast rendering
   if (!addedBy || addedBy.type === "openlib-team" || addedBy.role === "admin") {
-    return `<span class="added-by-badge team" title="Curated by the OpenLib team">
-      <span class="added-by-avatar-mini official-avatar-mini">OL</span> OpenLib
-    </span>`;
+    return `<a href="/" class="added-by-badge team added-by-link" title="Curated by the OpenLib team">
+      <span class="added-by-avatar-mini official-avatar-mini">OL</span> OpenLib (Official)
+    </a>`;
   }
   const name = esc(addedBy.name || "Anonymous");
   const profileLink = addedBy.uid ? `href="/profile/${esc(addedBy.uid)}"` : "";
@@ -463,13 +463,28 @@ async function showAppDetail(appId) {
     creatorHtml = `
       <div class="detail-section creator-section">
         <h3>Added By</h3>
-        <div class="creator-card openlib-creator-card">
+        <a href="${esc(contributor.profileLink || '/')}" class="creator-card openlib-creator-card">
           <div class="creator-card-avatar-fallback openlib-avatar">${esc(contributor.avatarText)}</div>
           <div class="creator-card-info">
             <span class="creator-card-name">${esc(contributor.displayName)} <span class="badge badge-role badge-admin">${esc(contributor.badge)}</span></span>
             <span class="creator-card-bio">${esc(contributor.bio)}</span>
           </div>
-        </div>
+        </a>
+      </div>`;
+  } else if (contributor.displayType === "organization") {
+    const orgAvatar = contributor.avatarURL
+      ? `<img class="creator-card-avatar" src="${esc(contributor.avatarURL)}" alt="" referrerpolicy="no-referrer">`
+      : `<div class="creator-card-avatar-fallback">${esc(contributor.avatarText)}</div>`;
+    creatorHtml = `
+      <div class="detail-section creator-section">
+        <h3>Added By</h3>
+        <a href="${esc(contributor.profileLink)}" class="creator-card">
+          ${orgAvatar}
+          <div class="creator-card-info">
+            <span class="creator-card-name">${esc(contributor.displayName)} ${contributor.verified ? '<span class="badge badge-verified" title="Verified">✓ Verified</span>' : ""}</span>
+            ${contributor.bio ? `<span class="creator-card-bio">${esc(contributor.bio)}</span>` : ""}
+          </div>
+        </a>
       </div>`;
   } else if (contributor.displayType === "user") {
     const creatorAvatar = contributor.avatarURL
@@ -671,10 +686,23 @@ async function showAppDetail(appId) {
     btn.addEventListener("click", handleVoteClick);
   });
 
-  // Track downloads
+  // Track downloads (debounced to prevent duplicate clicks)
   detailView.querySelectorAll(".download-track-link").forEach(link => {
-    link.addEventListener("click", () => {
-      trackDownload(appId, currentUser?.uid);
+    let tracking = false;
+    link.addEventListener("click", async () => {
+      if (tracking) return;
+      tracking = true;
+      try {
+        const newCount = await trackDownload(appId, currentUser?.uid);
+        if (newCount != null) {
+          const idx = apps.findIndex(a => a.id === appId);
+          if (idx >= 0) apps[idx].downloads = newCount;
+          const dlStat = detailView.querySelector('.detail-stats .detail-stat-card:nth-child(4) .stat-number');
+          if (dlStat) dlStat.textContent = newCount;
+        }
+      } finally {
+        setTimeout(() => { tracking = false; }, 2000);
+      }
     });
   });
   detailView.querySelector(".detail-report")?.addEventListener("click", e => {
@@ -3620,15 +3648,23 @@ async function handleVoteClick(e) {
       const idx = apps.findIndex(a => a.id === appId);
       if (idx >= 0) apps[idx] = updatedApp;
 
-      // Update UI
+      // Update vote button counts
       const likeCount = document.getElementById(`like-count-${appId}`);
       const dislikeCount = document.getElementById(`dislike-count-${appId}`);
       if (likeCount) likeCount.textContent = updatedApp.likes || 0;
       if (dislikeCount) dislikeCount.textContent = updatedApp.dislikes || 0;
 
+      // Update stat cards (Likes = 2nd card, Dislikes = 3rd card)
+      const detailView = document.getElementById("detail-view");
+      if (detailView) {
+        const statCards = detailView.querySelectorAll('.detail-stats .detail-stat-card .stat-number');
+        if (statCards[1]) statCards[1].textContent = updatedApp.likes || 0;
+        if (statCards[2]) statCards[2].textContent = updatedApp.dislikes || 0;
+      }
+
       // Toggle active states
-      const likeBtn = document.querySelector(`.like-btn[data-app-id="${appId}"]`);
-      const dislikeBtn = document.querySelector(`.dislike-btn[data-app-id="${appId}"]`);
+      const likeBtn = document.querySelector(`.like-btn[data-app-id="${CSS.escape(appId)}"]`);
+      const dislikeBtn = document.querySelector(`.dislike-btn[data-app-id="${CSS.escape(appId)}"]`);
       if (result.action === "removed") {
         btn.classList.remove("active");
       } else {
@@ -4687,7 +4723,6 @@ async function init() {
   // Nav links
   document.getElementById("profile-nav-link")?.addEventListener("click", e => { e.preventDefault(); navigateTo("/profile"); });
   document.getElementById("admin-nav-link")?.addEventListener("click", e => { e.preventDefault(); navigateTo("/admin"); });
-  document.getElementById("team-nav-link")?.addEventListener("click", e => { e.preventDefault(); navigateTo("/team"); });
 
   // Create organization form
   document.getElementById("create-org-form")?.addEventListener("submit", async e => {

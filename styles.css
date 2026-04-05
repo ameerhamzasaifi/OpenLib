@@ -1243,6 +1243,8 @@ textarea:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  text-decoration: none;
+  color: inherit;
 }
 
 .added-by-badge.team {
@@ -3499,7 +3501,7 @@ a.added-by-link:hover {
 
 /* ── OpenLib Official Avatar ── */
 .openlib-creator-card {
-  cursor: default;
+  cursor: pointer;
 }
 
 .openlib-avatar {

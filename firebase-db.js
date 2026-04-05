@@ -1232,9 +1232,13 @@ export async function trackDownload(appId, userId) {
       userId: userId || "anonymous",
       timestamp: new Date().toISOString()
     });
-    await updateDoc(doc(db, "apps", appId), { downloads: increment(1) });
+    const appRef = doc(db, "apps", appId);
+    await updateDoc(appRef, { downloads: increment(1) });
+    const updated = await getDoc(appRef);
+    return updated.data()?.downloads || 0;
   } catch (e) {
     console.error("Error tracking download:", e);
+    return null;
   }
 }
 
@@ -1287,12 +1291,12 @@ export async function submitOwnershipClaim(appId, user) {
 
 const OPENLIB_OFFICIAL_PROFILE = {
   displayType: "official",
-  displayName: "OpenLib",
+  displayName: "OpenLib (Official)",
   badge: "Official",
   avatarText: "OL",
   avatarURL: null,
   bio: "Curated by the OpenLib team.",
-  profileLink: null,
+  profileLink: "/",
   role: "openlib-team",
   verified: true
 };
@@ -1303,6 +1307,7 @@ const OPENLIB_OFFICIAL_PROFILE = {
  * - If addedBy.uid exists, fetch user_record and check role
  *   - admin/openlib-team role → official profile (override)
  *   - regular user → user's public profile from user_records
+ * - If ownerType is "organization", resolve org profile
  * Returns a normalized contributor object for UI rendering.
  */
 export async function resolveContributorProfile(app) {
@@ -1313,6 +1318,29 @@ export async function resolveContributorProfile(app) {
   // No addedBy data or explicitly openlib-team type → official
   if (!addedBy || addedBy.type === "openlib-team") {
     return { ...OPENLIB_OFFICIAL_PROFILE };
+  }
+
+  // Organization-owned app → resolve org profile
+  if (app.ownerType === "organization" && app.ownerId) {
+    try {
+      const org = await getOrganization(app.ownerId);
+      if (org) {
+        return {
+          displayType: "organization",
+          displayName: org.name || "Organization",
+          badge: null,
+          avatarText: (org.name || "O").charAt(0),
+          avatarURL: org.logoURL || null,
+          bio: org.description || null,
+          profileLink: `/org/${app.ownerId}`,
+          role: "organization",
+          verified: org.verified || false,
+          uid: null
+        };
+      }
+    } catch (e) {
+      console.error("Error resolving org profile:", e);
+    }
   }
 
   // Has a UID — look up the user record for authoritative role check
