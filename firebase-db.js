@@ -1338,7 +1338,7 @@ const OPENLIB_OFFICIAL_PROFILE = {
   avatarText: "OL",
   avatarURL: null,
   bio: "Curated by the OpenLib team.",
-  profileLink: "/",
+  profileLink: "/team",
   role: "openlib-team",
   verified: true
 };

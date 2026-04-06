@@ -5624,6 +5624,141 @@ a.added-by-link:hover {
   color: var(--text-3);
 }
 
+.comp-na {
+  color: var(--text-3);
+  font-style: italic;
+}
+
+/* ── Comparison Editor ── */
+.comp-editor-hint {
+  font-size: 12px;
+  color: var(--text-3);
+  margin: 0 0 8px;
+  line-height: 1.4;
+}
+
+.comp-editor {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  background: var(--bg-2);
+}
+
+.comp-editor-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+  margin-bottom: 6px;
+  display: block;
+}
+
+.comp-editor-cols {
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.comp-col-inputs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0;
+}
+
+.comp-col-entry {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.comp-col-input {
+  width: 150px;
+  padding: 5px 8px;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+}
+
+.comp-editor-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.comp-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 6px 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  flex-wrap: wrap;
+}
+
+.comp-feature-input {
+  width: 140px;
+  padding: 5px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  flex-shrink: 0;
+}
+
+.comp-row-cells {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.comp-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.comp-cell-type {
+  padding: 4px 6px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.comp-cell-text {
+  width: 100px;
+  padding: 4px 6px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+}
+
+.comp-row-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.comp-row-actions .btn {
+  padding: 2px 6px;
+  font-size: 11px;
+  line-height: 1;
+  min-width: auto;
+}
+
 /* ── Trust / Security Badges ── */
 .trust-badges {
   display: flex;
@@ -6277,6 +6412,27 @@ a.added-by-link:hover {
   .comparison-table th,
   .comparison-table td {
     padding: 8px 10px;
+  }
+
+  .comp-col-inputs {
+    flex-direction: column;
+  }
+
+  .comp-col-input {
+    width: 100%;
+  }
+
+  .comp-row {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .comp-feature-input {
+    width: 100%;
+  }
+
+  .comp-cell-text {
+    width: 80px;
   }
 
   .share-dropdown {

@@ -7,7 +7,7 @@ import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/12.11.0/
 import { db } from './firebase-config.js';
 
 // ── Auto-stamped by predeploy hook — DO NOT EDIT MANUALLY ────────────────────
-const DEPLOY_TIMESTAMP = 1775425563;
+const DEPLOY_TIMESTAMP = 1775501886;
 
 const LS_KEY = "openlib_deploy_ts";
 const SS_DISMISS_KEY = "openlib_update_dismissed";

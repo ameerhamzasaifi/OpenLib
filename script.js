@@ -176,7 +176,7 @@ function platformIcon(p) {
 function addedByBadge(addedBy) {
   // Synchronous card-level badge — uses isOfficialApp for fast rendering
   if (!addedBy || addedBy.type === "openlib-team" || addedBy.role === "admin") {
-    return `<a href="/" class="added-by-badge team added-by-link" title="Curated by the OpenLib team">
+    return `<a href="/team" class="added-by-badge team added-by-link" title="Curated by the OpenLib team">
       <span class="added-by-avatar-mini official-avatar-mini">OL</span> OpenLib (Official)
     </a>`;
   }
@@ -188,6 +188,173 @@ function addedByBadge(addedBy) {
   return `<a ${profileLink} class="added-by-badge user added-by-link" title="Added by ${name}">
     ${avatarMini} ${name}
   </a>`;
+}
+
+// ── Comparison Editor Helpers ────────────────────────────────────────────────
+function compCellHtml(val, colIdx) {
+  let selType, textVal = "";
+  if (val === true) selType = "true";
+  else if (val === false) selType = "false";
+  else if (val == null) selType = "dash";
+  else { selType = "text"; textVal = val; }
+  return `<div class="comp-cell" data-col="${colIdx}">
+    <select class="comp-cell-type">
+      <option value="true" ${selType === "true" ? "selected" : ""}>✔ Yes</option>
+      <option value="false" ${selType === "false" ? "selected" : ""}>✖ No</option>
+      <option value="dash" ${selType === "dash" ? "selected" : ""}>— N/A</option>
+      <option value="text" ${selType === "text" ? "selected" : ""}>Text…</option>
+    </select>
+    <input type="text" class="comp-cell-text" value="${esc(textVal)}" placeholder="Value" style="${selType === "text" ? "" : "display:none"}">
+  </div>`;
+}
+
+function compRowHtml(row, colCount) {
+  let cells = "";
+  for (let c = 0; c < colCount; c++) cells += compCellHtml(row?.values?.[c] ?? null, c);
+  return `<div class="comp-row">
+    <input type="text" class="comp-feature-input" value="${esc(row?.feature || "")}" placeholder="Feature name">
+    <div class="comp-row-cells">${cells}</div>
+    <div class="comp-row-actions">
+      <button type="button" class="btn btn-xs comp-row-up" title="Move up">↑</button>
+      <button type="button" class="btn btn-xs comp-row-down" title="Move down">↓</button>
+      <button type="button" class="btn btn-xs btn-danger comp-row-remove" title="Remove row">✕</button>
+    </div>
+  </div>`;
+}
+
+function initComparisonEditor(container, data) {
+  const cols = data?.columns?.length ? data.columns : [];
+  const rows = data?.rows || [];
+  container.innerHTML = `
+    <div class="comp-editor">
+      <div class="comp-editor-cols">
+        <span class="comp-editor-label">Column Labels</span>
+        <div class="comp-col-inputs">
+          ${cols.map((c, i) => `<div class="comp-col-entry">
+            <input type="text" class="comp-col-input" value="${esc(c)}" placeholder="App name" data-col="${i}">
+            ${i >= 2 ? `<button type="button" class="btn btn-xs btn-danger comp-remove-col" data-col="${i}" title="Remove column">✕</button>` : ""}
+          </div>`).join("")}
+        </div>
+        <button type="button" class="btn btn-sm btn-secondary comp-add-col">+ Column</button>
+      </div>
+      <div class="comp-editor-rows">${rows.map(r => compRowHtml(r, cols.length)).join("")}</div>
+      <button type="button" class="btn btn-sm btn-secondary comp-add-row">+ Feature Row</button>
+    </div>`;
+  attachCompEditorEvents(container);
+}
+
+function attachCompEditorEvents(ct) {
+  ct.addEventListener("change", e => {
+    if (e.target.classList.contains("comp-cell-type")) {
+      const ti = e.target.parentElement.querySelector(".comp-cell-text");
+      ti.style.display = e.target.value === "text" ? "" : "none";
+    }
+  });
+  ct.addEventListener("click", e => {
+    const t = e.target;
+    if (t.classList.contains("comp-add-col")) {
+      const colsBox = ct.querySelector(".comp-col-inputs");
+      const n = colsBox.querySelectorAll(".comp-col-input").length;
+      const d = document.createElement("div"); d.className = "comp-col-entry";
+      d.innerHTML = `<input type="text" class="comp-col-input" value="" placeholder="App name" data-col="${n}">
+        <button type="button" class="btn btn-xs btn-danger comp-remove-col" data-col="${n}" title="Remove column">✕</button>`;
+      colsBox.appendChild(d);
+      ct.querySelectorAll(".comp-row").forEach(row => {
+        row.querySelector(".comp-row-cells").insertAdjacentHTML("beforeend", compCellHtml(null, n));
+      });
+    }
+    if (t.classList.contains("comp-remove-col")) {
+      const ci = parseInt(t.dataset.col);
+      t.parentElement.remove();
+      ct.querySelectorAll(`.comp-cell[data-col="${ci}"]`).forEach(c => c.remove());
+      reindexCompCols(ct);
+    }
+    if (t.classList.contains("comp-add-row")) {
+      const n = ct.querySelectorAll(".comp-col-input").length;
+      ct.querySelector(".comp-editor-rows").insertAdjacentHTML("beforeend", compRowHtml(null, n));
+    }
+    if (t.classList.contains("comp-row-remove")) t.closest(".comp-row").remove();
+    if (t.classList.contains("comp-row-up")) {
+      const row = t.closest(".comp-row"), prev = row.previousElementSibling;
+      if (prev) row.parentElement.insertBefore(row, prev);
+    }
+    if (t.classList.contains("comp-row-down")) {
+      const row = t.closest(".comp-row"), next = row.nextElementSibling;
+      if (next) row.parentElement.insertBefore(next, row);
+    }
+  });
+}
+
+function reindexCompCols(ct) {
+  ct.querySelectorAll(".comp-col-entry").forEach((e, i) => {
+    const inp = e.querySelector(".comp-col-input"); if (inp) inp.dataset.col = i;
+    const btn = e.querySelector(".comp-remove-col"); if (btn) btn.dataset.col = i;
+  });
+  ct.querySelectorAll(".comp-row").forEach(row => {
+    row.querySelectorAll(".comp-cell").forEach((c, i) => { c.dataset.col = i; });
+  });
+}
+
+function getComparisonData(container) {
+  const colInputs = container.querySelectorAll(".comp-col-input");
+  if (!colInputs.length) return null;
+  const columns = [...colInputs].map(i => i.value.trim());
+  if (columns.every(c => !c)) return null;
+  const rows = [];
+  container.querySelectorAll(".comp-row").forEach(rowEl => {
+    const feature = rowEl.querySelector(".comp-feature-input").value.trim();
+    const values = [];
+    rowEl.querySelectorAll(".comp-cell").forEach(cell => {
+      const tp = cell.querySelector(".comp-cell-type").value;
+      if (tp === "true") values.push(true);
+      else if (tp === "false") values.push(false);
+      else if (tp === "dash") values.push(null);
+      else values.push(cell.querySelector(".comp-cell-text").value.trim() || null);
+    });
+    if (feature) rows.push({ feature, values });
+  });
+  return rows.length ? { columns, rows } : null;
+}
+
+function validateComparisonEditor(container) {
+  const features = [];
+  let error = null;
+  container.querySelectorAll(".comp-row").forEach(rowEl => {
+    const f = rowEl.querySelector(".comp-feature-input").value.trim();
+    if (!f) { error = "Comparison: feature name cannot be empty."; return; }
+    if (features.includes(f.toLowerCase())) { error = `Comparison: duplicate feature "${f}".`; return; }
+    features.push(f.toLowerCase());
+  });
+  return error;
+}
+
+function renderComparisonHtml(app) {
+  if (app.comparisonData?.columns?.length && app.comparisonData?.rows?.length) {
+    const { columns, rows } = app.comparisonData;
+    const hdr = columns.map(c => `<th>${esc(c)}</th>`).join("");
+    const body = rows.map(r => {
+      const cells = r.values.map(v => {
+        if (v === true) return '<td class="comp-yes">✔</td>';
+        if (v === false) return '<td class="comp-no">✖</td>';
+        if (v == null) return '<td class="comp-na">—</td>';
+        return `<td>${esc(String(v))}</td>`;
+      }).join("");
+      return `<tr><td>${esc(r.feature)}</td>${cells}</tr>`;
+    }).join("");
+    return `<div class="detail-section"><h3>Comparison</h3>
+      <table class="comparison-table"><thead><tr><th>Feature</th>${hdr}</tr></thead><tbody>${body}</tbody></table></div>`;
+  }
+  if (!app.alternative) return "";
+  return `<div class="detail-section"><h3>Comparison</h3>
+    <table class="comparison-table">
+      <thead><tr><th>Feature</th><th>${esc(app.name)}</th><th>${esc(app.alternative)}</th></tr></thead>
+      <tbody>
+        <tr><td>Free</td><td class="comp-yes">✅</td><td class="comp-no">❌</td></tr>
+        <tr><td>Open Source</td><td class="comp-yes">✅</td><td class="comp-no">❌</td></tr>
+        <tr><td>Cross-Platform</td><td class="comp-yes">${(app.platforms || []).length > 1 ? "✅" : "—"}</td><td>—</td></tr>
+        <tr><td>License</td><td>${esc(app.license || "Open Source")}</td><td>Proprietary</td></tr>
+      </tbody>
+    </table></div>`;
 }
 
 function buildCard(app) {
@@ -398,20 +565,8 @@ async function showAppDetail(appId) {
       <pre class="sysreq-block">${esc(sysreq)}</pre>
     </div>` : "";
 
-  // Comparison table
-  const comparisonHtml = app.alternative ? `
-    <div class="detail-section">
-      <h3>Comparison</h3>
-      <table class="comparison-table">
-        <thead><tr><th>Feature</th><th>${esc(app.name)}</th><th>${esc(app.alternative)}</th></tr></thead>
-        <tbody>
-          <tr><td>Free</td><td class="comp-yes">✅</td><td class="comp-no">❌</td></tr>
-          <tr><td>Open Source</td><td class="comp-yes">✅</td><td class="comp-no">❌</td></tr>
-          <tr><td>Cross-Platform</td><td class="comp-yes">${(app.platforms || []).length > 1 ? "✅" : "—"}</td><td>—</td></tr>
-          <tr><td>License</td><td>${esc(app.license || "Open Source")}</td><td>Proprietary</td></tr>
-        </tbody>
-      </table>
-    </div>` : "";
+  // Comparison table (dynamic or legacy fallback)
+  const comparisonHtml = renderComparisonHtml(app);
 
   // Security badges
   const isOfficialEntry = isOfficialApp(app);
@@ -1067,6 +1222,34 @@ function openEditRequestModal(appId, appName, app, directEdit = false) {
     cb.checked = (app.platforms || []).includes(cb.value);
   });
 
+  // Comparison editor
+  const erCompContainer = document.getElementById("er-comparison-editor");
+  const erCompInitBtn = document.getElementById("er-comp-init");
+  if (erCompContainer) {
+    erCompContainer.innerHTML = "";
+    if (app.comparisonData?.columns?.length) {
+      initComparisonEditor(erCompContainer, app.comparisonData);
+      if (erCompInitBtn) erCompInitBtn.style.display = "none";
+    } else {
+      if (erCompInitBtn) {
+        erCompInitBtn.style.display = "";
+        erCompInitBtn.onclick = () => {
+          const appName = app.name || "This App";
+          const alt = app.alternative || "Alternative";
+          initComparisonEditor(erCompContainer, {
+            columns: [appName, alt],
+            rows: [
+              { feature: "Free", values: [true, false] },
+              { feature: "Open Source", values: [true, false] },
+              { feature: "License", values: ["", "Proprietary"] }
+            ]
+          });
+          erCompInitBtn.style.display = "none";
+        };
+      }
+    }
+  }
+
   // Show submitter info
   const submitterEl = document.getElementById("edit-request-submitter");
   submitterEl.innerHTML = `
@@ -1169,6 +1352,15 @@ async function handleEditRequestSubmit(e) {
     currentPlatforms.some(p => !platforms.includes(p));
   if (platformsChanged && platforms.length > 0) {
     changes.platforms = platforms;
+  }
+
+  // Comparison data
+  const erCompEl = document.getElementById("er-comparison-editor");
+  if (erCompEl && erCompEl.querySelector(".comp-editor")) {
+    const compErr = validateComparisonEditor(erCompEl);
+    if (compErr) { showFormError(form, compErr); return; }
+    const compData = getComparisonData(erCompEl);
+    if (compData) changes.comparisonData = compData;
   }
 
   if (Object.keys(changes).length === 0) {
@@ -2845,6 +3037,14 @@ function renderAdminAddApp() {
         <div class="form-group"><label for="aa-screenshots">Screenshot URLs <span class="optional">(one per line)</span></label><textarea id="aa-screenshots" rows="3" maxlength="2000" placeholder="https://…/screenshot1.png&#10;https://…/screenshot2.png"></textarea></div>
       </fieldset>
 
+      <!-- ── Section: Comparison ── -->
+      <fieldset class="admin-fieldset">
+        <legend class="admin-fieldset-legend">Comparison Table <span class="optional">(optional)</span></legend>
+        <p class="comp-editor-hint">Build a feature comparison between this app and alternatives. Use ✔/✖ for booleans, Text for free input, — for N/A.</p>
+        <div id="aa-comparison-editor"></div>
+        <button type="button" class="btn btn-sm btn-secondary" id="aa-comp-init" style="margin-top:6px">+ Create Comparison Table</button>
+      </fieldset>
+
       <!-- ── Section: System & Installation ── -->
       <fieldset class="admin-fieldset">
         <legend class="admin-fieldset-legend">System &amp; Installation</legend>
@@ -3311,6 +3511,25 @@ function attachAdminHandlers(tab) {
       });
     }
 
+    // Comparison editor
+    const aaCompContainer = document.getElementById("aa-comparison-editor");
+    const aaCompInitBtn = document.getElementById("aa-comp-init");
+    if (aaCompInitBtn && aaCompContainer) {
+      aaCompInitBtn.addEventListener("click", () => {
+        const appName = document.getElementById("aa-name").value.trim() || "This App";
+        const alt = document.getElementById("aa-alternative").value.trim() || "Alternative";
+        initComparisonEditor(aaCompContainer, {
+          columns: [appName, alt],
+          rows: [
+            { feature: "Free", values: [true, false] },
+            { feature: "Open Source", values: [true, false] },
+            { feature: "License", values: ["", "Proprietary"] }
+          ]
+        });
+        aaCompInitBtn.style.display = "none";
+      });
+    }
+
     document.getElementById("admin-add-app-form")?.addEventListener("submit", async e => {
       e.preventDefault();
       const form = e.target;
@@ -3357,6 +3576,15 @@ function attachAdminHandlers(tab) {
         return null;
       }).filter(Boolean) : [];
 
+      // Comparison data
+      const aaCompEl = document.getElementById("aa-comparison-editor");
+      let comparisonData = null;
+      if (aaCompEl && aaCompEl.querySelector(".comp-editor")) {
+        const compErr = validateComparisonEditor(aaCompEl);
+        if (compErr) { showFormError(form, compErr); return; }
+        comparisonData = getComparisonData(aaCompEl);
+      }
+
       const appData = {
         name: document.getElementById("aa-name").value.trim(),
         logo: logoUrl,
@@ -3381,6 +3609,7 @@ function attachAdminHandlers(tab) {
         installMethods,
         systemRequirements: document.getElementById("aa-sysreq").value.trim(),
         platforms,
+        comparisonData,
         // Internal admin control fields (prefixed with _)
         _addedByType: document.getElementById("aa-added-by").value,
         _ownerId: document.getElementById("aa-owner-id").value.trim(),
@@ -3396,6 +3625,8 @@ function attachAdminHandlers(tab) {
         form.reset();
         if (ownerIdGroup) ownerIdGroup.style.display = "none";
         if (logoFilename) logoFilename.textContent = "";
+        if (aaCompContainer) aaCompContainer.innerHTML = "";
+        if (aaCompInitBtn) aaCompInitBtn.style.display = "";
         await loadApps();
       } catch (err) {
         showFormError(form, err.message);
