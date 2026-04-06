@@ -750,6 +750,8 @@ async function showAppDetail(appId) {
 
       ${tagsHtml ? `<div class="detail-tags">${tagsHtml}</div>` : ""}
 
+      ${versionInfoHtml}
+
       <div class="detail-body">
         ${expandableDescHtml || `<div class="detail-section"><h3>About</h3><p>${esc(app.description)}</p></div>`}
 
@@ -2163,7 +2165,7 @@ async function loadVerifyComments(submissionId) {
                         c.type === "resubmission" ? "comment-resubmission" : "";
       return `
         <div class="er-comment ${typeClass}">
-          ${c.authorPhoto ? `<img class="er-avatar-sm" src="${escUrl(c.authorPhoto)}" alt="" referrerpolicy="no-referrer">` : ""}
+          ${c.authorPhoto ? `<img class="changelog-avatar" src="${escUrl(c.authorPhoto)}" alt="" referrerpolicy="no-referrer">` : ""}
           <span class="er-comment-author">${esc(c.authorName)}</span>
           <span class="er-comment-text">${esc(c.text)}</span>
           <span class="er-comment-time">${new Date(c.createdAt).toLocaleDateString()}</span>
@@ -2914,15 +2916,15 @@ function renderAdminEditRequests(editRequests) {
       <div class="admin-card" data-id="${esc(er.id)}">
         <div class="admin-card-header">
           <strong>App: ${esc(er.appId)}</strong>
-          <span class="er-status er-status-open">🟢 open</span>
+          <span class="changelog-type changelog-status-open">🟢 open</span>
           <span class="admin-card-date">${new Date(er.createdAt).toLocaleDateString()}</span>
         </div>
-        <div class="er-card-changes">
-          ${changedFields.map(f => `<span class="er-change-tag">${esc(f)}</span>`).join("")}
-          <button class="btn btn-sm btn-secondary er-diff-toggle" data-er-id="${esc(er.id)}" data-app-id="${esc(er.appId)}" data-changes="${encodeURIComponent(JSON.stringify(er.changes || {}))}">📋 View Changes</button>
+        <div class="changelog-tags">
+          ${changedFields.map(f => `<span class="changelog-field-tag">${esc(FIELD_LABELS[f] || f)}</span>`).join("")}
+          <button class="btn btn-sm btn-secondary changelog-diff-toggle er-diff-toggle" data-er-id="${esc(er.id)}" data-app-id="${esc(er.appId)}" data-changes="${encodeURIComponent(JSON.stringify(er.changes || {}))}">📋 View Changes (${changedFields.length})</button>
         </div>
-        <div class="er-diff-container" id="er-diff-${esc(er.id)}"></div>
-        ${er.changes?.reason ? `<p class="er-card-reason">"${esc(er.changes.reason)}"</p>` : ""}
+        <div class="changelog-diff-panel er-diff-container" id="er-diff-${esc(er.id)}"></div>
+        ${er.changes?.reason ? `<p class="changelog-message" style="font-style:italic;color:var(--text-2);padding-left:10px;border-left:2px solid var(--border-2);">"${esc(er.changes.reason)}"</p>` : ""}
         <div class="admin-card-actions">
           <button class="btn btn-primary btn-sm admin-merge-er" data-id="${esc(er.id)}">Merge</button>
           <button class="btn btn-secondary btn-sm admin-approve-er" data-id="${esc(er.id)}">Approve</button>
@@ -3671,35 +3673,46 @@ function renderVersionCard(v, appId, opts = {}) {
   const typeLabel = v.type === "initial" ? "Initial" : v.type === "restore" ? "Restore" : v.type === "ownership_transfer" ? "Transfer" : "Edit";
   const vNum = v.versionNumber != null ? `#${v.versionNumber}` : "";
   const avatar = v.authorPhoto
-    ? `<img class="er-comment-avatar" src="${escUrl(v.authorPhoto)}" alt="" referrerpolicy="no-referrer">`
-    : `<div class="er-comment-avatar-fallback">${esc((v.authorName || "U").charAt(0))}</div>`;
+    ? `<img class="changelog-avatar" src="${escUrl(v.authorPhoto)}" alt="" referrerpolicy="no-referrer">`
+    : `<div class="changelog-avatar-fallback">${esc((v.authorName || "U").charAt(0))}</div>`;
   const canRestore = isAdmin && v.fullSnapshot && Object.keys(v.fullSnapshot).length > 0;
 
   return `
-    <div class="version-card" data-version-id="${esc(v.id)}">
-      <div class="version-header">
-        <div class="version-header-left">
-          <span class="version-number">${vNum}</span>
-          <span class="version-type-badge version-type-${esc(v.type)}">${typeIcon} ${typeLabel}</span>
-          ${v.editRequestId ? `<a class="version-er-link" href="/app/${esc(appId)}/edit-requests" title="Linked edit request">🔗 ER</a>` : ""}
+    <div class="changelog-card" data-version-id="${esc(v.id)}">
+      <div class="changelog-header">
+        <div class="changelog-header-left">
+          <span class="changelog-number">${vNum}</span>
+          <span class="changelog-type changelog-type-${esc(v.type)}">${typeIcon} ${typeLabel}</span>
+          ${v.editRequestId ? `<a class="changelog-er-link" href="/app/${esc(appId)}/edit-requests" title="Linked edit request">🔗 ER</a>` : ""}
         </div>
-        <span class="version-date">${date}</span>
+        <span class="changelog-date">${date}</span>
       </div>
-      <p class="version-message">${esc(v.commitMessage)}</p>
-      ${v.summary && v.summary !== v.commitMessage ? `<p class="version-summary">${esc(v.summary)}</p>` : ""}
-      <div class="version-author">
+      <p class="changelog-message">${esc(v.commitMessage)}</p>
+      <div class="changelog-author">
         ${avatar}
-        <span>${esc(v.authorName || "Unknown")}</span>
+        <div class="changelog-author-info">
+          <span class="changelog-author-name">${esc(v.authorName || "Unknown")}</span>
+        </div>
       </div>
       ${changedFields.length ? `
-        <button class="btn btn-sm btn-secondary version-diff-toggle" data-version-id="${esc(v.id)}">📋 View Changes (${changedFields.length} field${changedFields.length > 1 ? "s" : ""})</button>
-        <div class="version-changes" id="version-diff-${esc(v.id)}" style="display:none;">
-          ${changedFields.map(f => {
-            const c = v.changes[f];
-            const oldStr = formatValuePlain(c?.old).slice(0, 300);
-            const newStr = formatValuePlain(c?.new).slice(0, 300);
-            return `<div class="version-diff"><span class="diff-field">${esc(FIELD_LABELS[f] || f)}</span><span class="diff-old">− ${esc(oldStr)}</span><span class="diff-new">+ ${esc(newStr)}</span></div>`;
-          }).join("")}
+        <div class="changelog-tags">
+          ${changedFields.map(f => `<span class="changelog-field-tag">${esc(FIELD_LABELS[f] || f)}</span>`).join("")}
+        </div>
+        <button class="btn btn-sm btn-secondary changelog-diff-toggle version-diff-toggle" data-version-id="${esc(v.id)}">📋 View Changes (${changedFields.length})</button>
+        <div class="changelog-diff-panel version-changes" id="version-diff-${esc(v.id)}" style="display:none;">
+          <table class="diff-table">
+            <thead><tr><th>Field</th><th class="diff-old">Before</th><th class="diff-new">After</th></tr></thead>
+            <tbody>
+              ${changedFields.map(f => {
+                const c = v.changes[f];
+                return `<tr>
+                  <td class="diff-field-name">${esc(FIELD_LABELS[f] || f)}</td>
+                  <td class="diff-cell diff-cell-old">${formatFieldValue(c?.old, f)}</td>
+                  <td class="diff-cell diff-cell-new">${formatFieldValue(c?.new, f)}</td>
+                </tr>`;
+              }).join("")}
+            </tbody>
+          </table>
         </div>
       ` : ""}
       ${canRestore ? `<button class="btn btn-sm btn-secondary version-restore-btn" data-version-id="${esc(v.id)}" data-app-id="${esc(appId)}">⏪ Restore to this version</button>` : ""}
@@ -3707,7 +3720,7 @@ function renderVersionCard(v, appId, opts = {}) {
 }
 
 function bindVersionCardHandlers(container, appId, reloadFn) {
-  container.querySelectorAll(".version-diff-toggle").forEach(btn => {
+  container.querySelectorAll(".changelog-diff-toggle.version-diff-toggle").forEach(btn => {
     btn.addEventListener("click", () => {
       const diffEl = document.getElementById(`version-diff-${btn.dataset.versionId}`);
       if (diffEl) {
@@ -3717,7 +3730,7 @@ function bindVersionCardHandlers(container, appId, reloadFn) {
       }
     });
   });
-  container.querySelectorAll(".version-er-link").forEach(link => {
+  container.querySelectorAll(".changelog-er-link").forEach(link => {
     link.addEventListener("click", e => { e.preventDefault(); navigateTo(link.getAttribute("href")); });
   });
   container.querySelectorAll(".version-restore-btn").forEach(btn => {
@@ -3849,12 +3862,12 @@ async function toggleDiffView(erId, appId, changesJson, toggleBtn, snapshotJson)
   if (diffEl.classList.contains("open")) {
     diffEl.classList.remove("open");
     diffEl.innerHTML = "";
-    toggleBtn.textContent = "📋 View Changes";
+    toggleBtn.textContent = toggleBtn.textContent.replace("Hide", "View");
     return;
   }
   diffEl.innerHTML = '<p class="diff-loading">Loading diff…</p>';
   diffEl.classList.add("open");
-  toggleBtn.textContent = "▲ Hide Changes";
+  toggleBtn.textContent = toggleBtn.textContent.replace("View", "Hide");
   try {
     const app = apps.find(a => a.id === appId) || await getAppFromFirestore(appId);
     const changes = JSON.parse(decodeURIComponent(changesJson));
@@ -3867,38 +3880,43 @@ async function toggleDiffView(erId, appId, changesJson, toggleBtn, snapshotJson)
 
 function renderERCard(er, appId, opts = {}) {
   const date = new Date(er.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-  const statusClass = er.status === "open" ? "er-status-open" : er.status === "merged" ? "er-status-merged" : "er-status-closed";
+  const statusClass = er.status === "open" ? "changelog-status-open" : er.status === "merged" ? "changelog-status-merged" : "changelog-status-closed";
   const statusIcon = er.status === "open" ? "🟢" : er.status === "merged" ? "🟣" : "🔴";
   const changedFields = Object.keys(er.changes || {}).filter(k => k !== "reason");
   const submitter = er.submitter || {};
   const avatarHtml = submitter.photoURL
-    ? `<img class="er-avatar-sm" src="${escUrl(submitter.photoURL)}" alt="" referrerpolicy="no-referrer">`
-    : `<div class="er-avatar-sm-fallback">${esc((submitter.displayName || "U").charAt(0))}</div>`;
+    ? `<img class="changelog-avatar" src="${escUrl(submitter.photoURL)}" alt="" referrerpolicy="no-referrer">`
+    : `<div class="changelog-avatar-fallback">${esc((submitter.displayName || "U").charAt(0))}</div>`;
   const approvals = er.approvals || [];
   const canReview = isAdmin && er.status === "open";
   const snapshot = er.mergeSnapshot || er.originalSnapshot || null;
   const snapshotAttr = snapshot ? `data-snapshot="${encodeURIComponent(JSON.stringify(snapshot))}"` : "";
 
   return `
-    <div class="er-card" data-er-id="${esc(er.id)}">
-      <div class="er-card-header">
-        <span class="er-status ${statusClass}">${statusIcon} ${esc(er.status)}</span>
-        ${er.locked ? '<span class="er-locked-badge">🔒 Locked</span>' : ""}
-        ${approvals.length ? `<span class="er-approvals">✓ ${approvals.length} approval${approvals.length > 1 ? "s" : ""}</span>` : ""}
-        <span class="er-date">${date}</span>
+    <div class="changelog-card er-card" data-er-id="${esc(er.id)}">
+      <div class="changelog-header">
+        <div class="changelog-header-left">
+          <span class="changelog-type ${statusClass}">${statusIcon} ${esc(er.status)}</span>
+          ${er.locked ? '<span class="changelog-type" style="background:var(--bg-tertiary);">🔒 Locked</span>' : ""}
+          ${approvals.length ? `<span class="changelog-type" style="background:var(--bg-tertiary);">✓ ${approvals.length} approval${approvals.length > 1 ? "s" : ""}</span>` : ""}
+        </div>
+        <span class="changelog-date">${date}</span>
       </div>
-      <div class="er-card-submitter">
+      <div class="changelog-author">
         ${avatarHtml}
-        <span class="er-submitter-link">${esc(submitter.displayName || "Anonymous")}</span>
-        ${submitter.provider ? `<span class="er-provider-sm">via ${esc(submitter.provider === "github.com" ? "GitHub" : "Google")}</span>` : ""}
+        <div class="changelog-author-info">
+          <span class="changelog-author-name">${esc(submitter.displayName || "Anonymous")}</span>
+          ${submitter.provider ? `<span class="changelog-author-role">via ${esc(submitter.provider === "github.com" ? "GitHub" : "Google")}</span>` : ""}
+        </div>
       </div>
-      <div class="er-card-changes">
-        <span class="er-changes-label">Changes:</span>
-        ${changedFields.map(f => `<span class="er-change-tag">${esc(f)}</span>`).join("")}
-        <button class="btn btn-sm btn-secondary er-diff-toggle" data-er-id="${esc(er.id)}" data-app-id="${esc(appId)}" data-changes="${encodeURIComponent(JSON.stringify(er.changes || {}))}" ${snapshotAttr}>📋 View Changes</button>
-      </div>
-      <div class="er-diff-container" id="er-diff-${esc(er.id)}"></div>
-      ${er.changes?.reason ? `<p class="er-card-reason">"${esc(er.changes.reason)}"</p>` : ""}
+      ${er.changes?.reason ? `<p class="changelog-message">"${esc(er.changes.reason)}"</p>` : ""}
+      ${changedFields.length ? `
+        <div class="changelog-tags">
+          ${changedFields.map(f => `<span class="changelog-field-tag">${esc(FIELD_LABELS[f] || f)}</span>`).join("")}
+        </div>
+        <button class="btn btn-sm btn-secondary changelog-diff-toggle er-diff-toggle" data-er-id="${esc(er.id)}" data-app-id="${esc(appId)}" data-changes="${encodeURIComponent(JSON.stringify(er.changes || {}))}" ${snapshotAttr}>📋 View Changes (${changedFields.length})</button>
+        <div class="changelog-diff-panel er-diff-container" id="er-diff-${esc(er.id)}"></div>
+      ` : ""}
       <div class="er-comments-section" id="er-comments-${esc(er.id)}"></div>
       ${currentUser ? `
         <div class="er-comment-form">
@@ -4060,7 +4078,7 @@ async function loadSubComments(submissionId) {
                         c.type === "comment" ? "" : "";
       return `
         <div class="er-comment ${typeClass}">
-          ${c.authorPhoto ? `<img class="er-avatar-sm" src="${escUrl(c.authorPhoto)}" alt="" referrerpolicy="no-referrer">` : ""}
+          ${c.authorPhoto ? `<img class="changelog-avatar" src="${escUrl(c.authorPhoto)}" alt="" referrerpolicy="no-referrer">` : ""}
           <span class="er-comment-author">${esc(c.authorName)}</span>
           <span class="er-comment-text">${esc(c.text)}</span>
           <span class="er-comment-time">${new Date(c.createdAt).toLocaleDateString()}</span>
