@@ -3868,6 +3868,60 @@ a.added-by-link:hover {
   overflow: auto;
 }
 
+/* Structured diff renderers for complex fields */
+.diff-json {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow: auto;
+  color: var(--text-2);
+  margin: 0;
+}
+
+.diff-inline-table {
+  font-size: 12px;
+  margin: 4px 0;
+}
+
+.diff-inline-table th,
+.diff-inline-table td {
+  padding: 4px 8px;
+}
+
+.diff-install-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0;
+}
+
+.diff-install-item code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: var(--text-2);
+}
+
+/* Version history diff improvements */
+.version-diff {
+  overflow: hidden;
+}
+
+.version-diff .diff-old,
+.version-diff .diff-new {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 @media (max-width: 600px) {
   .diff-table { font-size: 11px; }
   .diff-table th { font-size: 10px; padding: 6px 6px; }

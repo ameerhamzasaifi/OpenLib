@@ -196,13 +196,22 @@ function compCellHtml(val, colIdx) {
   if (val === true) selType = "true";
   else if (val === false) selType = "false";
   else if (val == null) selType = "dash";
+  else if (typeof val === "string" && val.startsWith("@")) selType = val;
   else { selType = "text"; textVal = val; }
+  const isBinding = typeof selType === "string" && selType.startsWith("@");
   return `<div class="comp-cell" data-col="${colIdx}">
     <select class="comp-cell-type">
       <option value="true" ${selType === "true" ? "selected" : ""}>✔ Yes</option>
       <option value="false" ${selType === "false" ? "selected" : ""}>✖ No</option>
       <option value="dash" ${selType === "dash" ? "selected" : ""}>— N/A</option>
       <option value="text" ${selType === "text" ? "selected" : ""}>Text…</option>
+      <optgroup label="Auto (from app data)">
+        <option value="@license" ${selType === "@license" ? "selected" : ""}>📄 License</option>
+        <option value="@platforms" ${selType === "@platforms" ? "selected" : ""}>💻 Platforms</option>
+        <option value="@cross-platform" ${selType === "@cross-platform" ? "selected" : ""}>🌐 Cross-Platform?</option>
+        <option value="@version" ${selType === "@version" ? "selected" : ""}>📦 Version</option>
+        <option value="@source" ${selType === "@source" ? "selected" : ""}>🔗 Has Source?</option>
+      </optgroup>
     </select>
     <input type="text" class="comp-cell-text" value="${esc(textVal)}" placeholder="Value" style="${selType === "text" ? "" : "display:none"}">
   </div>`;
@@ -309,6 +318,7 @@ function getComparisonData(container) {
       if (tp === "true") values.push(true);
       else if (tp === "false") values.push(false);
       else if (tp === "dash") values.push(null);
+      else if (tp.startsWith("@")) values.push(tp);
       else values.push(cell.querySelector(".comp-cell-text").value.trim() || null);
     });
     if (feature) rows.push({ feature, values });
@@ -328,12 +338,27 @@ function validateComparisonEditor(container) {
   return error;
 }
 
+// Resolve dynamic tokens in comparison cell values — binds to live app metadata
+const COMP_BINDINGS = {
+  "@license": app => app.license || "Open Source",
+  "@platforms": app => (app.platforms || []).join(", ") || "—",
+  "@cross-platform": app => (app.platforms || []).length > 1,
+  "@source": app => app.source ? "✔" : "—",
+  "@version": app => app.version || "—"
+};
+
+function resolveCompValue(val, app) {
+  if (typeof val === "string" && val.startsWith("@") && COMP_BINDINGS[val]) return COMP_BINDINGS[val](app);
+  return val;
+}
+
 function renderComparisonHtml(app) {
   if (app.comparisonData?.columns?.length && app.comparisonData?.rows?.length) {
     const { columns, rows } = app.comparisonData;
     const hdr = columns.map(c => `<th>${esc(c)}</th>`).join("");
     const body = rows.map(r => {
-      const cells = r.values.map(v => {
+      const cells = (r.values || []).map(raw => {
+        const v = resolveCompValue(raw, app);
         if (v === true) return '<td class="comp-yes">✔</td>';
         if (v === false) return '<td class="comp-no">✖</td>';
         if (v == null) return '<td class="comp-na">—</td>';
@@ -3671,7 +3696,9 @@ function renderVersionCard(v, appId, opts = {}) {
         <div class="version-changes" id="version-diff-${esc(v.id)}" style="display:none;">
           ${changedFields.map(f => {
             const c = v.changes[f];
-            return `<div class="version-diff"><span class="diff-field">${esc(f)}</span><span class="diff-old">− ${esc(String(c?.old ?? "—")).slice(0, 200)}</span><span class="diff-new">+ ${esc(String(c?.new ?? "—")).slice(0, 200)}</span></div>`;
+            const oldStr = formatValuePlain(c?.old).slice(0, 300);
+            const newStr = formatValuePlain(c?.new).slice(0, 300);
+            return `<div class="version-diff"><span class="diff-field">${esc(FIELD_LABELS[f] || f)}</span><span class="diff-old">− ${esc(oldStr)}</span><span class="diff-new">+ ${esc(newStr)}</span></div>`;
           }).join("")}
         </div>
       ` : ""}
@@ -3736,10 +3763,49 @@ async function loadVersionHistory(appId) {
 
 // ── Enhanced Edit Request with Review Comments ───────────────────────────────
 /* ── Diff View Helper ── */
-function formatFieldValue(val) {
+function formatFieldValue(val, fieldKey) {
   if (val == null || val === "") return '<span class="diff-empty">—</span>';
-  if (Array.isArray(val)) return val.length ? val.map(v => `<span class="diff-tag">${esc(String(v))}</span>`).join(" ") : '<span class="diff-empty">—</span>';
+  if (fieldKey === "comparisonData") return formatComparisonDataDiff(val);
+  if (fieldKey === "installMethods") return formatInstallMethodsDiff(val);
+  if (Array.isArray(val)) {
+    if (!val.length) return '<span class="diff-empty">—</span>';
+    // Handle arrays of objects (generic)
+    if (typeof val[0] === "object" && val[0] !== null) {
+      return val.map(v => `<span class="diff-tag">${esc(JSON.stringify(v))}</span>`).join(" ");
+    }
+    return val.map(v => `<span class="diff-tag">${esc(String(v))}</span>`).join(" ");
+  }
+  if (typeof val === "object") return `<pre class="diff-json">${esc(JSON.stringify(val, null, 2))}</pre>`;
   return esc(String(val));
+}
+
+function formatComparisonDataDiff(data) {
+  if (!data || !data.columns?.length || !data.rows?.length) return '<span class="diff-empty">—</span>';
+  const hdr = data.columns.map(c => `<th>${esc(c)}</th>`).join("");
+  const bindingLabel = { "@license": "📄 Auto: License", "@platforms": "💻 Auto: Platforms", "@cross-platform": "🌐 Auto: Cross-Platform", "@version": "📦 Auto: Version", "@source": "🔗 Auto: Has Source" };
+  const body = data.rows.map(r => {
+    const cells = (r.values || []).map(v => {
+      if (v === true) return '<td class="comp-yes">✔</td>';
+      if (v === false) return '<td class="comp-no">✖</td>';
+      if (v == null) return '<td class="comp-na">—</td>';
+      if (typeof v === "string" && v.startsWith("@") && bindingLabel[v]) return `<td><span class="diff-tag">${bindingLabel[v]}</span></td>`;
+      return `<td>${esc(String(v))}</td>`;
+    }).join("");
+    return `<tr><td>${esc(r.feature)}</td>${cells}</tr>`;
+  }).join("");
+  return `<table class="comparison-table diff-inline-table"><thead><tr><th>Feature</th>${hdr}</tr></thead><tbody>${body}</tbody></table>`;
+}
+
+function formatInstallMethodsDiff(methods) {
+  if (!Array.isArray(methods) || !methods.length) return '<span class="diff-empty">—</span>';
+  return methods.map(m => `<div class="diff-install-item"><span class="diff-tag">${esc(m.label || "")}</span> <code>${esc(m.command || "")}</code></div>`).join("");
+}
+
+function formatValuePlain(val) {
+  if (val == null || val === "") return "—";
+  if (Array.isArray(val)) return val.length ? val.map(v => typeof v === "object" ? JSON.stringify(v) : String(v)).join(", ") : "—";
+  if (typeof val === "object") return JSON.stringify(val, null, 2);
+  return String(val);
 }
 
 const FIELD_LABELS = {
@@ -3749,7 +3815,7 @@ const FIELD_LABELS = {
   fileSize: "File Size", developer: "Developer", developerUrl: "Developer URL",
   fullDescription: "Full Description", features: "Features", tags: "Tags",
   screenshots: "Screenshots", installMethods: "Install Methods", platforms: "Platforms",
-  systemRequirements: "System Requirements"
+  systemRequirements: "System Requirements", comparisonData: "Comparison Table"
 };
 
 function renderDiffTable(changes, originalApp, snapshot) {
@@ -3764,11 +3830,12 @@ function renderDiffTable(changes, originalApp, snapshot) {
           ${fields.map(f => {
             const oldVal = snapshot && snapshot[f] !== undefined ? snapshot[f] : (originalApp ? originalApp[f] : undefined);
             const newVal = changes[f];
-            const isLong = typeof newVal === "string" && newVal.length > 120;
+            const isComplex = f === "comparisonData" || f === "installMethods" || Array.isArray(newVal) || (typeof newVal === "object" && newVal !== null);
+            const isLong = (typeof newVal === "string" && newVal.length > 120) || isComplex;
             return `<tr class="${isLong ? "diff-row-long" : ""}">
               <td class="diff-field-name">${esc(FIELD_LABELS[f] || f)}</td>
-              <td class="diff-cell diff-cell-old">${formatFieldValue(oldVal)}</td>
-              <td class="diff-cell diff-cell-new">${formatFieldValue(newVal)}</td>
+              <td class="diff-cell diff-cell-old">${formatFieldValue(oldVal, f)}</td>
+              <td class="diff-cell diff-cell-new">${formatFieldValue(newVal, f)}</td>
             </tr>`;
           }).join("")}
         </tbody>

@@ -398,9 +398,15 @@ export async function createAppVersion(appId, { changes, commitMessage, authorUi
   const summary = changedKeys.length
     ? changedKeys.map(k => {
         const c = changes[k];
-        const oldVal = c?.old != null ? String(c.old) : "—";
-        const newVal = c?.new != null ? String(c.new) : "—";
-        return `${k}: "${oldVal.slice(0, 60)}" → "${newVal.slice(0, 60)}"`;
+        const fmtVal = v => {
+          if (v == null) return "—";
+          if (Array.isArray(v)) return v.length ? v.map(i => typeof i === "object" ? JSON.stringify(i) : String(i)).join(", ") : "—";
+          if (typeof v === "object") return JSON.stringify(v);
+          return String(v);
+        };
+        const oldVal = fmtVal(c?.old).slice(0, 60);
+        const newVal = fmtVal(c?.new).slice(0, 60);
+        return `${k}: "${oldVal}" → "${newVal}"`;
       }).join("; ")
     : type === "initial" ? "Initial app listing" : commitMessage;
 
