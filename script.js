@@ -543,7 +543,11 @@ async function showAppDetail(appId) {
     <div class="detail-section">
       <h3>Screenshots</h3>
       <div class="screenshots-gallery">
-        ${screenshots.map((url, i) => `<img class="screenshot-thumb" src="${escUrl(url)}" alt="Screenshot ${i+1}" data-full="${escUrl(url)}" loading="lazy">`).join("")}
+        ${screenshots.map((url, i) => `
+          <figure class="screenshot-item" data-index="${i}">
+            <img class="screenshot-thumb" src="${escUrl(url)}" alt="Screenshot ${i+1}" data-full="${escUrl(url)}" loading="lazy" decoding="async"
+              onload="this.parentElement.dataset.ratio=this.naturalWidth>=this.naturalHeight?'landscape':'portrait'">
+          </figure>`).join("")}
       </div>
     </div>` : "";
 
@@ -934,8 +938,13 @@ async function showAppDetail(appId) {
   document.addEventListener("click", () => shareDropdown?.classList.remove("open"), { once: true });
 
   // Screenshots lightbox
-  detailView.querySelectorAll(".screenshot-thumb").forEach(img => {
-    img.addEventListener("click", () => openScreenshotLightbox(img.dataset.full));
+  const screenshotItems = detailView.querySelectorAll(".screenshot-item");
+  screenshotItems.forEach(fig => {
+    fig.addEventListener("click", () => {
+      const imgs = Array.from(detailView.querySelectorAll(".screenshot-thumb"));
+      const srcs = imgs.map(img => img.dataset.full);
+      openScreenshotLightbox(srcs, parseInt(fig.dataset.index, 10));
+    });
   });
 
   // Expandable description
@@ -1024,18 +1033,47 @@ function getAppPreviousRank(appId) {
 }
 
 // ── Screenshot Lightbox ──────────────────────────────────────────────────────
-function openScreenshotLightbox(src) {
+function openScreenshotLightbox(srcs, startIndex) {
+  let current = startIndex || 0;
+  const total = srcs.length;
+
   const overlay = document.createElement("div");
   overlay.className = "lightbox-overlay";
-  overlay.innerHTML = `
-    <div class="lightbox-content">
-      <img src="${escUrl(src)}" alt="Screenshot" class="lightbox-img">
-      <button class="lightbox-close">✕</button>
-    </div>
-  `;
+
+  function render() {
+    const prevDisabled = total <= 1 ? ' style="display:none"' : "";
+    const nextDisabled = total <= 1 ? ' style="display:none"' : "";
+    overlay.innerHTML = `
+      <button class="lightbox-nav lightbox-prev"${prevDisabled} aria-label="Previous">‹</button>
+      <div class="lightbox-content">
+        <img src="${escUrl(srcs[current])}" alt="Screenshot ${current + 1} of ${total}" class="lightbox-img" draggable="false">
+        <button class="lightbox-close" aria-label="Close">✕</button>
+        ${total > 1 ? `<span class="lightbox-counter">${current + 1} / ${total}</span>` : ""}
+      </div>
+      <button class="lightbox-nav lightbox-next"${nextDisabled} aria-label="Next">›</button>
+    `;
+  }
+
+  function navigate(dir) {
+    current = (current + dir + total) % total;
+    render();
+  }
+
   overlay.addEventListener("click", e => {
-    if (e.target === overlay || e.target.closest(".lightbox-close")) overlay.remove();
+    if (e.target === overlay) { overlay.remove(); document.removeEventListener("keydown", onKey); return; }
+    if (e.target.closest(".lightbox-close")) { overlay.remove(); document.removeEventListener("keydown", onKey); return; }
+    if (e.target.closest(".lightbox-prev")) { navigate(-1); return; }
+    if (e.target.closest(".lightbox-next")) { navigate(1); return; }
   });
+
+  function onKey(e) {
+    if (e.key === "Escape") { overlay.remove(); document.removeEventListener("keydown", onKey); }
+    else if (e.key === "ArrowLeft") navigate(-1);
+    else if (e.key === "ArrowRight") navigate(1);
+  }
+  document.addEventListener("keydown", onKey);
+
+  render();
   document.body.appendChild(overlay);
 }
 
