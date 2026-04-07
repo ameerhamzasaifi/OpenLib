@@ -1019,12 +1019,14 @@ export async function updateSubmission(submissionId, uid, updatedData) {
 
   await updateDoc(subRef, update);
 
+  // [OPT-10 FIX] Single getUserRecord call instead of two
+  const _u = await getUserRecord(uid);
   await addDoc(collection(db, "review_comments"), {
     submissionId,
     text: "Resubmitted with updates",
     authorUid: uid,
-    authorName: (await getUserRecord(uid))?.displayName || "User",
-    authorPhoto: (await getUserRecord(uid))?.photoURL || "",
+    authorName: _u?.displayName || "User",
+    authorPhoto: _u?.photoURL || "",
     type: "resubmission",
     createdAt: update.updatedAt
   });
@@ -1120,13 +1122,11 @@ export async function getFollowingCount(uid) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export async function addAppReview(appId, reviewData, user) {
-  // One review per user per app
-  const existing = await getDocs(query(
-    collection(db, "app_reviews"),
-    where("appId", "==", appId),
-    where("authorUid", "==", user.uid)
-  ));
-  if (!existing.empty) throw new Error("You have already reviewed this app. Edit your existing review instead.");
+  // [VULN-E FIX] Use structural doc ID for uniqueness enforcement
+  const reviewId = `${user.uid}_${appId}`;
+  const ref = doc(db, "app_reviews", reviewId);
+  const existing = await getDoc(ref);
+  if (existing.exists()) throw new Error("You have already reviewed this app. Edit your existing review instead.");
 
   const now = new Date().toISOString();
   const review = {
@@ -1142,9 +1142,9 @@ export async function addAppReview(appId, reviewData, user) {
     createdAt: now,
     updatedAt: now
   };
-  const ref = await addDoc(collection(db, "app_reviews"), review);
+  await setDoc(ref, review);
   await incrementActivity(user.uid, "reviewsDone");
-  return { id: ref.id, ...review };
+  return { id: reviewId, ...review };
 }
 
 export async function getAppReviews(appId, sortBy = "latest") {
@@ -1310,18 +1310,14 @@ export async function getWeeklyDownloads(appId) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export async function submitOwnershipClaim(appId, user) {
-  // Check if user already has a pending claim
-  const existing = query(
-    collection(db, "ownership_claims"),
-    where("appId", "==", appId),
-    where("claimantUid", "==", user.uid),
-    where("status", "==", "pending")
-  );
-  const snap = await getDocs(existing);
-  if (!snap.empty) throw new Error("You already have a pending claim for this app.");
+  // [VULN-F FIX] Use structural doc ID to prevent race condition duplicates
+  const claimId = `${user.uid}_${appId}`;
+  const ref = doc(db, "ownership_claims", claimId);
+  const snap = await getDoc(ref);
+  if (snap.exists()) throw new Error("You already have a pending claim for this app.");
 
   const now = new Date().toISOString();
-  await addDoc(collection(db, "ownership_claims"), {
+  await setDoc(ref, {
     appId,
     claimantUid: user.uid,
     claimantName: user.displayName || "Anonymous",

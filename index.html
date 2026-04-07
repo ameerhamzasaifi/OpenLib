@@ -46,13 +46,18 @@
   }
   </script>
 
-  <!-- Google Analytics (GA4) -->
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-01WBRWH49J"></script>
+  <!-- Google Analytics (GA4) — [OPT-15 FIX] Only load on production hostname -->
   <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag(){dataLayer.push(arguments);}
-    gtag('js', new Date());
-    gtag('config', 'G-01WBRWH49J');
+    if (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+      const _gas = document.createElement('script');
+      _gas.async = true;
+      _gas.src = 'https://www.googletagmanager.com/gtag/js?id=G-01WBRWH49J';
+      document.head.appendChild(_gas);
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-01WBRWH49J');
+    }
   </script>
 
   <link rel="stylesheet" href="styles.css">

@@ -44,6 +44,16 @@ let userRecord = null;
 let isAdmin = false;
 let apps = [];
 
+// [OPT-1 FIX] Centralized view switching — replaces 11 duplicate view-hiding blocks
+const ALL_VIEWS = ["home-view", "detail-view", "rankings-view", "profile-view",
+                   "org-view", "admin-view", "verify-view", "team-view", "team-manage-view"];
+function switchView(activeId) {
+  ALL_VIEWS.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = id === activeId ? "block" : "none";
+  });
+}
+
 
 // [VULN-10 FIX] Seed data removed from production bundle.
 // Use a separate seed script with firebase-admin SDK for development:
@@ -382,8 +392,9 @@ function renderComparisonHtml(app) {
     </table></div>`;
 }
 
-function buildCard(app) {
-  const rank = getAppRank(app.id);
+function buildCard(app, rankMap) {
+  // [OPT-13 FIX] Use precomputed rank map instead of O(n log n) per card
+  const rank = rankMap ? rankMap.get(app.id) : getAppRank(app.id);
   const plates = (app.platforms || []).map(p => `<span class="platform-tag">${platformIcon(p)} ${esc(p)}</span>`).join("");
   const logoHtml = app.logo
     ? `<img class="app-logo" src="${escUrl(app.logo)}" alt="${esc(app.name)} logo" data-app-id="${esc(app.id)}">`
@@ -436,6 +447,8 @@ function handleLogoError(e) {
 
 function renderGrid(list) {
   const grid = document.getElementById("app-grid");
+  // [OPT-13 FIX] Precompute rank map once — O(n log n) total instead of O(n²)
+  const rankMap = new Map(getRankedApps().map((a, i) => [a.id, i + 1]));
   document.getElementById("results-count").innerHTML = `<strong>${list.length}</strong> of ${apps.length} apps`;
   if (!list.length) {
     grid.innerHTML = `
@@ -448,7 +461,7 @@ function renderGrid(list) {
       </div>`;
     return;
   }
-  grid.innerHTML = list.map(buildCard).join("");
+  grid.innerHTML = list.map(app => buildCard(app, rankMap)).join("");
   document.getElementById("total-count").textContent = `${apps.length} apps`;
   grid.querySelectorAll("img.app-logo").forEach(img => {
     img.addEventListener("error", handleLogoError);
@@ -490,8 +503,7 @@ function buildFilters() {
 
 // ── App Detail Page ──────────────────────────────────────────────────────────
 async function showAppDetail(appId) {
-  const views = ["home-view", "rankings-view", "profile-view", "org-view", "admin-view", "verify-view", "team-view", "team-manage-view"];
-  views.forEach(v => { const el = document.getElementById(v); if (el) el.style.display = "none"; });
+  switchView("detail-view");
   const detailView = document.getElementById("detail-view");
   detailView.style.display = "block";
 
@@ -1516,8 +1528,7 @@ function renderRecommendations() {
 
 // ── Profile View ─────────────────────────────────────────────────────────────
 async function showProfile(uid) {
-  const views = ["home-view", "detail-view", "rankings-view", "org-view", "admin-view", "verify-view", "team-view", "team-manage-view"];
-  views.forEach(v => { const el = document.getElementById(v); if (el) el.style.display = "none"; });
+  switchView("profile-view");
   const profileView = document.getElementById("profile-view");
   profileView.style.display = "block";
   profileView.innerHTML = `<div class="detail-loading">Loading profile…</div>`;
@@ -1782,8 +1793,7 @@ async function showProfile(uid) {
 
 // ── Organization View ────────────────────────────────────────────────────────
 async function showOrgView(orgId) {
-  const views = ["home-view", "detail-view", "rankings-view", "profile-view", "admin-view", "verify-view", "team-view", "team-manage-view"];
-  views.forEach(v => { const el = document.getElementById(v); if (el) el.style.display = "none"; });
+  switchView("org-view");
   const orgView = document.getElementById("org-view");
   orgView.style.display = "block";
   orgView.innerHTML = `<div class="detail-loading">Loading organization…</div>`;
@@ -1925,8 +1935,7 @@ async function showOrgView(orgId) {
 
 // ── Verify Submissions (Team-only screen) ────────────────────────────────────
 async function showVerifySubmissions() {
-  const allViews = ["home-view", "detail-view", "rankings-view", "profile-view", "org-view", "admin-view", "team-view", "team-manage-view"];
-  allViews.forEach(v => { const el = document.getElementById(v); if (el) el.style.display = "none"; });
+  switchView("verify-view");
   const verifyView = document.getElementById("verify-view");
   verifyView.style.display = "block";
 
@@ -2216,8 +2225,7 @@ async function loadVerifyComments(submissionId) {
 
 // ── Public OpenLib Team Page ─────────────────────────────────────────────────
 async function showOpenLibTeamPage() {
-  const views = ["home-view", "detail-view", "rankings-view", "profile-view", "org-view", "admin-view", "verify-view", "team-manage-view"];
-  views.forEach(v => { const el = document.getElementById(v); if (el) el.style.display = "none"; });
+  switchView("team-view");
   const teamView = document.getElementById("team-view");
   teamView.style.display = "block";
 
@@ -2372,8 +2380,7 @@ function renderTeamMemberCard(member, role) {
 
 // ── Team Management Page (Admin-only) ────────────────────────────────────────
 async function showTeamManagePage() {
-  const views = ["home-view", "detail-view", "rankings-view", "profile-view", "org-view", "admin-view", "verify-view", "team-view"];
-  views.forEach(v => { const el = document.getElementById(v); if (el) el.style.display = "none"; });
+  switchView("team-manage-view");
   const manageView = document.getElementById("team-manage-view");
   manageView.style.display = "block";
 
@@ -2728,8 +2735,7 @@ function attachTMAddButtons() {
 
 // ── Admin Dashboard ──────────────────────────────────────────────────────────
 async function showAdminDashboard() {
-  const views = ["home-view", "detail-view", "rankings-view", "profile-view", "org-view", "verify-view", "team-view", "team-manage-view"];
-  views.forEach(v => { const el = document.getElementById(v); if (el) el.style.display = "none"; });
+  switchView("admin-view");
   const adminView = document.getElementById("admin-view");
   adminView.style.display = "block";
 
@@ -3319,7 +3325,8 @@ function attachAdminHandlers(tab) {
           const record = await getUserRecord(uid);
           if (record) {
             const info = `${record.displayName || "—"} (${record.email || "—"})\nRole: ${record.role || "user"}\nProvider: ${(record.linkedProviders || []).join(", ") || record.provider || "—"}\nJoined: ${record.createdAt ? new Date(record.createdAt).toLocaleDateString() : "—"}`;
-            alert("Submitter Profile:\n\n" + info);
+            // [VULN-H FIX] Display in inline panel instead of alert() to prevent data capture
+            showProfileLookupModal("Submitter Profile", record);
           } else {
             showToast("User record not found for UID: " + uid.slice(0, 12));
           }
@@ -3543,7 +3550,8 @@ function attachAdminHandlers(tab) {
           const record = await getUserRecord(uid);
           if (record) {
             const info = `${record.displayName || "—"} (${record.email || "—"})\nRole: ${record.role || "user"}\nProvider: ${(record.linkedProviders || []).join(", ") || record.provider || "—"}\nJoined: ${record.createdAt ? new Date(record.createdAt).toLocaleDateString() : "—"}`;
-            alert("Reporter Profile:\n\n" + info);
+            // [VULN-H FIX] Display in inline panel instead of alert() to prevent data capture
+            showProfileLookupModal("Reporter Profile", record);
           } else {
             showToast("User record not found");
           }
@@ -4129,8 +4137,7 @@ async function loadSubComments(submissionId) {
 
 // ── Rankings Page ────────────────────────────────────────────────────────────
 function showRankings() {
-  const views = ["home-view", "detail-view", "profile-view", "org-view", "admin-view", "verify-view", "team-view", "team-manage-view"];
-  views.forEach(v => { const el = document.getElementById(v); if (el) el.style.display = "none"; });
+  switchView("rankings-view");
   const rankView = document.getElementById("rankings-view");
   rankView.style.display = "block";
 
@@ -4509,8 +4516,9 @@ function isValidLogoURL(url) {
     ];
     const isTrustedHost = trustedHosts.some(h => parsed.hostname === h || parsed.hostname.endsWith("." + h));
     if (isTrustedHost) return true;
-    // For other https hosts, require an image file extension
-    return /\.(jpe?g|png|svg|webp)(\?.*)?$/i.test(parsed.pathname);
+    // [VULN-C FIX] For untrusted hosts, allow image extensions but reject SVG
+    // (SVGs can contain <script> tags and execute in older browsers)
+    return /\.(jpe?g|png|webp)(\?.*)?$/i.test(parsed.pathname);
   } catch {
     return false;
   }
@@ -4526,6 +4534,31 @@ function setMsg(form, text, cls) {
   if (!el) return;
   el.textContent = text;
   el.className = cls ? `form-msg ${cls}` : "form-msg";
+}
+
+// [VULN-H FIX] Inline modal for admin profile lookups (replaces alert())
+function showProfileLookupModal(title, record) {
+  let overlay = document.getElementById("profile-lookup-modal");
+  if (!overlay) {
+    overlay = document.createElement("div");
+    overlay.id = "profile-lookup-modal";
+    overlay.className = "modal-overlay";
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-modal", "true");
+    overlay.innerHTML = `<div class="modal"><div class="modal-header"><h2 class="modal-title"></h2><button class="modal-close" aria-label="Close modal">\u2715</button></div><div class="modal-body"></div></div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector(".modal-close").addEventListener("click", () => overlay.classList.remove("open"));
+    overlay.addEventListener("click", e => { if (e.target === overlay) overlay.classList.remove("open"); });
+  }
+  overlay.querySelector(".modal-title").textContent = title;
+  overlay.querySelector(".modal-body").innerHTML = `
+    <p><strong>Name:</strong> ${esc(record.displayName || "\u2014")}</p>
+    <p><strong>Email:</strong> ${esc(record.email || "\u2014")}</p>
+    <p><strong>Role:</strong> ${esc(record.role || "user")}</p>
+    <p><strong>Provider:</strong> ${esc((record.linkedProviders || []).join(", ") || record.provider || "\u2014")}</p>
+    <p><strong>Joined:</strong> ${record.createdAt ? esc(new Date(record.createdAt).toLocaleDateString()) : "\u2014"}</p>
+    <p><strong>UID:</strong> <code>${esc(record.uid || record.id || "\u2014")}</code></p>`;
+  overlay.classList.add("open");
 }
 
 // ── Theme ────────────────────────────────────────────────────────────────────
@@ -4844,8 +4877,7 @@ function handleRoute() {
 }
 
 function showHome() {
-  const views = ["detail-view", "rankings-view", "profile-view", "org-view", "admin-view", "verify-view", "team-view", "team-manage-view"];
-  views.forEach(v => { const el = document.getElementById(v); if (el) el.style.display = "none"; });
+  switchView("home-view");
   document.getElementById("home-view").style.display = "block";
   buildFilters();
   renderGrid(getFiltered());
@@ -4853,8 +4885,7 @@ function showHome() {
 }
 
 async function showReviewsPage(appId) {
-  const views = ["home-view", "rankings-view", "profile-view", "org-view", "admin-view", "verify-view", "team-view", "team-manage-view"];
-  views.forEach(v => { const el = document.getElementById(v); if (el) el.style.display = "none"; });
+  switchView("detail-view");
   const detailView = document.getElementById("detail-view");
   detailView.style.display = "block";
 
@@ -4977,8 +5008,7 @@ async function showReviewsPage(appId) {
 }
 
 async function showEditRequestsPage(appId) {
-  const views = ["home-view", "rankings-view", "profile-view", "org-view", "admin-view", "verify-view", "team-view", "team-manage-view"];
-  views.forEach(v => { const el = document.getElementById(v); if (el) el.style.display = "none"; });
+  switchView("detail-view");
   const detailView = document.getElementById("detail-view");
   detailView.style.display = "block";
 
@@ -5042,8 +5072,7 @@ async function showEditRequestsPage(appId) {
 }
 
 async function showVersionHistoryPage(appId) {
-  const views = ["home-view", "rankings-view", "profile-view", "org-view", "admin-view", "verify-view", "team-view", "team-manage-view"];
-  views.forEach(v => { const el = document.getElementById(v); if (el) el.style.display = "none"; });
+  switchView("detail-view");
   const detailView = document.getElementById("detail-view");
   detailView.style.display = "block";
 
