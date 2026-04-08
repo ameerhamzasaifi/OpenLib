@@ -315,13 +315,48 @@ export async function getAllOrganizations() {
   }
 }
 
+// ── Org Permission Helpers ───────────────────────────────────────────────────
+
+/**
+ * Returns the user's role within an organization, or null if not a member.
+ */
+export function getOrgMemberRole(org, uid) {
+  if (!org || !uid || !org.members) return null;
+  const member = org.members.find(m => m.uid === uid);
+  return member ? member.role : null;
+}
+
+/**
+ * Checks if a user has a specific permission level in an org.
+ * Permission levels (hierarchical):
+ *   "owner"       — full control
+ *   "admin"       — owner + maintainer roles can add/edit/delete apps
+ *   "contributor"  — can submit apps (may require approval)
+ */
+export function hasOrgPermission(org, uid, permission) {
+  const role = getOrgMemberRole(org, uid);
+  if (!role) return false;
+  if (permission === "contributor") return true; // all members can contribute
+  if (permission === "admin") return ["owner", "maintainer"].includes(role);
+  if (permission === "owner") return role === "owner";
+  return false;
+}
+
+/**
+ * Returns orgs where the user has at least the given permission level.
+ */
+export async function getUserOrgsWithPermission(uid, permission = "contributor") {
+  const orgs = await getUserOrganizations(uid);
+  return orgs.filter(org => hasOrgPermission(org, uid, permission));
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 //  APP OWNERSHIP & VERSIONS
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export async function submitAppWithOwner(payload, userId, ownerType = "user", ownerId = null) {
+export async function submitAppWithOwner(payload, userId, ownerType = "user", ownerId = null, orgContext = null) {
   const now = new Date().toISOString();
-  const ref = await addDoc(collection(db, "submissions"), {
+  const submissionData = {
     ...payload,
     userId,
     ownerType,
@@ -329,7 +364,19 @@ export async function submitAppWithOwner(payload, userId, ownerType = "user", ow
     timestamp: now,
     status: "pending",
     version: "1.0.0"
-  });
+  };
+
+  // If submitting on behalf of an org, validate membership and store audit trail
+  if (ownerType === "organization" && ownerId) {
+    const org = await getOrganization(ownerId);
+    if (!org) throw new Error("Organization not found");
+    if (!getOrgMemberRole(org, userId)) throw new Error("You are not a member of this organization");
+    submissionData.submittedByUid = userId;
+    submissionData.submittedByName = orgContext?.submitterName || "Member";
+    submissionData.orgName = org.name;
+  }
+
+  const ref = await addDoc(collection(db, "submissions"), submissionData);
   await incrementActivity(userId, "appsSubmitted");
   return ref.id;
 }
@@ -856,10 +903,20 @@ export async function approveSubmission(submissionId, adminUid) {
   const admin = await getUserRecord(adminUid);
   const id = sub.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
-  // Resolve addedBy attribution based on submitter's actual role
+  // Resolve addedBy attribution based on ownership type
   const submitter = await getUserRecord(sub.userId);
   let addedByData;
-  if (submitter && ["admin", "openlib-team"].includes(submitter.role)) {
+  if (sub.ownerType === "organization" && sub.ownerId) {
+    // Organization submission — attribute to the org
+    const org = await getOrganization(sub.ownerId);
+    addedByData = {
+      type: "organization",
+      name: org?.name || "Organization",
+      uid: sub.ownerId,
+      role: "organization",
+      photoURL: org?.logoURL || ""
+    };
+  } else if (submitter && ["admin", "openlib-team"].includes(submitter.role)) {
     // Admin/team submissions are attributed to OpenLib Official
     addedByData = { type: "openlib-team", name: "OpenLib Team", uid: sub.userId, role: submitter.role };
   } else {
@@ -906,6 +963,12 @@ export async function approveSubmission(submissionId, adminUid) {
     createdAt: now,
     updatedAt: now
   };
+
+  // Audit trail: if submitted on behalf of an org, record which member submitted
+  if (sub.ownerType === "organization" && sub.submittedByUid) {
+    appData.submittedByUid = sub.submittedByUid;
+    appData.submittedByName = sub.submittedByName || "";
+  }
 
   await setDoc(doc(db, "apps", id), appData);
   await updateDoc(subRef, { status: "approved", reviewedBy: adminUid, reviewedAt: now });

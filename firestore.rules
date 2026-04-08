@@ -120,7 +120,9 @@ service cloud.firestore {
              "installMethods", "systemRequirements", "platforms",
              "userId", "userName", "userEmail", "userPhoto",
              "status", "createdAt", "updatedAt",
-             "addedBy", "ownerType", "comparisonData"
+             "addedBy", "ownerType", "ownerId",
+             "submittedByUid", "submittedByName", "orgName",
+             "comparisonData"
            ])
         && request.resource.data.keys().size() <= 35
         // Prevent non-admin users from claiming official status on submissions

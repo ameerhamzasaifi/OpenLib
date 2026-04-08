@@ -16,6 +16,7 @@ import {
   setAccountVerified, setTeamAccount, getAllUsers,
   createOrganization, getOrganization, updateOrganization, addOrgMember,
   removeOrgMember, transferOwnership, transferToCorporation, getUserOrganizations, getAllOrganizations,
+  getOrgMemberRole, hasOrgPermission, getUserOrgsWithPermission,
   submitAppWithOwner, getAppsByOwner, transferAppOwnership,
   getAppVersions, restoreAppVersion,
   addReviewComment, getReviewComments, approveEditRequest, mergeEditRequest, rejectEditRequest,
@@ -147,7 +148,24 @@ async function loadApps() {
 
 async function submitApp(payload) {
   if (!currentUser) throw new Error("Sign in required");
-  return await submitAppToFirestore(payload, currentUser.uid);
+
+  // Check if submitting on behalf of an organization
+  const ownerSelect = document.getElementById("sub-owner");
+  const ownerVal = ownerSelect ? ownerSelect.value : "user";
+
+  if (ownerVal.startsWith("org:")) {
+    const orgId = ownerVal.slice(4);
+    const org = await getOrganization(orgId);
+    if (!org) throw new Error("Organization not found");
+    return await submitAppWithOwner(payload, currentUser.uid, "organization", orgId, {
+      orgId,
+      orgName: org.name,
+      submittedByUid: currentUser.uid,
+      submittedByName: currentUser.displayName || currentUser.email
+    });
+  }
+
+  return await submitAppWithOwner(payload, currentUser.uid, "user", currentUser.uid);
 }
 
 async function submitReport(payload) {
@@ -188,6 +206,16 @@ function addedByBadge(addedBy) {
   if (!addedBy || addedBy.type === "openlib-team" || addedBy.role === "admin") {
     return `<a href="/team" class="added-by-badge team added-by-link" title="Curated by the OpenLib team">
       <span class="added-by-avatar-mini official-avatar-mini">OL</span> OpenLib (Official)
+    </a>`;
+  }
+  if (addedBy.type === "organization") {
+    const orgName = esc(addedBy.name || "Organization");
+    const orgLink = addedBy.uid ? `href="/org/${esc(addedBy.uid)}"` : "";
+    const orgAvatar = addedBy.photoURL
+      ? `<img class="added-by-avatar-mini" src="${escUrl(addedBy.photoURL)}" alt="" referrerpolicy="no-referrer">`
+      : `<span class="added-by-avatar-mini">${esc(orgName.charAt(0))}</span>`;
+    return `<a ${orgLink} class="added-by-badge org added-by-link" title="Added by ${orgName}">
+      ${orgAvatar} ${orgName}
     </a>`;
   }
   const name = esc(addedBy.name || "Anonymous");
@@ -717,12 +745,18 @@ async function showAppDetail(appId) {
       <button class="btn btn-claim-ownership" id="claim-ownership-btn" data-app-id="${esc(appId)}">🔑 Claim App Ownership</button>
     </div>` : "";
 
-  // Check if current user can edit (owner, admin, or openlib team)
-  const canEdit = currentUser && (
+  // Check if current user can edit (owner, admin, org member, or openlib team)
+  let canEdit = currentUser && (
     app.addedBy?.uid === currentUser.uid ||
     app.ownerId === currentUser.uid ||
     isAdmin
   );
+  if (!canEdit && currentUser && app.ownerType === "organization" && app.ownerId) {
+    const org = await getOrganization(app.ownerId);
+    if (org && hasOrgPermission(org, currentUser.uid, "contributor")) {
+      canEdit = true;
+    }
+  }
 
   // Moderation status banner
   const modStatus = app.moderationStatus || "active";
@@ -1874,7 +1908,10 @@ async function showOrgView(orgId) {
       ` : ""}
 
       <div class="org-section">
-        <h3>Apps (${orgApps.length})</h3>
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <h3>Apps (${orgApps.length})</h3>
+          ${isMember ? `<button class="btn btn-primary btn-sm" id="org-add-app-btn">+ Add App</button>` : ""}
+        </div>
         <div class="profile-list">
           ${orgApps.length ? orgApps.map(app => `
             <a href="/app/${esc(app.id)}" class="profile-list-item">
@@ -1930,6 +1967,10 @@ async function showOrgView(orgId) {
       showToast("Transferred to corporation!");
       showOrgView(orgId);
     } catch (err) { showToast(err.message); }
+  });
+
+  document.getElementById("org-add-app-btn")?.addEventListener("click", () => {
+    openSubmitModal(orgId);
   });
 }
 
@@ -2085,6 +2126,13 @@ function renderVerifyCards(submissions, filter) {
           <div class="verify-field"><label>Submitted by</label><p>${esc(sub.userId ? sub.userId.slice(0, 16) : "—")}… ${sub.submitterEmail ? `(${esc(sub.submitterEmail)})` : ""}</p></div>
           <div class="verify-field"><label>Date</label><p>${sub.timestamp ? new Date(sub.timestamp).toLocaleString() : "—"}</p></div>
         </div>
+        ${sub.ownerType === "organization" ? `
+        <div class="verify-field-row">
+          <div class="verify-field"><label>Owner Type</label><p>🏢 Organization</p></div>
+          <div class="verify-field"><label>Organization</label><p>${sub.orgName ? `<a href="/org/${esc(sub.ownerId)}">${esc(sub.orgName)}</a>` : esc(sub.ownerId || "—")}</p></div>
+          ${sub.submittedByName ? `<div class="verify-field"><label>Submitted by member</label><p>${esc(sub.submittedByName)}</p></div>` : ""}
+        </div>
+        ` : ""}
         ${sub.updatedAt && sub.updatedAt !== sub.timestamp ? `<div class="verify-field"><label>Last updated</label><p>${new Date(sub.updatedAt).toLocaleString()}</p></div>` : ""}
       </div>
 
@@ -4286,7 +4334,7 @@ async function handleReportSubmit(e) {
 }
 
 // ── Submit App Modal ─────────────────────────────────────────────────────────
-function openSubmitModal() {
+function openSubmitModal(preselectedOrgId) {
   if (!currentUser) {
     showToast("Sign in to submit apps");
     return;
@@ -4294,6 +4342,23 @@ function openSubmitModal() {
   const modal = document.getElementById("submit-modal");
   document.getElementById("submit-form").reset();
   clearFormMsg(document.getElementById("submit-form"));
+
+  // Populate org selector
+  const ownerSelect = document.getElementById("sub-owner");
+  const ownerGroup = document.getElementById("submit-as-group");
+  getUserOrgsWithPermission(currentUser.uid, "contributor").then(orgs => {
+    ownerSelect.innerHTML = '<option value="user">👤 Personal account</option>';
+    orgs.forEach(org => {
+      ownerSelect.innerHTML += `<option value="org:${esc(org.id)}">${esc(org.name)}</option>`;
+    });
+    if (orgs.length > 0) {
+      ownerGroup.style.display = "";
+      if (preselectedOrgId) ownerSelect.value = `org:${preselectedOrgId}`;
+    } else {
+      ownerGroup.style.display = "none";
+    }
+  });
+
   modal.classList.add("open");
 }
 

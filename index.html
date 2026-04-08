@@ -208,6 +208,12 @@
         <button class="modal-close" aria-label="Close modal">✕</button>
       </div>
       <form id="submit-form" novalidate>
+        <div class="form-group" id="submit-as-group" style="display:none;">
+          <label for="sub-owner">Submit as</label>
+          <select id="sub-owner">
+            <option value="user">👤 Personal account</option>
+          </select>
+        </div>
         <div class="form-row">
           <div class="form-group">
             <label for="sub-name">App Name <span class="required">*</span></label>
