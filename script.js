@@ -201,6 +201,22 @@ function platformIcon(p) {
   return { Linux:"🐧", Windows:"🪟", macOS:"🍎", Android:"🤖", iOS:"📱", Web:"🌐" }[p] || "💻";
 }
 
+function isWebOnly(platforms) {
+  return Array.isArray(platforms) && platforms.length === 1 && platforms[0] === "Web";
+}
+
+function hasWebPlatform(platforms) {
+  return Array.isArray(platforms) && platforms.includes("Web");
+}
+
+function getAppPrimaryUrl(app) {
+  // For web-only apps: Website URL > Source URL > Download URL
+  if (isWebOnly(app.platforms)) {
+    return app.website || app.source || app.download || "#";
+  }
+  return app.download || app.website || "#";
+}
+
 function addedByBadge(addedBy) {
   // Synchronous card-level badge — uses isOfficialApp for fast rendering
   if (!addedBy || addedBy.type === "openlib-team" || addedBy.role === "admin") {
@@ -448,17 +464,22 @@ function buildCard(app, rankMap) {
         <span class="stat-item" title="Views">👁 ${app.views || 0}</span>
         <span class="stat-item like-stat" title="Likes">👍 ${app.likes || 0}</span>
         <span class="stat-item dislike-stat" title="Dislikes">👎 ${app.dislikes || 0}</span>
-        <span class="stat-item" title="Downloads">⬇ ${app.downloads || 0}</span>
+        ${isWebOnly(app.platforms) ? '' : `<span class="stat-item" title="Downloads">⬇ ${app.downloads || 0}</span>`}
         <span class="stat-item">${addedByBadge(app.addedBy)}</span>
       </div>
-      <div class="platforms-row">${plates}</div>
+      <div class="platforms-row">${plates}${isWebOnly(app.platforms) ? '<span class="web-only-label">Runs in browser</span>' : ''}</div>
       <div class="card-footer">
         <button class="card-bookmark-btn" data-app-id="${esc(app.id)}" title="Save app">☆</button>
         <button class="report-btn" data-app-id="${esc(app.id)}" data-app-name="${esc(app.name)}"
           title="Report this app" aria-label="Report ${esc(app.name)}">⚑</button>
       </div>
       <div class="card-actions">
-        <a href="${esc(app.download)}" class="btn btn-primary" target="_blank" rel="noopener" data-app-id="${esc(app.id)}" data-app-name="${esc(app.name)}">⬇ Download</a>
+        ${isWebOnly(app.platforms)
+          ? `<a href="${esc(getAppPrimaryUrl(app))}" class="btn btn-primary btn-open-app" target="_blank" rel="noopener" data-app-id="${esc(app.id)}" data-app-name="${esc(app.name)}">↗ Open App</a>`
+          : `<a href="${esc(app.download)}" class="btn btn-primary" target="_blank" rel="noopener" data-app-id="${esc(app.id)}" data-app-name="${esc(app.name)}">⬇ Download</a>`}
+        ${hasWebPlatform(app.platforms) && !isWebOnly(app.platforms) && app.website
+          ? `<a href="${esc(app.website)}" class="btn btn-secondary btn-open-web" target="_blank" rel="noopener">🌐 Open Web App</a>`
+          : ''}
         <a href="${esc(app.source)}" class="btn btn-secondary" target="_blank" rel="noopener" data-app-id="${esc(app.id)}" data-app-name="${esc(app.name)}">&lt;/&gt; Source</a>
       </div>
     </article>`;
@@ -819,7 +840,7 @@ async function showAppDetail(appId) {
           </div>
           <div class="detail-section">
             <h3>Platforms</h3>
-            <div class="platforms-row">${plates}</div>
+            <div class="platforms-row">${plates}${isWebOnly(app.platforms) ? '<span class="web-only-label">Runs in browser</span>' : ''}</div>
           </div>
         </div>
 
@@ -833,7 +854,7 @@ async function showAppDetail(appId) {
             <div class="detail-stat-card"><span class="stat-number">${app.views || 0}</span><span class="stat-label">Views</span></div>
             <div class="detail-stat-card"><span class="stat-number">${app.likes || 0}</span><span class="stat-label">Likes</span></div>
             <div class="detail-stat-card"><span class="stat-number">${app.dislikes || 0}</span><span class="stat-label">Dislikes</span></div>
-            <div class="detail-stat-card"><span class="stat-number">${app.downloads || 0}</span><span class="stat-label">Downloads</span></div>
+            ${isWebOnly(app.platforms) ? '' : `<div class="detail-stat-card"><span class="stat-number">${app.downloads || 0}</span><span class="stat-label">Downloads</span></div>`}
           </div>
 
           <div class="detail-actions-row">
@@ -846,8 +867,13 @@ async function showAppDetail(appId) {
               </button>
             </div>
             <div class="detail-links">
-              <a href="${esc(app.download)}" class="btn btn-primary btn-lg download-track-link" target="_blank" rel="noopener" data-app-id="${esc(appId)}" data-app-name="${esc(app.name)}">⬇ Download</a>
-              ${app.website ? `<a href="${esc(app.website)}" class="btn btn-secondary btn-lg" target="_blank" rel="noopener">🌐 Website</a>` : ""}
+              ${isWebOnly(app.platforms)
+                ? `<a href="${esc(getAppPrimaryUrl(app))}" class="btn btn-primary btn-lg btn-open-app" target="_blank" rel="noopener" data-app-id="${esc(appId)}" data-app-name="${esc(app.name)}">↗ Open App</a>`
+                : `<a href="${esc(app.download)}" class="btn btn-primary btn-lg download-track-link" target="_blank" rel="noopener" data-app-id="${esc(appId)}" data-app-name="${esc(app.name)}">⬇ Download</a>`}
+              ${hasWebPlatform(app.platforms) && !isWebOnly(app.platforms) && app.website
+                ? `<a href="${esc(app.website)}" class="btn btn-secondary btn-lg btn-open-web" target="_blank" rel="noopener">🌐 Open Web App</a>`
+                : ''}
+              ${app.website && !isWebOnly(app.platforms) && !hasWebPlatform(app.platforms) ? `<a href="${esc(app.website)}" class="btn btn-secondary btn-lg" target="_blank" rel="noopener">🌐 Website</a>` : ""}
               <a href="${esc(app.source)}" class="btn btn-secondary btn-lg" target="_blank" rel="noopener" data-app-id="${esc(appId)}" data-app-name="${esc(app.name)}">&lt;/&gt; ${app.source?.includes("github.com") ? "GitHub" : app.source?.includes("gitlab") ? "GitLab" : app.source?.includes("bitbucket") ? "Bitbucket" : app.source?.includes("codeberg") ? "Codeberg" : app.source?.includes("sourceforge") ? "SourceForge" : "Source Code"}</a>
               ${app.docs ? `<a href="${esc(app.docs)}" class="btn btn-secondary btn-lg" target="_blank" rel="noopener">📖 Docs</a>` : ""}
             </div>
@@ -2099,6 +2125,7 @@ function renderVerifyCards(submissions, filter) {
           <div class="verify-field"><label>Download</label><p>${sub.download ? `<a href="${esc(sub.download)}" target="_blank" rel="noopener">${esc(sub.download)}</a>` : "—"}</p></div>
           <div class="verify-field"><label>Source Code</label><p>${sub.source ? `<a href="${esc(sub.source)}" target="_blank" rel="noopener">${esc(sub.source)}</a>` : "—"}</p></div>
         </div>
+        ${isWebOnly(sub.platforms) ? `<div class="verify-web-notice"><span class="web-only-label">🌐 Runs in browser</span> — This is a web-only app. Website URL is the primary access link.</div>` : ''}
         <div class="verify-field-row">
           <div class="verify-field"><label>Website</label><p>${sub.website ? `<a href="${esc(sub.website)}" target="_blank" rel="noopener">${esc(sub.website)}</a>` : "—"}</p></div>
           <div class="verify-field"><label>Documentation</label><p>${sub.docs ? `<a href="${esc(sub.docs)}" target="_blank" rel="noopener">${esc(sub.docs)}</a>` : "—"}</p></div>
@@ -4360,6 +4387,44 @@ function openSubmitModal(preselectedOrgId) {
   });
 
   modal.classList.add("open");
+
+  // Platform-aware form toggling for web-only apps
+  updateSubmitFormForPlatforms();
+  modal.querySelectorAll("input[name='platforms']").forEach(cb => {
+    cb.addEventListener("change", updateSubmitFormForPlatforms);
+  });
+}
+
+function updateSubmitFormForPlatforms() {
+  const platforms = [...document.querySelectorAll("#submit-form input[name='platforms']:checked")].map(el => el.value);
+  const webOnly = platforms.length === 1 && platforms[0] === "Web";
+  const downloadGroup = document.getElementById("sub-download-group");
+  const downloadInput = document.getElementById("sub-download");
+  const downloadRequired = document.getElementById("sub-download-required");
+  const websiteOptional = document.getElementById("sub-website-optional");
+  const websiteRequired = document.getElementById("sub-website-required");
+  const websiteInput = document.getElementById("sub-website");
+  const hint = document.getElementById("sub-web-only-hint");
+
+  if (webOnly) {
+    downloadInput.required = false;
+    downloadInput.placeholder = "Optional for web apps";
+    downloadRequired.style.display = "none";
+    downloadGroup.classList.add("field-dimmed");
+    websiteOptional.style.display = "none";
+    websiteRequired.style.display = "inline";
+    websiteInput.required = true;
+    hint.classList.remove("initially-hidden");
+  } else {
+    downloadInput.required = true;
+    downloadInput.placeholder = "https://appname.org/download";
+    downloadRequired.style.display = "inline";
+    downloadGroup.classList.remove("field-dimmed");
+    websiteOptional.style.display = "inline";
+    websiteRequired.style.display = "none";
+    websiteInput.required = false;
+    hint.classList.add("initially-hidden");
+  }
 }
 
 async function handleSubmitApp(e) {
@@ -4369,6 +4434,13 @@ async function handleSubmitApp(e) {
   const platforms = [...form.querySelectorAll("input[name='platforms']:checked")].map(el => el.value);
 
   if (!platforms.length) { showFormError(form, "Select at least one platform."); return; }
+
+  // Platform-aware URL validation
+  const subWebOnly = isWebOnly(platforms);
+  const subWebsite = (form.querySelector("#sub-website")?.value || "").trim();
+  const subDownload = form.querySelector("#sub-download").value.trim();
+  if (subWebOnly && !subWebsite) { showFormError(form, "Website URL is required for web-only apps."); return; }
+  if (!subWebOnly && !subDownload) { showFormError(form, "Download URL is required for installable apps."); return; }
 
   const name = form.querySelector("#sub-name").value.trim();
   const description = form.querySelector("#sub-description").value.trim();
@@ -4502,6 +4574,44 @@ function openResubmitModal(sub) {
 
   clearFormMsg(document.getElementById("resubmit-form"));
   modal.classList.add("open");
+
+  // Platform-aware form toggling for resubmit
+  updateResubmitFormForPlatforms();
+  modal.querySelectorAll("input[name='resub-platforms']").forEach(cb => {
+    cb.addEventListener("change", updateResubmitFormForPlatforms);
+  });
+}
+
+function updateResubmitFormForPlatforms() {
+  const platforms = [...document.querySelectorAll("#resubmit-form input[name='resub-platforms']:checked")].map(el => el.value);
+  const webOnly = platforms.length === 1 && platforms[0] === "Web";
+  const downloadGroup = document.getElementById("resub-download-group");
+  const downloadInput = document.getElementById("resub-download");
+  const downloadRequired = document.getElementById("resub-download-required");
+  const websiteOptional = document.getElementById("resub-website-optional");
+  const websiteRequired = document.getElementById("resub-website-required");
+  const websiteInput = document.getElementById("resub-website");
+  const hint = document.getElementById("resub-web-only-hint");
+
+  if (webOnly) {
+    downloadInput.required = false;
+    downloadInput.placeholder = "Optional for web apps";
+    downloadRequired.style.display = "none";
+    downloadGroup.classList.add("field-dimmed");
+    websiteOptional.style.display = "none";
+    websiteRequired.style.display = "inline";
+    websiteInput.required = true;
+    hint.classList.remove("initially-hidden");
+  } else {
+    downloadInput.required = true;
+    downloadInput.placeholder = "";
+    downloadRequired.style.display = "inline";
+    downloadGroup.classList.remove("field-dimmed");
+    websiteOptional.style.display = "inline";
+    websiteRequired.style.display = "none";
+    websiteInput.required = false;
+    hint.classList.add("initially-hidden");
+  }
 }
 
 async function handleResubmit(e) {
@@ -4512,6 +4622,13 @@ async function handleResubmit(e) {
   const platforms = [...form.querySelectorAll("input[name='resub-platforms']:checked")].map(el => el.value);
 
   if (!platforms.length) { showFormError(form, "Select at least one platform."); return; }
+
+  // Platform-aware URL validation for resubmit
+  const resubWebOnly = isWebOnly(platforms);
+  const resubWebsite = (document.getElementById("resub-website")?.value || "").trim();
+  const resubDownload = document.getElementById("resub-download").value.trim();
+  if (resubWebOnly && !resubWebsite) { showFormError(form, "Website URL is required for web-only apps."); return; }
+  if (!resubWebOnly && !resubDownload) { showFormError(form, "Download URL is required for installable apps."); return; }
 
   const resubLogo = document.getElementById("resub-logo").value.trim();
   if (resubLogo && !isValidLogoURL(resubLogo)) { showFormError(form, "Logo URL must end in .jpg, .jpeg, .png, or .svg"); return; }

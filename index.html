@@ -301,9 +301,9 @@
           <label for="sub-screenshots">Screenshot URLs <span class="optional">(one per line)</span></label>
           <textarea id="sub-screenshots" rows="2" placeholder="https://…/screenshot1.png&#10;https://…/screenshot2.png" maxlength="1000"></textarea>
         </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label for="sub-download">Download URL <span class="required">*</span></label>
+        <div class="form-row" id="sub-download-source-row">
+          <div class="form-group" id="sub-download-group">
+            <label for="sub-download">Download URL <span class="required" id="sub-download-required">*</span></label>
             <input type="url" id="sub-download" placeholder="https://appname.org/download" required>
           </div>
           <div class="form-group">
@@ -312,8 +312,8 @@
           </div>
         </div>
         <div class="form-row">
-          <div class="form-group">
-            <label for="sub-website">Official Website <span class="optional">(optional)</span></label>
+          <div class="form-group" id="sub-website-group">
+            <label for="sub-website">Official Website <span class="optional" id="sub-website-optional">(optional)</span><span class="required initially-hidden" id="sub-website-required">*</span></label>
             <input type="url" id="sub-website" placeholder="https://appname.org">
           </div>
           <div class="form-group">
@@ -363,6 +363,7 @@
             <label class="checkbox-label"><input type="checkbox" name="platforms" value="iOS"> 📱 iOS</label>
             <label class="checkbox-label"><input type="checkbox" name="platforms" value="Web"> 🌐 Web</label>
           </div>
+          <p class="web-only-hint initially-hidden" id="sub-web-only-hint">🌐 Web-only app detected — Download URL is optional. Website URL is required instead.</p>
         </div>
         <div class="form-msg" role="alert"></div>
         <button type="submit" class="btn btn-primary btn-submit">Submit App</button>
@@ -664,9 +665,9 @@
           <label for="resub-uses">Uses <span class="required">*</span></label>
           <textarea id="resub-uses" rows="2" required maxlength="300"></textarea>
         </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label for="resub-download">Download URL <span class="required">*</span></label>
+        <div class="form-row" id="resub-download-source-row">
+          <div class="form-group" id="resub-download-group">
+            <label for="resub-download">Download URL <span class="required" id="resub-download-required">*</span></label>
             <input type="url" id="resub-download" required>
           </div>
           <div class="form-group">
@@ -675,8 +676,8 @@
           </div>
         </div>
         <div class="form-row">
-          <div class="form-group">
-            <label for="resub-website">Website URL</label>
+          <div class="form-group" id="resub-website-group">
+            <label for="resub-website">Website URL <span class="optional" id="resub-website-optional"></span><span class="required initially-hidden" id="resub-website-required">*</span></label>
             <input type="url" id="resub-website">
           </div>
           <div class="form-group">
@@ -766,6 +767,7 @@
             <label class="checkbox-label"><input type="checkbox" name="resub-platforms" value="iOS"> 📱 iOS</label>
             <label class="checkbox-label"><input type="checkbox" name="resub-platforms" value="Web"> 🌐 Web</label>
           </div>
+          <p class="web-only-hint initially-hidden" id="resub-web-only-hint">🌐 Web-only app detected — Download URL is optional. Website URL is required instead.</p>
         </div>
         <div class="form-msg" role="alert"></div>
         <button type="submit" class="btn btn-primary btn-submit">Resubmit for Review</button>
