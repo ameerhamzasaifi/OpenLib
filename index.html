@@ -298,8 +298,21 @@
           <input type="text" id="sub-tags" placeholder="streaming, recording, video editing" maxlength="200">
         </div>
         <div class="form-group">
-          <label for="sub-screenshots">Screenshot URLs <span class="optional">(one per line)</span></label>
-          <textarea id="sub-screenshots" rows="2" placeholder="https://…/screenshot1.png&#10;https://…/screenshot2.png" maxlength="1000"></textarea>
+          <label for="sub-screenshots">Screenshots <span class="optional">(upload files or paste URLs)</span></label>
+          <div class="screenshot-upload-area" id="sub-screenshot-area">
+            <div class="screenshot-previews" id="sub-screenshot-previews"></div>
+            <div class="screenshot-controls">
+              <label class="btn btn-secondary btn-sm screenshot-upload-btn" for="sub-screenshot-files">📁 Upload Images</label>
+              <input type="file" id="sub-screenshot-files" accept=".jpg,.jpeg,.png,.webp" multiple class="screenshot-file-input">
+              <span class="screenshot-hint">JPG, PNG, WebP · Max 5 MB each · Up to 6 screenshots</span>
+            </div>
+            <div class="screenshot-url-fallback">
+              <details>
+                <summary class="screenshot-url-toggle">Or paste URLs manually</summary>
+                <textarea id="sub-screenshots" rows="2" placeholder="https://…/screenshot1.png&#10;https://…/screenshot2.png" maxlength="1000"></textarea>
+              </details>
+            </div>
+          </div>
         </div>
         <div class="form-row" id="sub-download-source-row">
           <div class="form-group" id="sub-download-group">
@@ -737,8 +750,21 @@
           <input type="text" id="resub-tags" maxlength="200">
         </div>
         <div class="form-group">
-          <label for="resub-screenshots">Screenshot URLs <span class="optional">(one per line)</span></label>
-          <textarea id="resub-screenshots" rows="2" maxlength="2000"></textarea>
+          <label for="resub-screenshots">Screenshots <span class="optional">(upload files or paste URLs)</span></label>
+          <div class="screenshot-upload-area" id="resub-screenshot-area">
+            <div class="screenshot-previews" id="resub-screenshot-previews"></div>
+            <div class="screenshot-controls">
+              <label class="btn btn-secondary btn-sm screenshot-upload-btn" for="resub-screenshot-files">📁 Upload Images</label>
+              <input type="file" id="resub-screenshot-files" accept=".jpg,.jpeg,.png,.webp" multiple class="screenshot-file-input">
+              <span class="screenshot-hint">JPG, PNG, WebP · Max 5 MB each · Up to 6 screenshots</span>
+            </div>
+            <div class="screenshot-url-fallback">
+              <details>
+                <summary class="screenshot-url-toggle">Or paste URLs manually</summary>
+                <textarea id="resub-screenshots" rows="2" maxlength="2000"></textarea>
+              </details>
+            </div>
+          </div>
         </div>
         <div class="form-group">
           <label for="resub-install-methods">Installation Methods <span class="optional">(label | command, one per line)</span></label>

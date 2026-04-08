@@ -6771,3 +6771,119 @@ a.added-by-link:hover {
   color: var(--blue);
   margin: 4px 0 8px;
 }
+
+/* ── Screenshot Upload ── */
+.screenshot-upload-area {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  background: var(--bg-3);
+}
+
+.screenshot-previews {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.screenshot-previews:empty {
+  display: none;
+}
+
+.screenshot-preview-item {
+  position: relative;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  aspect-ratio: 4 / 3;
+  background: var(--surface);
+}
+
+.screenshot-preview-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.screenshot-remove-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity var(--transition);
+}
+
+.screenshot-preview-item:hover .screenshot-remove-btn {
+  opacity: 1;
+}
+
+.screenshot-badge {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+}
+
+.screenshot-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.screenshot-file-input {
+  display: none;
+}
+
+.screenshot-hint {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.screenshot-url-fallback {
+  margin-top: 8px;
+}
+
+.screenshot-url-toggle {
+  font-size: 12px;
+  color: var(--text-3);
+  cursor: pointer;
+  user-select: none;
+}
+
+.screenshot-url-toggle:hover {
+  color: var(--text-2);
+}
+
+.screenshot-url-fallback textarea {
+  margin-top: 6px;
+}
+
+.screenshot-empty {
+  font-size: 12px;
+  color: var(--text-3);
+  text-align: center;
+  padding: 8px 0;
+  margin: 0;
+}

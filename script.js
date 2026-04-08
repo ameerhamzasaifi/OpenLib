@@ -6,7 +6,7 @@ import {
   submitAppToFirestore, getAllAppsFromFirestore,
   getAppFromFirestore, incrementAppViews, toggleVote, getUserVote,
   submitEditRequest, getEditRequestsForApp, getUserEditRequests,
-  uploadLogoToStorage
+  uploadLogoToStorage, uploadScreenshotToStorage
 } from './firebase-config.js';
 
 import { checkForUpdates } from './version-check.js';
@@ -3180,7 +3180,23 @@ function renderAdminAddApp() {
       <!-- ── Section: Media ── -->
       <fieldset class="admin-fieldset">
         <legend class="admin-fieldset-legend">Media</legend>
-        <div class="form-group"><label for="aa-screenshots">Screenshot URLs <span class="optional">(one per line)</span></label><textarea id="aa-screenshots" rows="3" maxlength="2000" placeholder="https://…/screenshot1.png&#10;https://…/screenshot2.png"></textarea></div>
+        <div class="form-group">
+          <label for="aa-screenshots">Screenshots <span class="optional">(upload files or paste URLs)</span></label>
+          <div class="screenshot-upload-area" id="aa-screenshot-area">
+            <div class="screenshot-previews" id="aa-screenshot-previews"></div>
+            <div class="screenshot-controls">
+              <label class="btn btn-secondary btn-sm screenshot-upload-btn" for="aa-screenshot-files">📁 Upload Images</label>
+              <input type="file" id="aa-screenshot-files" accept=".jpg,.jpeg,.png,.webp" multiple class="screenshot-file-input">
+              <span class="screenshot-hint">JPG, PNG, WebP · Max 5 MB each · Up to 6 screenshots</span>
+            </div>
+            <div class="screenshot-url-fallback">
+              <details>
+                <summary class="screenshot-url-toggle">Or paste URLs manually</summary>
+                <textarea id="aa-screenshots" rows="3" maxlength="2000" placeholder="https://…/screenshot1.png&#10;https://…/screenshot2.png"></textarea>
+              </details>
+            </div>
+          </div>
+        </div>
       </fieldset>
 
       <!-- ── Section: Comparison ── -->
@@ -3659,6 +3675,10 @@ function attachAdminHandlers(tab) {
       });
     }
 
+    // Screenshot uploader
+    clearScreenshotUploader("aa");
+    initScreenshotUploader("aa");
+
     // Comparison editor
     const aaCompContainer = document.getElementById("aa-comparison-editor");
     const aaCompInitBtn = document.getElementById("aa-comp-init");
@@ -3714,8 +3734,17 @@ function attachAdminHandlers(tab) {
       const tagsRaw = document.getElementById("aa-tags").value.trim();
       const tags = tagsRaw ? tagsRaw.split(",").map(t => t.trim().toLowerCase()).filter(Boolean) : [];
 
-      const screenshotsRaw = document.getElementById("aa-screenshots").value.trim();
-      const screenshots = screenshotsRaw ? screenshotsRaw.split("\n").map(u => u.trim()).filter(Boolean) : [];
+      // Process screenshots (uploads + URLs)
+      let screenshots = [];
+      try {
+        const aaAppName = document.getElementById("aa-name").value.trim();
+        screenshots = await processScreenshotUploads("aa", aaAppName, msg => { submitBtn.textContent = msg; });
+      } catch (ssErr) {
+        showFormError(form, ssErr.message || "Screenshot upload failed.");
+        submitBtn.disabled = false;
+        submitBtn.textContent = "🚀 Publish App (Admin)";
+        return;
+      }
 
       const installRaw = document.getElementById("aa-install-methods").value.trim();
       const installMethods = installRaw ? installRaw.split("\n").map(line => {
@@ -3775,6 +3804,7 @@ function attachAdminHandlers(tab) {
         if (logoFilename) logoFilename.textContent = "";
         if (aaCompContainer) aaCompContainer.innerHTML = "";
         if (aaCompInitBtn) aaCompInitBtn.style.display = "";
+        clearScreenshotUploader("aa");
         await loadApps();
       } catch (err) {
         showFormError(form, err.message);
@@ -4393,6 +4423,10 @@ function openSubmitModal(preselectedOrgId) {
   modal.querySelectorAll("input[name='platforms']").forEach(cb => {
     cb.addEventListener("change", updateSubmitFormForPlatforms);
   });
+
+  // Initialize screenshot uploader
+  clearScreenshotUploader("sub");
+  initScreenshotUploader("sub");
 }
 
 function updateSubmitFormForPlatforms() {
@@ -4476,9 +4510,18 @@ async function handleSubmitApp(e) {
   const tagsRaw = (form.querySelector("#sub-tags")?.value || "").trim();
   const tags = tagsRaw ? tagsRaw.split(",").map(t => t.trim().toLowerCase()).filter(Boolean) : [];
 
-  // Parse screenshots (one URL per line)
-  const screenshotsRaw = (form.querySelector("#sub-screenshots")?.value || "").trim();
-  const screenshots = screenshotsRaw ? screenshotsRaw.split("\n").map(s => s.trim()).filter(Boolean) : [];
+  // Process screenshots (uploads + URLs)
+  btn.disabled = true;
+  btn.setAttribute("data-original", btn.textContent);
+  let screenshots = [];
+  try {
+    screenshots = await processScreenshotUploads("sub", name, msg => { btn.textContent = msg; });
+  } catch (err) {
+    showFormError(form, err.message || "Screenshot upload failed.");
+    btn.disabled = false;
+    btn.textContent = btn.getAttribute("data-original") || "Submit App";
+    return;
+  }
 
   // Parse install methods (label | command, one per line)
   const installRaw = (form.querySelector("#sub-install-methods")?.value || "").trim();
@@ -4514,12 +4557,11 @@ async function handleSubmitApp(e) {
     submitterEmail: form.querySelector("#sub-email").value.trim(),
   };
 
-  btn.disabled = true;
-  btn.setAttribute("data-original", btn.textContent);
   btn.textContent = "Submitting…";
 
   try {
     await submitApp(payload);
+    clearScreenshotUploader("sub");
     showFormSuccess(form, "App submitted for review!");
     setTimeout(() => closeModal("submit-modal"), 2500);
   } catch (err) {
@@ -4563,9 +4605,13 @@ function openResubmitModal(sub) {
   document.getElementById("resub-full-description").value = sub.fullDescription || "";
   document.getElementById("resub-features").value = (sub.features || []).join("\n");
   document.getElementById("resub-tags").value = (sub.tags || []).join(", ");
-  document.getElementById("resub-screenshots").value = (sub.screenshots || []).join("\n");
+  document.getElementById("resub-screenshots").value = "";
   document.getElementById("resub-install-methods").value = (sub.installMethods || []).map(m => m.label + " | " + m.command).join("\n");
   document.getElementById("resub-sysreq").value = sub.systemRequirements || "";
+
+  // Initialize screenshot uploader with existing screenshots
+  prefillScreenshotUrls("resub", sub.screenshots || []);
+  initScreenshotUploader("resub");
 
   // Check platforms
   document.querySelectorAll("input[name='resub-platforms']").forEach(cb => {
@@ -4633,6 +4679,20 @@ async function handleResubmit(e) {
   const resubLogo = document.getElementById("resub-logo").value.trim();
   if (resubLogo && !isValidLogoURL(resubLogo)) { showFormError(form, "Logo URL must end in .jpg, .jpeg, .png, or .svg"); return; }
 
+  // Process screenshot uploads
+  btn.disabled = true;
+  btn.textContent = "Processing screenshots…";
+  let resubScreenshots = [];
+  try {
+    const resubAppName = document.getElementById("resub-name").value.trim();
+    resubScreenshots = await processScreenshotUploads("resub", resubAppName, msg => { btn.textContent = msg; });
+  } catch (ssErr) {
+    showFormError(form, ssErr.message || "Screenshot upload failed.");
+    btn.disabled = false;
+    btn.textContent = "Resubmit for Review";
+    return;
+  }
+
   const updatedData = {
     name: document.getElementById("resub-name").value.trim(),
     logo: resubLogo,
@@ -4655,7 +4715,7 @@ async function handleResubmit(e) {
     systemRequirements: (document.getElementById("resub-sysreq")?.value || "").trim(),
     features: (document.getElementById("resub-features")?.value || "").trim().split("\n").map(f => f.trim()).filter(Boolean),
     tags: (document.getElementById("resub-tags")?.value || "").trim().split(",").map(t => t.trim().toLowerCase()).filter(Boolean),
-    screenshots: (document.getElementById("resub-screenshots")?.value || "").trim().split("\n").map(s => s.trim()).filter(Boolean),
+    screenshots: resubScreenshots,
     installMethods: (document.getElementById("resub-install-methods")?.value || "").trim().split("\n").map(line => {
       const parts = line.split("|").map(p => p.trim());
       return parts.length >= 2 ? { label: parts[0], command: parts[1] } : null;
@@ -4665,10 +4725,10 @@ async function handleResubmit(e) {
   if (updatedData.name.length < 2) { showFormError(form, "App name must be at least 2 characters."); return; }
   if (updatedData.description.length < 10) { showFormError(form, "Description must be at least 10 characters."); return; }
 
-  btn.disabled = true;
   btn.textContent = "Resubmitting…";
   try {
     await updateSubmission(subId, currentUser.uid, updatedData);
+    clearScreenshotUploader("resub");
     showFormSuccess(form, "Resubmitted for review!");
     setTimeout(() => {
       closeModal("resubmit-modal");
@@ -4704,6 +4764,131 @@ function isValidLogoURL(url) {
   } catch {
     return false;
   }
+}
+
+// ── Screenshot Upload Helpers ────────────────────────────────────────────────
+const MAX_SCREENSHOTS = 6;
+
+function initScreenshotUploader(prefix) {
+  // prefix: "sub", "resub", or "aa"
+  const fileInput = document.getElementById(`${prefix}-screenshot-files`);
+  const previewsContainer = document.getElementById(`${prefix}-screenshot-previews`);
+  if (!fileInput || !previewsContainer) return;
+
+  // Store file list on the container element
+  if (!previewsContainer._screenshotFiles) previewsContainer._screenshotFiles = [];
+  if (!previewsContainer._screenshotUrls) previewsContainer._screenshotUrls = [];
+
+  fileInput.addEventListener("change", () => {
+    const newFiles = [...fileInput.files];
+    const existing = previewsContainer._screenshotFiles.length + previewsContainer._screenshotUrls.length;
+    const allowed = Math.max(0, MAX_SCREENSHOTS - existing);
+
+    if (newFiles.length > allowed) {
+      showToast(`Max ${MAX_SCREENSHOTS} screenshots. Only adding ${allowed} more.`);
+    }
+
+    newFiles.slice(0, allowed).forEach(file => {
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+        showToast(`${file.name}: Invalid type. Use JPG, PNG, or WebP.`);
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        showToast(`${file.name}: Too large. Max 5 MB.`);
+        return;
+      }
+      previewsContainer._screenshotFiles.push(file);
+    });
+
+    fileInput.value = "";
+    renderScreenshotPreviews(prefix);
+  });
+}
+
+function renderScreenshotPreviews(prefix) {
+  const container = document.getElementById(`${prefix}-screenshot-previews`);
+  if (!container) return;
+  const files = container._screenshotFiles || [];
+  const urls = container._screenshotUrls || [];
+  const items = [];
+
+  urls.forEach((url, i) => {
+    items.push(`
+      <div class="screenshot-preview-item" data-type="url" data-index="${i}">
+        <img src="${escUrl(url)}" alt="Screenshot" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2280%22 height=%2260%22><rect fill=%22%23333%22 width=%2280%22 height=%2260%22/><text x=%2240%22 y=%2234%22 fill=%22%23999%22 font-size=%2210%22 text-anchor=%22middle%22>Error</text></svg>'">
+        <button type="button" class="screenshot-remove-btn" data-type="url" data-index="${i}" title="Remove">✕</button>
+        <span class="screenshot-badge">URL</span>
+      </div>`);
+  });
+
+  files.forEach((file, i) => {
+    const objectUrl = URL.createObjectURL(file);
+    items.push(`
+      <div class="screenshot-preview-item" data-type="file" data-index="${i}">
+        <img src="${objectUrl}" alt="${esc(file.name)}">
+        <button type="button" class="screenshot-remove-btn" data-type="file" data-index="${i}" title="Remove">✕</button>
+        <span class="screenshot-badge">Upload</span>
+      </div>`);
+  });
+
+  container.innerHTML = items.length
+    ? items.join("")
+    : '<p class="screenshot-empty">No screenshots added yet</p>';
+
+  // Bind remove buttons
+  container.querySelectorAll(".screenshot-remove-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const type = btn.dataset.type;
+      const idx = parseInt(btn.dataset.index, 10);
+      if (type === "file") container._screenshotFiles.splice(idx, 1);
+      else container._screenshotUrls.splice(idx, 1);
+      renderScreenshotPreviews(prefix);
+    });
+  });
+}
+
+function clearScreenshotUploader(prefix) {
+  const container = document.getElementById(`${prefix}-screenshot-previews`);
+  if (container) {
+    container._screenshotFiles = [];
+    container._screenshotUrls = [];
+    container.innerHTML = '';
+  }
+}
+
+function prefillScreenshotUrls(prefix, urls) {
+  const container = document.getElementById(`${prefix}-screenshot-previews`);
+  if (!container) return;
+  container._screenshotFiles = [];
+  container._screenshotUrls = [...(urls || [])];
+  renderScreenshotPreviews(prefix);
+}
+
+async function processScreenshotUploads(prefix, appName, statusCallback) {
+  const container = document.getElementById(`${prefix}-screenshot-previews`);
+  if (!container) return [];
+
+  const files = container._screenshotFiles || [];
+  const urls = container._screenshotUrls || [];
+
+  // Also read any URLs from the fallback textarea
+  const textarea = document.getElementById(`${prefix}-screenshots`);
+  const textareaUrls = textarea
+    ? textarea.value.trim().split("\n").map(u => u.trim()).filter(Boolean)
+    : [];
+
+  // Merge direct URLs + textarea URLs (deduplicate)
+  const allUrls = [...new Set([...urls, ...textareaUrls])];
+
+  // Upload files
+  const uploadedUrls = [];
+  for (let i = 0; i < files.length; i++) {
+    if (statusCallback) statusCallback(`Uploading screenshot ${i + 1}/${files.length}…`);
+    const url = await uploadScreenshotToStorage(files[i], appName, i);
+    uploadedUrls.push(url);
+  }
+
+  return [...allUrls, ...uploadedUrls];
 }
 
 // ── Modal Utilities ──────────────────────────────────────────────────────────
