@@ -1361,9 +1361,6 @@ function openEditRequestModal(appId, appName, app, directEdit = false) {
 
   // Web-only platform detection for edit request
   updateFormWebOnlyState("er", "er-platforms", { enforceRequired: false, defaultDownloadPlaceholder: "https://…", defaultWebsitePlaceholder: "https://…" });
-  form.querySelectorAll("input[name='er-platforms']").forEach(cb => {
-    cb.addEventListener("change", () => updateFormWebOnlyState("er", "er-platforms", { enforceRequired: false, defaultDownloadPlaceholder: "https://…", defaultWebsitePlaceholder: "https://…" }));
-  });
 
   // Comparison editor
   const erCompContainer = document.getElementById("er-comparison-editor");
@@ -4451,13 +4448,10 @@ function openSubmitModal(preselectedOrgId) {
     }
   });
 
-  modal.classList.add("open");
+  // Platform-aware form toggling for web-only apps (before modal opens to prevent flash)
+  updateFormWebOnlyState("sub", "platforms");
 
-  // Platform-aware form toggling for web-only apps
-  updateSubmitFormForPlatforms();
-  modal.querySelectorAll("input[name='platforms']").forEach(cb => {
-    cb.addEventListener("change", updateSubmitFormForPlatforms);
-  });
+  modal.classList.add("open");
 
   // Initialize screenshot uploader
   clearScreenshotUploader("sub");
@@ -4515,38 +4509,6 @@ function updateFormWebOnlyState(prefix, checkboxName, opts = {}) {
     if (websiteLabel) websiteLabel.textContent = "Website URL ";
     if (hint) hint.classList.add("initially-hidden");
     if (badge) badge.classList.add("initially-hidden");
-  }
-}
-
-function updateSubmitFormForPlatforms() {
-  const platforms = [...document.querySelectorAll("#submit-form input[name='platforms']:checked")].map(el => el.value);
-  const webOnly = platforms.length === 1 && platforms[0] === "Web";
-  const downloadGroup = document.getElementById("sub-download-group");
-  const downloadInput = document.getElementById("sub-download");
-  const downloadRequired = document.getElementById("sub-download-required");
-  const websiteOptional = document.getElementById("sub-website-optional");
-  const websiteRequired = document.getElementById("sub-website-required");
-  const websiteInput = document.getElementById("sub-website");
-  const hint = document.getElementById("sub-web-only-hint");
-
-  if (webOnly) {
-    downloadInput.required = false;
-    downloadInput.placeholder = "Optional for web apps";
-    downloadRequired.style.display = "none";
-    downloadGroup.classList.add("field-dimmed");
-    websiteOptional.style.display = "none";
-    websiteRequired.style.display = "inline";
-    websiteInput.required = true;
-    hint.classList.remove("initially-hidden");
-  } else {
-    downloadInput.required = true;
-    downloadInput.placeholder = "https://appname.org/download";
-    downloadRequired.style.display = "inline";
-    downloadGroup.classList.remove("field-dimmed");
-    websiteOptional.style.display = "inline";
-    websiteRequired.style.display = "none";
-    websiteInput.required = false;
-    hint.classList.add("initially-hidden");
   }
 }
 
@@ -4708,45 +4670,11 @@ function openResubmitModal(sub) {
   });
 
   clearFormMsg(document.getElementById("resubmit-form"));
+
+  // Platform-aware form toggling for resubmit (before modal opens to prevent flash)
+  updateFormWebOnlyState("resub", "resub-platforms");
+
   modal.classList.add("open");
-
-  // Platform-aware form toggling for resubmit
-  updateResubmitFormForPlatforms();
-  modal.querySelectorAll("input[name='resub-platforms']").forEach(cb => {
-    cb.addEventListener("change", updateResubmitFormForPlatforms);
-  });
-}
-
-function updateResubmitFormForPlatforms() {
-  const platforms = [...document.querySelectorAll("#resubmit-form input[name='resub-platforms']:checked")].map(el => el.value);
-  const webOnly = platforms.length === 1 && platforms[0] === "Web";
-  const downloadGroup = document.getElementById("resub-download-group");
-  const downloadInput = document.getElementById("resub-download");
-  const downloadRequired = document.getElementById("resub-download-required");
-  const websiteOptional = document.getElementById("resub-website-optional");
-  const websiteRequired = document.getElementById("resub-website-required");
-  const websiteInput = document.getElementById("resub-website");
-  const hint = document.getElementById("resub-web-only-hint");
-
-  if (webOnly) {
-    downloadInput.required = false;
-    downloadInput.placeholder = "Optional for web apps";
-    downloadRequired.style.display = "none";
-    downloadGroup.classList.add("field-dimmed");
-    websiteOptional.style.display = "none";
-    websiteRequired.style.display = "inline";
-    websiteInput.required = true;
-    hint.classList.remove("initially-hidden");
-  } else {
-    downloadInput.required = true;
-    downloadInput.placeholder = "";
-    downloadRequired.style.display = "inline";
-    downloadGroup.classList.remove("field-dimmed");
-    websiteOptional.style.display = "inline";
-    websiteRequired.style.display = "none";
-    websiteInput.required = false;
-    hint.classList.add("initially-hidden");
-  }
 }
 
 async function handleResubmit(e) {
@@ -5659,6 +5587,17 @@ async function init() {
     document.getElementById("er-logo-file")._selectedFile = file;
   });
   document.getElementById("resubmit-form").addEventListener("submit", handleResubmit);
+
+  // One-time platform change listeners for web-only detection (prevents duplicate listener accumulation)
+  document.querySelectorAll("#submit-form input[name='platforms']").forEach(cb => {
+    cb.addEventListener("change", () => updateFormWebOnlyState("sub", "platforms"));
+  });
+  document.querySelectorAll("#edit-request-form input[name='er-platforms']").forEach(cb => {
+    cb.addEventListener("change", () => updateFormWebOnlyState("er", "er-platforms", { enforceRequired: false, defaultDownloadPlaceholder: "https://…", defaultWebsitePlaceholder: "https://…" }));
+  });
+  document.querySelectorAll("#resubmit-form input[name='resub-platforms']").forEach(cb => {
+    cb.addEventListener("change", () => updateFormWebOnlyState("resub", "resub-platforms"));
+  });
 
   // Grid events
   document.getElementById("app-grid").addEventListener("click", async e => {
