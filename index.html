@@ -489,8 +489,8 @@
           </div>
         </div>
         <div class="form-row">
-          <div class="form-group">
-            <label for="er-download">Download URL</label>
+          <div class="form-group" id="er-download-group">
+            <label for="er-download"><span id="er-download-label">Download URL</span></label>
             <input type="url" id="er-download" placeholder="https://…">
           </div>
           <div class="form-group">
@@ -499,8 +499,8 @@
           </div>
         </div>
         <div class="form-row">
-          <div class="form-group">
-            <label for="er-website">Website URL</label>
+          <div class="form-group" id="er-website-group">
+            <label for="er-website"><span id="er-website-label">Website URL</span></label>
             <input type="url" id="er-website" placeholder="https://…">
           </div>
           <div class="form-group">
@@ -581,6 +581,8 @@
             <label class="checkbox-label"><input type="checkbox" name="er-platforms" value="iOS"> 📱 iOS</label>
             <label class="checkbox-label"><input type="checkbox" name="er-platforms" value="Web"> 🌐 Web</label>
           </div>
+          <span class="web-only-label initially-hidden" id="er-web-only-badge">🌐 Web-only app detected</span>
+          <p class="web-only-hint initially-hidden" id="er-web-only-hint">This app runs in the browser — users will open it instead of downloading.<br><span class="web-only-preview-hint">Detail page button will show "Open App" instead of "Download"</span></p>
         </div>
         <div class="form-group">
           <label>Comparison Table <span class="optional">(optional)</span></label>

@@ -1359,6 +1359,12 @@ function openEditRequestModal(appId, appName, app, directEdit = false) {
     cb.checked = (app.platforms || []).includes(cb.value);
   });
 
+  // Web-only platform detection for edit request
+  updateFormWebOnlyState("er", "er-platforms", { enforceRequired: false, defaultDownloadPlaceholder: "https://…", defaultWebsitePlaceholder: "https://…" });
+  form.querySelectorAll("input[name='er-platforms']").forEach(cb => {
+    cb.addEventListener("change", () => updateFormWebOnlyState("er", "er-platforms", { enforceRequired: false, defaultDownloadPlaceholder: "https://…", defaultWebsitePlaceholder: "https://…" }));
+  });
+
   // Comparison editor
   const erCompContainer = document.getElementById("er-comparison-editor");
   const erCompInitBtn = document.getElementById("er-comp-init");
@@ -1489,6 +1495,20 @@ async function handleEditRequestSubmit(e) {
     currentPlatforms.some(p => !platforms.includes(p));
   if (platformsChanged && platforms.length > 0) {
     changes.platforms = platforms;
+  }
+
+  // Platform-aware URL validation for edit requests
+  const effectivePlatforms = (platformsChanged && platforms.length > 0) ? platforms : currentPlatforms;
+  const erWebOnly = isWebOnly(effectivePlatforms);
+  const erWebsite = document.getElementById("er-website").value.trim();
+  const erDownload = document.getElementById("er-download").value.trim();
+  if (erWebOnly && platformsChanged && !erWebsite && !app?.website) {
+    showFormError(form, "Website URL is required when changing to web-only. This app has no existing website URL.");
+    return;
+  }
+  if (!erWebOnly && platformsChanged && !erDownload && !app?.download) {
+    showFormError(form, "Download URL is required for installable apps. This app has no existing download URL.");
+    return;
   }
 
   // Comparison data
@@ -3121,11 +3141,11 @@ function renderAdminAddApp() {
       <fieldset class="admin-fieldset">
         <legend class="admin-fieldset-legend">Links</legend>
         <div class="form-row">
-          <div class="form-group"><label for="aa-download">Download URL <span class="required">*</span></label><input type="url" id="aa-download" required placeholder="https://appname.org/download"></div>
+          <div class="form-group" id="aa-download-group"><label for="aa-download"><span id="aa-download-label">Download URL</span> <span class="required" id="aa-download-required">*</span></label><input type="url" id="aa-download" required placeholder="https://appname.org/download"></div>
           <div class="form-group"><label for="aa-source">Source URL <span class="required">*</span></label><input type="url" id="aa-source" required placeholder="https://github.com/…"></div>
         </div>
         <div class="form-row">
-          <div class="form-group"><label for="aa-website">Website URL <span class="optional">(optional)</span></label><input type="url" id="aa-website" placeholder="https://appname.org"></div>
+          <div class="form-group" id="aa-website-group"><label for="aa-website"><span id="aa-website-label">Website URL</span> <span class="optional" id="aa-website-optional">(optional)</span><span class="required initially-hidden" id="aa-website-required">*</span></label><input type="url" id="aa-website" placeholder="https://appname.org"></div>
           <div class="form-group"><label for="aa-docs">Docs URL <span class="optional">(optional)</span></label><input type="url" id="aa-docs" placeholder="https://docs.appname.org"></div>
         </div>
       </fieldset>
@@ -3220,6 +3240,8 @@ function renderAdminAddApp() {
             <label class="checkbox-label"><input type="checkbox" name="aa-platforms" value="iOS"> 📱 iOS</label>
             <label class="checkbox-label"><input type="checkbox" name="aa-platforms" value="Web"> 🌐 Web</label>
           </div>
+          <span class="web-only-label initially-hidden" id="aa-web-only-badge">🌐 Web-only app detected</span>
+          <p class="web-only-hint initially-hidden" id="aa-web-only-hint">This app runs in the browser — users will open it instead of downloading.<br><span class="web-only-preview-hint">Detail page button will show "Open App" instead of "Download"</span></p>
         </div>
         <div class="form-group"><label for="aa-install-methods">Installation Methods <span class="optional">(one per line: label | command or URL)</span></label><textarea id="aa-install-methods" rows="3" maxlength="2000" placeholder="apt | sudo apt install appname&#10;brew | brew install appname&#10;winget | winget install AppName"></textarea></div>
         <div class="form-group"><label for="aa-sysreq">System Requirements <span class="optional">(optional)</span></label><textarea id="aa-sysreq" rows="2" maxlength="1000" placeholder="RAM: 4 GB minimum&#10;Storage: 500 MB&#10;OS: Windows 10+, macOS 11+"></textarea></div>
@@ -3679,6 +3701,12 @@ function attachAdminHandlers(tab) {
     clearScreenshotUploader("aa");
     initScreenshotUploader("aa");
 
+    // Web-only platform detection
+    updateFormWebOnlyState("aa", "aa-platforms");
+    document.querySelectorAll("input[name='aa-platforms']").forEach(cb => {
+      cb.addEventListener("change", () => updateFormWebOnlyState("aa", "aa-platforms"));
+    });
+
     // Comparison editor
     const aaCompContainer = document.getElementById("aa-comparison-editor");
     const aaCompInitBtn = document.getElementById("aa-comp-init");
@@ -3707,6 +3735,13 @@ function attachAdminHandlers(tab) {
       // Validate platforms
       const platforms = [...form.querySelectorAll("input[name='aa-platforms']:checked")].map(el => el.value);
       if (!platforms.length) { showFormError(form, "Select at least one platform."); return; }
+
+      // Platform-aware URL validation
+      const aaWebOnly = isWebOnly(platforms);
+      const aaWebsite = document.getElementById("aa-website").value.trim();
+      const aaDownload = document.getElementById("aa-download").value.trim();
+      if (aaWebOnly && !aaWebsite) { showFormError(form, "Website URL is required for web-only apps."); return; }
+      if (!aaWebOnly && !aaDownload) { showFormError(form, "Download URL is required for installable apps."); return; }
 
       // Handle logo: file upload takes priority over URL
       let logoUrl = document.getElementById("aa-logo").value.trim();
@@ -4427,6 +4462,60 @@ function openSubmitModal(preselectedOrgId) {
   // Initialize screenshot uploader
   clearScreenshotUploader("sub");
   initScreenshotUploader("sub");
+}
+
+// ── Shared Web-Only Platform State Helper ─────────────────────────────────────
+function updateFormWebOnlyState(prefix, checkboxName, opts = {}) {
+  const { enforceRequired = true, defaultDownloadPlaceholder = "https://appname.org/download", defaultWebsitePlaceholder = "https://appname.org" } = opts;
+  const platforms = [...document.querySelectorAll(`input[name='${checkboxName}']:checked`)].map(el => el.value);
+  const webOnly = isWebOnly(platforms);
+
+  const downloadGroup = document.getElementById(`${prefix}-download-group`);
+  const downloadInput = document.getElementById(`${prefix}-download`);
+  const downloadRequired = document.getElementById(`${prefix}-download-required`);
+  const downloadLabel = document.getElementById(`${prefix}-download-label`);
+  const websiteOptional = document.getElementById(`${prefix}-website-optional`);
+  const websiteRequired = document.getElementById(`${prefix}-website-required`);
+  const websiteInput = document.getElementById(`${prefix}-website`);
+  const websiteLabel = document.getElementById(`${prefix}-website-label`);
+  const hint = document.getElementById(`${prefix}-web-only-hint`);
+  const badge = document.getElementById(`${prefix}-web-only-badge`);
+
+  if (webOnly) {
+    if (downloadInput) {
+      if (enforceRequired) downloadInput.required = false;
+      downloadInput.placeholder = "Optional for web apps";
+    }
+    if (downloadRequired) downloadRequired.style.display = "none";
+    if (downloadGroup) downloadGroup.classList.add("field-dimmed");
+    if (downloadLabel) downloadLabel.textContent = "Download URL";
+    if (websiteOptional) websiteOptional.style.display = "none";
+    if (websiteRequired) websiteRequired.style.display = "inline";
+    if (websiteInput) {
+      if (enforceRequired) websiteInput.required = true;
+      websiteInput.placeholder = "https://app-url.com (required for web apps)";
+    }
+    if (websiteLabel) websiteLabel.textContent = "App URL ";
+    if (hint) hint.classList.remove("initially-hidden");
+    if (badge) badge.classList.remove("initially-hidden");
+  } else {
+    if (downloadInput) {
+      if (enforceRequired) downloadInput.required = true;
+      downloadInput.placeholder = defaultDownloadPlaceholder;
+    }
+    if (downloadRequired) downloadRequired.style.display = "inline";
+    if (downloadGroup) downloadGroup.classList.remove("field-dimmed");
+    if (downloadLabel) downloadLabel.textContent = "Download URL";
+    if (websiteOptional) websiteOptional.style.display = "inline";
+    if (websiteRequired) websiteRequired.style.display = "none";
+    if (websiteInput) {
+      if (enforceRequired) websiteInput.required = false;
+      websiteInput.placeholder = defaultWebsitePlaceholder;
+    }
+    if (websiteLabel) websiteLabel.textContent = "Website URL ";
+    if (hint) hint.classList.add("initially-hidden");
+    if (badge) badge.classList.add("initially-hidden");
+  }
 }
 
 function updateSubmitFormForPlatforms() {

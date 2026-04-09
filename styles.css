@@ -6752,6 +6752,12 @@ a.added-by-link:hover {
   line-height: 1.5;
 }
 
+.web-only-preview-hint {
+  font-size: 12px;
+  opacity: 0.8;
+  font-style: italic;
+}
+
 .field-dimmed {
   opacity: 0.5;
   pointer-events: auto;
