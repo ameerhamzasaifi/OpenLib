@@ -1848,8 +1848,7 @@ a.added-by-link:hover {
     gap: 8px;
   }
 
-  /* Hide heavy sections on mobile */
-  .comparison-table,
+  /* Hide heavy sections on mobile (comparison table stays, wrapped in scrollable container) */
   .security-badges,
   .sysreq-block,
   .version-history-section,
@@ -6919,4 +6918,602 @@ a.added-by-link:hover {
   text-align: center;
   padding: 8px 0;
   margin: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   MOBILE RESPONSIVENESS FIX — Global overflow prevention & layout corrections
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Global overflow prevention ── */
+html {
+  overflow-x: hidden;
+}
+
+body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+/* ── Text overflow safety for URLs and long words ── */
+.app-description,
+.detail-section p,
+.desc-content,
+.meta-value,
+.review-body,
+.er-description {
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.meta-value a,
+.detail-links a,
+.detail-section a {
+  overflow-wrap: break-word;
+  word-break: break-all;
+}
+
+/* ── Comparison table: scrollable wrapper instead of hiding ── */
+.comparison-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ═══ 768px — Tablet / Small Laptop ═══ */
+@media (max-width: 768px) {
+  /* ── Header fixes ── */
+  .header-inner {
+    flex-wrap: wrap;
+    height: auto;
+    min-height: 56px;
+    padding: 8px 12px;
+    gap: 8px;
+  }
+
+  .header-actions {
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .btn-submit-app {
+    padding: 6px 10px;
+    font-size: 12px;
+    order: 10;
+  }
+
+  .nav-link {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+
+  .auth-btn {
+    padding: 5px 10px;
+    font-size: 12px;
+  }
+
+  #auth-label {
+    display: none;
+  }
+
+  .theme-toggle {
+    width: 34px;
+    height: 34px;
+    font-size: 14px;
+  }
+
+  /* ── Card grid: single column, no overflow ── */
+  #app-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .app-card {
+    padding: 16px;
+    gap: 10px;
+  }
+
+  /* ── Card actions: wrap buttons ── */
+  .card-actions {
+    flex-wrap: wrap;
+  }
+
+  .card-actions .btn {
+    min-width: 0;
+    flex: 1 1 calc(50% - 4px);
+    font-size: 12px;
+    padding: 8px 10px;
+  }
+
+  /* ── Recommendation grid ── */
+  .rec-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px;
+  }
+
+  /* ── Detail: stats grid 2 columns ── */
+  .detail-stats {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
+  /* ── Detail: buttons full width ── */
+  .detail-actions-row .detail-links {
+    flex-wrap: wrap;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .detail-actions-row .detail-links .btn-lg {
+    flex: 1 1 calc(50% - 4px);
+    min-width: 0;
+    padding: 10px 12px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  .detail-actions-row .vote-buttons {
+    width: 100%;
+  }
+
+  .detail-actions-row .vote-buttons .vote-btn {
+    flex: 1;
+    padding: 10px 12px;
+    font-size: 13px;
+    justify-content: center;
+  }
+
+  /* ── Detail: secondary actions ── */
+  .detail-secondary-actions {
+    flex-wrap: wrap;
+  }
+
+  .detail-secondary-actions .report-btn,
+  .detail-secondary-actions .btn-direct-edit {
+    flex: 1 1 calc(50% - 4px);
+    text-align: center;
+    justify-content: center;
+    font-size: 12px;
+  }
+
+  /* ── Comparison table: show with scroll instead of hiding ── */
+  .comparison-table {
+    display: table !important;
+    font-size: 12px;
+    min-width: 320px;
+  }
+
+  /* ── Screenshot gallery ── */
+  .screenshots-gallery {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 8px;
+  }
+
+  /* ── Lightbox ── */
+  .lightbox-content {
+    max-width: 95vw;
+    max-height: 88vh;
+  }
+
+  .lightbox-img {
+    max-width: 95vw;
+    max-height: 85vh;
+  }
+
+  .lightbox-close {
+    top: -8px;
+    right: -8px;
+    width: 30px;
+    height: 30px;
+    font-size: 14px;
+  }
+
+  /* ── Install methods: scrollable ── */
+  .install-cmd {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  /* ── Modal: fit within mobile viewport ── */
+  .modal-overlay {
+    padding: 10px;
+  }
+
+  .modal {
+    max-width: 100%;
+    padding: 20px;
+  }
+
+  /* ── Filters wrap ── */
+  .filters {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .filter-btn {
+    font-size: 12px;
+    padding: 5px 10px;
+  }
+}
+
+/* ═══ 480px — Mobile ═══ */
+@media (max-width: 480px) {
+  /* ── Header: compact mobile layout ── */
+  .header-inner {
+    padding: 6px 10px;
+    gap: 6px;
+  }
+
+  .logo-title {
+    font-size: 16px;
+  }
+
+  .logo-icon {
+    width: 28px;
+    height: 28px;
+    font-size: 12px;
+    border-radius: 7px;
+  }
+
+  .header-actions {
+    gap: 6px;
+  }
+
+  .btn-submit-app {
+    padding: 5px 8px;
+    font-size: 11px;
+  }
+
+  .nav-link {
+    padding: 3px 6px;
+    font-size: 10px;
+  }
+
+  .nav-link-admin {
+    display: none;
+  }
+
+  .theme-toggle {
+    width: 30px;
+    height: 30px;
+  }
+
+  /* ── Hero text ── */
+  .hero-text h1 {
+    font-size: 22px;
+  }
+
+  .hero-text p {
+    font-size: 13px;
+  }
+
+  .controls-section {
+    padding: 20px 10px 12px;
+  }
+
+  .grid-section {
+    padding: 6px 10px 40px;
+  }
+
+  /* ── Cards ── */
+  .app-card {
+    padding: 14px;
+    gap: 8px;
+  }
+
+  .app-logo, .app-logo-fallback {
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+  }
+
+  .app-name {
+    font-size: 15px;
+  }
+
+  .app-description {
+    font-size: 13px;
+    -webkit-line-clamp: 2;
+  }
+
+  .app-stats-row {
+    gap: 8px;
+  }
+
+  .stat-item {
+    font-size: 10px;
+  }
+
+  .card-actions {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .card-actions .btn {
+    flex: 1 1 100%;
+    width: 100%;
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+
+  .card-meta-pills {
+    display: none;
+  }
+
+  .card-tags {
+    display: none;
+  }
+
+  /* ── Platform tags compact ── */
+  .platforms-row {
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+
+  .platform-tag {
+    font-size: 9px;
+    padding: 1px 4px;
+  }
+
+  /* ── Detail page ── */
+  .detail-page {
+    padding: 14px 10px;
+  }
+
+  .detail-header {
+    gap: 10px;
+  }
+
+  .detail-logo, .detail-logo-fallback {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    font-size: 22px;
+  }
+
+  .detail-name {
+    font-size: 18px;
+  }
+
+  .detail-body {
+    gap: 10px;
+  }
+
+  .detail-stats {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+  }
+
+  .detail-stat-card {
+    padding: 8px 6px;
+  }
+
+  .stat-number {
+    font-size: 16px;
+  }
+
+  .stat-label {
+    font-size: 9px;
+  }
+
+  /* ── Detail buttons: full width stacked ── */
+  .detail-actions-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .detail-actions-row .detail-links {
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+  }
+
+  .detail-actions-row .detail-links .btn-lg {
+    flex: none;
+    width: 100%;
+    padding: 12px 14px;
+    font-size: 14px;
+  }
+
+  .detail-actions-row .vote-buttons {
+    width: 100%;
+  }
+
+  .vote-btn {
+    padding: 8px 10px;
+    font-size: 12px;
+    gap: 4px;
+  }
+
+  .detail-secondary-actions {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .detail-secondary-actions .report-btn,
+  .detail-secondary-actions .btn-direct-edit {
+    flex: none;
+    width: 100%;
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+
+  /* ── Detail info grid ── */
+  .detail-info-grid {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  /* ── Screenshots: smaller thumbnails ── */
+  .screenshots-gallery {
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 6px;
+  }
+
+  /* ── Lightbox: full-width ── */
+  .lightbox-content {
+    max-width: 98vw;
+    max-height: 85vh;
+  }
+
+  .lightbox-img {
+    max-width: 98vw;
+    max-height: 80vh;
+    border-radius: var(--radius-sm);
+  }
+
+  .lightbox-nav {
+    width: 32px;
+    height: 32px;
+    font-size: 18px;
+  }
+
+  .lightbox-prev { left: 4px; }
+  .lightbox-next { right: 4px; }
+
+  .lightbox-close {
+    top: -6px;
+    right: -6px;
+    width: 28px;
+    height: 28px;
+    font-size: 12px;
+  }
+
+  /* ── Install methods: compact ── */
+  .install-method {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 8px 10px;
+  }
+
+  .install-label {
+    font-size: 10px;
+    min-width: auto;
+  }
+
+  .install-cmd {
+    font-size: 11px;
+    width: 100%;
+    overflow-x: auto;
+    max-width: 100%;
+  }
+
+  /* ── Comparison table: compact scrollable ── */
+  .comparison-table {
+    display: table !important;
+    font-size: 11px;
+    min-width: 280px;
+  }
+
+  .comparison-table th,
+  .comparison-table td {
+    padding: 6px 8px;
+  }
+
+  /* ── Modal ── */
+  .modal-overlay {
+    padding: 8px;
+    align-items: flex-end;
+  }
+
+  .modal {
+    max-width: 100%;
+    padding: 16px;
+    border-radius: var(--radius) var(--radius) 0 0;
+    max-height: 92vh;
+  }
+
+  /* ── Footer ── */
+  .footer-inner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  /* ── Recommendation cards ── */
+  .rec-card {
+    padding: 10px;
+  }
+
+  .rec-logo, .rec-logo-fallback {
+    width: 36px;
+    height: 36px;
+  }
+
+  /* ── Similar apps ── */
+  .similar-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* ── Rankings ── */
+  .ranking-item {
+    padding: 10px 12px;
+    gap: 10px;
+  }
+
+  .ranking-pos {
+    font-size: 14px;
+    min-width: 24px;
+  }
+
+  .rank-logo, .rank-logo-fallback {
+    width: 32px;
+    height: 32px;
+  }
+
+  .ranking-name {
+    font-size: 13px;
+  }
+
+  /* ── Forms ── */
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  /* ── Reviews ── */
+  .review-card {
+    padding: 10px;
+  }
+
+  .review-header {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .reviews-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+}
+
+/* ═══ 360px — Very small phones ═══ */
+@media (max-width: 360px) {
+  .header-inner {
+    padding: 6px 8px;
+  }
+
+  .logo-title {
+    font-size: 14px;
+  }
+
+  .btn-submit-app {
+    font-size: 10px;
+    padding: 4px 6px;
+  }
+
+  .nav-link {
+    display: none;
+  }
+
+  .app-card {
+    padding: 12px;
+  }
+
+  .detail-page {
+    padding: 10px 8px;
+  }
 }

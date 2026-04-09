@@ -28,7 +28,7 @@ import {
   followUser, unfollowUser, isFollowing,
   addAppReview, getAppReviews, markReviewHelpful, getUserReviewForApp, toggleReviewVote, getUserReviewVote,
   toggleBookmark, isBookmarked, getUserBookmarks,
-  trackDownload,
+  trackDownload, trackOpen,
   submitOwnershipClaim,
   resolveContributorProfile, getOfficialProfile, isOfficialApp,
   getTeamMembers, getOpenLibConfig, updateOpenLibConfig,
@@ -421,11 +421,11 @@ function renderComparisonHtml(app) {
       return `<tr><td>${esc(r.feature)}</td>${cells}</tr>`;
     }).join("");
     return `<div class="detail-section"><h3>Comparison</h3>
-      <table class="comparison-table"><thead><tr><th>Feature</th>${hdr}</tr></thead><tbody>${body}</tbody></table></div>`;
+      <div class="comparison-wrapper"><table class="comparison-table"><thead><tr><th>Feature</th>${hdr}</tr></thead><tbody>${body}</tbody></table></div></div>`;
   }
   if (!app.alternative) return "";
   return `<div class="detail-section"><h3>Comparison</h3>
-    <table class="comparison-table">
+    <div class="comparison-wrapper"><table class="comparison-table">
       <thead><tr><th>Feature</th><th>${esc(app.name)}</th><th>${esc(app.alternative)}</th></tr></thead>
       <tbody>
         <tr><td>Free</td><td class="comp-yes">✅</td><td class="comp-no">❌</td></tr>
@@ -433,7 +433,7 @@ function renderComparisonHtml(app) {
         <tr><td>Cross-Platform</td><td class="comp-yes">${(app.platforms || []).length > 1 ? "✅" : "—"}</td><td>—</td></tr>
         <tr><td>License</td><td>${esc(app.license || "Open Source")}</td><td>Proprietary</td></tr>
       </tbody>
-    </table></div>`;
+    </table></div></div>`;
 }
 
 function buildCard(app, rankMap) {
@@ -464,7 +464,7 @@ function buildCard(app, rankMap) {
         <span class="stat-item" title="Views">👁 ${app.views || 0}</span>
         <span class="stat-item like-stat" title="Likes">👍 ${app.likes || 0}</span>
         <span class="stat-item dislike-stat" title="Dislikes">👎 ${app.dislikes || 0}</span>
-        ${isWebOnly(app.platforms) ? '' : `<span class="stat-item" title="Downloads">⬇ ${app.downloads || 0}</span>`}
+        ${isWebOnly(app.platforms) ? `<span class="stat-item" title="Opens">↗ ${app.opens || 0}</span>` : `<span class="stat-item" title="Downloads">⬇ ${app.downloads || 0}</span>`}
         <span class="stat-item">${addedByBadge(app.addedBy)}</span>
       </div>
       <div class="platforms-row">${plates}${isWebOnly(app.platforms) ? '<span class="web-only-label">Runs in browser</span>' : ''}</div>
@@ -475,7 +475,7 @@ function buildCard(app, rankMap) {
       </div>
       <div class="card-actions">
         ${isWebOnly(app.platforms)
-          ? `<a href="${esc(getAppPrimaryUrl(app))}" class="btn btn-primary btn-open-app" target="_blank" rel="noopener" data-app-id="${esc(app.id)}" data-app-name="${esc(app.name)}">↗ Open App</a>`
+          ? `<a href="${esc(getAppPrimaryUrl(app))}" class="btn btn-primary btn-open-app open-track-link" target="_blank" rel="noopener" data-app-id="${esc(app.id)}" data-app-name="${esc(app.name)}">↗ Open App</a>`
           : `<a href="${esc(app.download)}" class="btn btn-primary" target="_blank" rel="noopener" data-app-id="${esc(app.id)}" data-app-name="${esc(app.name)}">⬇ Download</a>`}
         ${hasWebPlatform(app.platforms) && !isWebOnly(app.platforms) && app.website
           ? `<a href="${esc(app.website)}" class="btn btn-secondary btn-open-web" target="_blank" rel="noopener">🌐 Open Web App</a>`
@@ -854,7 +854,9 @@ async function showAppDetail(appId) {
             <div class="detail-stat-card"><span class="stat-number">${app.views || 0}</span><span class="stat-label">Views</span></div>
             <div class="detail-stat-card"><span class="stat-number">${app.likes || 0}</span><span class="stat-label">Likes</span></div>
             <div class="detail-stat-card"><span class="stat-number">${app.dislikes || 0}</span><span class="stat-label">Dislikes</span></div>
-            ${isWebOnly(app.platforms) ? '' : `<div class="detail-stat-card"><span class="stat-number">${app.downloads || 0}</span><span class="stat-label">Downloads</span></div>`}
+            ${isWebOnly(app.platforms)
+              ? `<div class="detail-stat-card"><span class="stat-number">${app.opens || 0}</span><span class="stat-label">Opens</span></div>`
+              : `<div class="detail-stat-card"><span class="stat-number">${app.downloads || 0}</span><span class="stat-label">Downloads</span></div>`}
           </div>
 
           <div class="detail-actions-row">
@@ -868,7 +870,7 @@ async function showAppDetail(appId) {
             </div>
             <div class="detail-links">
               ${isWebOnly(app.platforms)
-                ? `<a href="${esc(getAppPrimaryUrl(app))}" class="btn btn-primary btn-lg btn-open-app" target="_blank" rel="noopener" data-app-id="${esc(appId)}" data-app-name="${esc(app.name)}">↗ Open App</a>`
+                ? `<a href="${esc(getAppPrimaryUrl(app))}" class="btn btn-primary btn-lg btn-open-app open-track-link" target="_blank" rel="noopener" data-app-id="${esc(appId)}" data-app-name="${esc(app.name)}">↗ Open App</a>`
                 : `<a href="${esc(app.download)}" class="btn btn-primary btn-lg download-track-link" target="_blank" rel="noopener" data-app-id="${esc(appId)}" data-app-name="${esc(app.name)}">⬇ Download</a>`}
               ${hasWebPlatform(app.platforms) && !isWebOnly(app.platforms) && app.website
                 ? `<a href="${esc(app.website)}" class="btn btn-secondary btn-lg btn-open-web" target="_blank" rel="noopener">🌐 Open Web App</a>`
@@ -969,6 +971,27 @@ async function showAppDetail(appId) {
       }
     });
   });
+
+  // Track Open App clicks (debounced, similar to download tracking)
+  detailView.querySelectorAll(".open-track-link").forEach(link => {
+    let tracking = false;
+    link.addEventListener("click", async () => {
+      if (tracking) return;
+      tracking = true;
+      try {
+        const newCount = await trackOpen(appId, currentUser?.uid);
+        if (newCount != null) {
+          const idx = apps.findIndex(a => a.id === appId);
+          if (idx >= 0) apps[idx].opens = newCount;
+          const openStat = detailView.querySelector('.detail-stats .detail-stat-card:nth-child(4) .stat-number');
+          if (openStat) openStat.textContent = newCount;
+        }
+      } finally {
+        setTimeout(() => { tracking = false; }, 2000);
+      }
+    });
+  });
+
   detailView.querySelector(".detail-report")?.addEventListener("click", e => {
     const rb = e.currentTarget;
     openReportModal(rb.dataset.appId, rb.dataset.appName);
@@ -5603,6 +5626,25 @@ async function init() {
   document.getElementById("app-grid").addEventListener("click", async e => {
     const rb = e.target.closest(".report-btn");
     if (rb) openReportModal(rb.dataset.appId, rb.dataset.appName);
+
+    // Track Open App clicks from cards (debounced)
+    const openLink = e.target.closest(".open-track-link");
+    if (openLink) {
+      const appId = openLink.dataset.appId;
+      if (appId && !openLink._tracking) {
+        openLink._tracking = true;
+        try {
+          const newCount = await trackOpen(appId, currentUser?.uid);
+          if (newCount != null) {
+            const idx = apps.findIndex(a => a.id === appId);
+            if (idx >= 0) apps[idx].opens = newCount;
+          }
+        } finally {
+          setTimeout(() => { openLink._tracking = false; }, 2000);
+        }
+      }
+      return;
+    }
 
     // Card bookmark button
     const bkBtn = e.target.closest(".card-bookmark-btn");

@@ -807,6 +807,7 @@ export async function adminAddApp(appData, adminUid) {
     dislikes: 0,
     views: 0,
     downloads: 0,
+    opens: 0,
     addedBy,
     ownerType,
     ownerId,
@@ -957,6 +958,8 @@ export async function approveSubmission(submissionId, adminUid) {
     likes: 0,
     dislikes: 0,
     views: 0,
+    downloads: 0,
+    opens: 0,
     addedBy: addedByData,
     ownerType: sub.ownerType || "user",
     ownerId: sub.ownerId || sub.userId,
@@ -1365,6 +1368,45 @@ export async function getWeeklyDownloads(appId) {
     return snap.size;
   } catch (e) {
     return 0;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  OPEN APP TRACKING — Collection: app_opens/{id}
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export async function trackOpen(appId, userId) {
+  try {
+    // Throttle: 1 open per user/session per app per hour
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const identifier = userId || "anonymous";
+    const opensRef = collection(db, "app_opens");
+    const q = query(
+      opensRef,
+      where("appId", "==", appId),
+      where("userId", "==", identifier),
+      where("timestamp", ">", oneHourAgo),
+      limit(1)
+    );
+    const existing = await getDocs(q);
+    if (!existing.empty) {
+      const appRef = doc(db, "apps", appId);
+      const snap = await getDoc(appRef);
+      return snap.data()?.opens || 0;
+    }
+
+    await addDoc(opensRef, {
+      appId,
+      userId: identifier,
+      timestamp: new Date().toISOString()
+    });
+    const appRef = doc(db, "apps", appId);
+    await updateDoc(appRef, { opens: increment(1) });
+    const updated = await getDoc(appRef);
+    return updated.data()?.opens || 0;
+  } catch (e) {
+    console.error("Error tracking open:", e);
+    return null;
   }
 }
 

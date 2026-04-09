@@ -58,7 +58,11 @@ service cloud.firestore {
         // Other counters: signed-in users can update counter fields
         || (isSignedIn()
             && request.resource.data.diff(resource.data)
-                 .affectedKeys().hasOnly(["likes", "dislikes", "views", "downloads"]));
+                 .affectedKeys().hasOnly(["likes", "dislikes", "views", "downloads", "opens"]))
+        // Opens counter: anyone (including anonymous) can increment opens only
+        || (request.resource.data.diff(resource.data)
+                 .affectedKeys().hasOnly(["opens"])
+            && request.resource.data.opens is int);
       allow delete: if isAdmin();
     }
 
@@ -309,6 +313,13 @@ service cloud.firestore {
     match /app_downloads/{downloadId} {
       allow read: if isAdmin();
       allow create: if isSignedIn();
+      allow update, delete: if false;
+    }
+
+    // ── App Opens (web app launch tracking) ──────────────────────────────────
+    match /app_opens/{openId} {
+      allow read: if isAdmin();
+      allow create: if true;
       allow update, delete: if false;
     }
 
