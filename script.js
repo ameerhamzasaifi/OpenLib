@@ -26,7 +26,7 @@ import {
   requestChangesOnSubmission,
   getAllSubmissions, getSubmission, getUserSubmissions, updateSubmission, getSubmissionComments, addSubmissionComment,
   followUser, unfollowUser, isFollowing,
-  addAppReview, getAppReviews, markReviewHelpful, getUserReviewForApp, toggleReviewVote, getUserReviewVote,
+  addAppReview, getAppReviews, getAverageRating, markReviewHelpful, getUserReviewForApp, toggleReviewVote, getUserReviewVote,
   toggleBookmark, isBookmarked, getUserBookmarks,
   trackDownload, trackOpen,
   submitOwnershipClaim,
@@ -46,7 +46,7 @@ let isAdmin = false;
 let apps = [];
 
 // [OPT-1 FIX] Centralized view switching — replaces 11 duplicate view-hiding blocks
-const ALL_VIEWS = ["home-view", "detail-view", "rankings-view", "profile-view",
+const ALL_VIEWS = ["home-view", "detail-view", "rankings-view", "trending-view", "profile-view",
                    "org-view", "admin-view", "verify-view", "team-view", "team-manage-view"];
 function switchView(activeId) {
   ALL_VIEWS.forEach(id => {
@@ -441,7 +441,7 @@ function buildCard(app, rankMap) {
   const rank = rankMap ? rankMap.get(app.id) : getAppRank(app.id);
   const plates = (app.platforms || []).map(p => `<span class="platform-tag">${platformIcon(p)} ${esc(p)}</span>`).join("");
   const logoHtml = app.logo
-    ? `<img class="app-logo" src="${escUrl(app.logo)}" alt="${esc(app.name)} logo" data-app-id="${esc(app.id)}">`
+    ? `<img class="app-logo" src="${escUrl(app.logo)}" alt="${esc(app.name)} logo" data-app-id="${esc(app.id)}" data-fallback-char="${esc(app.name.charAt(0))}">`
     : `<div class="app-logo-fallback">${esc(app.name.charAt(0))}</div>`;
   const tags = (app.tags || []).slice(0, 3);
   const tagsHtml = tags.length ? `<div class="card-tags">${tags.map(t => `<span class="card-tag">${esc(t)}</span>`).join("")}</div>` : "";
@@ -488,9 +488,11 @@ function buildCard(app, rankMap) {
 function handleLogoError(e) {
   const img = e.target;
   const fallback = document.createElement("div");
-  fallback.className = "app-logo-fallback";
-  const appName = img.closest(".app-card")?.querySelector(".app-name")?.textContent || "?";
-  fallback.textContent = appName.charAt(0);
+  // Determine correct fallback class from the img class
+  const cls = img.className.replace(/\blogo\b/, "logo-fallback") || "app-logo-fallback";
+  fallback.className = cls.includes("fallback") ? cls : "app-logo-fallback";
+  const char = img.dataset.fallbackChar || img.closest(".app-card")?.querySelector(".app-name")?.textContent?.charAt(0) || "?";
+  fallback.textContent = char;
   img.replaceWith(fallback);
 }
 
@@ -577,6 +579,7 @@ async function showAppDetail(appId) {
   // Get user vote if logged in
   let userVote = null;
   let bookmarked = false;
+  const ratingData = await getAverageRating(appId);
   if (currentUser) {
     try {
       userVote = await getUserVote(appId, currentUser.uid);
@@ -591,7 +594,7 @@ async function showAppDetail(appId) {
   const rankMovement = prevRank ? prevRank - rank : 0;
   const plates = (app.platforms || []).map(p => `<span class="platform-tag">${platformIcon(p)} ${esc(p)}</span>`).join("");
   const logoHtml = app.logo
-    ? `<img class="detail-logo" src="${escUrl(app.logo)}" alt="${esc(app.name)} logo" onerror="this.style.display='none'">`
+    ? `<img class="detail-logo" src="${escUrl(app.logo)}" alt="${esc(app.name)} logo" data-fallback-char="${esc(app.name.charAt(0))}">`
     : `<div class="detail-logo-fallback">${esc(app.name.charAt(0))}</div>`;
 
   // Generate tags HTML
@@ -691,7 +694,7 @@ async function showAppDetail(appId) {
       <div class="similar-grid">
         ${similarApps.map(sa => {
           const saLogo = sa.logo
-            ? `<img class="similar-logo" src="${escUrl(sa.logo)}" alt="" onerror="this.style.display='none'">`
+            ? `<img class="similar-logo" src="${escUrl(sa.logo)}" alt="" data-fallback-char="${esc(sa.name.charAt(0))}">`
             : `<div class="similar-logo-fallback">${esc(sa.name.charAt(0))}</div>`;
           return `
             <a href="/app/${esc(sa.id)}" class="similar-card">
@@ -857,6 +860,7 @@ async function showAppDetail(appId) {
             ${isWebOnly(app.platforms)
               ? `<div class="detail-stat-card"><span class="stat-number">${app.opens || 0}</span><span class="stat-label">Opens</span></div>`
               : `<div class="detail-stat-card"><span class="stat-number">${app.downloads || 0}</span><span class="stat-label">Downloads</span></div>`}
+            ${ratingData.count > 0 ? `<div class="detail-stat-card"><span class="stat-number">${"★".repeat(Math.round(ratingData.avg))}${"☆".repeat(5 - Math.round(ratingData.avg))}</span><span class="stat-label">${ratingData.avg.toFixed(1)} (${ratingData.count})</span></div>` : ""}
           </div>
 
           <div class="detail-actions-row">
@@ -1588,29 +1592,36 @@ function roleBadge(role) {
   return `<span class="badge badge-role ${cls}">${esc(labels[role] || role)}</span>`;
 }
 
-// ── Recommendations Section ──────────────────────────────────────────────────
-function renderRecommendations() {
+// ── For You Section ──────────────────────────────────────────────────────────
+function renderForYou() {
   const container = document.getElementById("recommendations-section");
   if (!container) return;
 
-  if (!currentUser || !userRecord) {
-    container.style.display = "none";
-    return;
+  let recs;
+  if (currentUser && userRecord) {
+    // Personalized recommendations for logged-in users
+    recs = computeRecommendations(apps, {}, userRecord);
+  } else {
+    // Popular apps fallback for anonymous users
+    recs = [...apps]
+      .sort((a, b) => ((b.likes || 0) * 2 + (b.views || 0) * 0.1) - ((a.likes || 0) * 2 + (a.views || 0) * 0.1))
+      .slice(0, 8);
   }
 
-  const recs = computeRecommendations(apps, {}, userRecord);
   if (recs.length === 0) {
     container.style.display = "none";
     return;
   }
 
+  const title = currentUser ? "For You" : "Popular Apps";
+
   container.style.display = "block";
   container.innerHTML = `
-    <h2 class="rec-title">Recommended for You</h2>
+    <h2 class="rec-title">${title}</h2>
     <div class="rec-grid">
       ${recs.map(app => {
         const logoHtml = app.logo
-          ? `<img class="rec-logo" src="${escUrl(app.logo)}" alt="" onerror="this.style.display='none'">`
+          ? `<img class="rec-logo" src="${escUrl(app.logo)}" alt="" data-fallback-char="${esc(app.name.charAt(0))}">`
           : `<div class="rec-logo-fallback">${esc(app.name.charAt(0))}</div>`;
         return `
           <a href="/app/${esc(app.id)}" class="rec-card">
@@ -1622,6 +1633,90 @@ function renderRecommendations() {
             <span class="rec-rating">👍 ${app.likes || 0}</span>
           </a>`;
       }).join("")}
+    </div>
+  `;
+}
+
+// ── Trending Apps ────────────────────────────────────────────────────────────
+function getTrendingApps(period = "week") {
+  const now = Date.now();
+  const cutoff = period === "today" ? 86400000 : 7 * 86400000;
+  return [...apps]
+    .map(app => {
+      const age = app.createdAt ? (now - new Date(app.createdAt).getTime()) : Infinity;
+      const freshness = Math.max(0, 1 - (age / (30 * 86400000))); // 0-1 over 30 days
+      const activity = ((app.likes || 0) * 3) + ((app.views || 0) * 0.05) + ((app.opens || 0) * 2) + ((app.downloads || 0) * 2);
+      const recency = age < cutoff ? 2 : 1;
+      return { ...app, _trendScore: activity * recency + freshness * 20 };
+    })
+    .sort((a, b) => b._trendScore - a._trendScore);
+}
+
+function renderTrendingHome() {
+  const container = document.getElementById("trending-home-section");
+  if (!container) return;
+  const trending = getTrendingApps("week").slice(0, 6);
+  if (!trending.length) { container.style.display = "none"; return; }
+  container.style.display = "block";
+  container.innerHTML = `
+    <h2 class="rec-title">🔥 Trending This Week</h2>
+    <div class="rec-grid">
+      ${trending.map(app => {
+        const logoHtml = app.logo
+          ? `<img class="rec-logo" src="${escUrl(app.logo)}" alt="" data-fallback-char="${esc(app.name.charAt(0))}">`
+          : `<div class="rec-logo-fallback">${esc(app.name.charAt(0))}</div>`;
+        return `
+          <a href="/app/${esc(app.id)}" class="rec-card">
+            ${logoHtml}
+            <div class="rec-info">
+              <span class="rec-name">${esc(app.name)}</span>
+              <span class="rec-cat">${esc(app.category)}</span>
+            </div>
+            <span class="rec-rating">👍 ${app.likes || 0}</span>
+          </a>`;
+      }).join("")}
+    </div>
+    <div style="text-align:center;margin-top:10px;">
+      <a href="/trending" class="btn btn-secondary btn-sm" id="see-all-trending">See all trending →</a>
+    </div>
+  `;
+  container.querySelector("#see-all-trending")?.addEventListener("click", e => {
+    e.preventDefault();
+    navigateTo("/trending");
+  });
+}
+
+function showTrending() {
+  switchView("trending-view");
+  const view = document.getElementById("trending-view");
+  view.style.display = "block";
+
+  const trending = getTrendingApps("week");
+  view.innerHTML = `
+    <div class="rankings-page">
+      <a href="/" class="back-link">← Back to library</a>
+      <h1 class="rankings-title">🔥 Trending Apps</h1>
+      <p class="rankings-subtitle">Most active apps based on views, likes, and usage this week</p>
+      <div class="rankings-list">
+        ${trending.slice(0, 50).map((app, i) => {
+          const logoHtml = app.logo
+            ? `<img class="rank-logo" src="${escUrl(app.logo)}" alt="" data-fallback-char="${esc(app.name.charAt(0))}">`
+            : `<div class="rank-logo-fallback">${esc(app.name.charAt(0))}</div>`;
+          return `
+            <a href="/app/${esc(app.id)}" class="ranking-item ${i < 3 ? 'top-' + (i+1) : ''}">
+              <span class="ranking-pos">${i + 1}</span>
+              ${logoHtml}
+              <div class="ranking-info">
+                <span class="ranking-name">${esc(app.name)}</span>
+                <span class="ranking-cat">${esc(app.category)}</span>
+              </div>
+              <div class="ranking-metrics">
+                <span title="Likes">👍 ${app.likes || 0}</span>
+                <span title="Views">👁 ${app.views || 0}</span>
+              </div>
+            </a>`;
+        }).join("")}
+      </div>
     </div>
   `;
 }
@@ -1839,7 +1934,7 @@ async function showProfile(uid) {
         await updateUserProfile(currentUser.uid, { bio, website, preferences: { categories, platforms } });
         userRecord = await getUserRecord(currentUser.uid);
         showFormSuccess(form, "Profile updated!");
-        renderRecommendations();
+        renderForYou();
       } catch (err) {
         showFormError(form, err.message);
       }
@@ -1914,7 +2009,7 @@ async function showOrgView(orgId) {
     <div class="org-page">
       <a href="/" class="back-link">← Back to library</a>
       <div class="org-header">
-        ${org.logoURL ? `<img class="org-logo" src="${escUrl(org.logoURL)}" alt="" onerror="this.style.display='none'">` : `<div class="org-logo-fallback">🏢</div>`}
+        ${org.logoURL ? `<img class="org-logo" src="${escUrl(org.logoURL)}" alt="" data-fallback-char="?">` : `<div class="org-logo-fallback">🏢</div>`}
         <div class="org-header-text">
           <h1 class="org-name">${esc(org.name)} ${org.verified ? '<span class="badge badge-verified">✓ Verified</span>' : ""}</h1>
           ${org.ownerType === "corporation" ? `<span class="badge badge-corp">🏛 Corporation: ${esc(org.corporationName || "")}</span>` : ""}
@@ -2143,7 +2238,7 @@ function renderVerifyCards(submissions, filter) {
     <div class="verify-card" data-id="${esc(sub.id)}" data-status="${esc(sub.status)}">
       <div class="verify-card-header">
         <div class="verify-card-title">
-          ${sub.logo ? `<img class="verify-card-logo" src="${escUrl(sub.logo)}" alt="" onerror="this.style.display='none'">` : `<div class="verify-card-logo-fallback">${esc((sub.name || "?").charAt(0))}</div>`}
+          ${sub.logo ? `<img class="verify-card-logo" src="${escUrl(sub.logo)}" alt="" data-fallback-char="?">` : `<div class="verify-card-logo-fallback">${esc((sub.name || "?").charAt(0))}</div>`}
           <div>
             <strong class="verify-card-name">${sf(sub.name)}</strong>
             <span class="badge badge-role">${sf(sub.category)}</span>
@@ -2179,14 +2274,14 @@ function renderVerifyCards(submissions, filter) {
           <div class="verify-field"><label>Version</label><p>${sf(sub.version)}</p></div>
           <div class="verify-field"><label>File Size</label><p>${sf(sub.fileSize)}</p></div>
         </div>
-        ${sub.logo ? `<div class="verify-field"><label>Logo</label><p><img class="verify-card-logo-preview" src="${escUrl(sub.logo)}" alt="" onerror="this.style.display='none'"> <a href="${escUrl(sub.logo)}" target="_blank" rel="noopener">View</a></p></div>` : ""}
+        ${sub.logo ? `<div class="verify-field"><label>Logo</label><p><img class="verify-card-logo-preview" src="${escUrl(sub.logo)}" alt="" data-fallback-char="?"> <a href="${escUrl(sub.logo)}" target="_blank" rel="noopener">View</a></p></div>` : ""}
         <div class="verify-field">
           <label>Platforms</label>
           <div class="verify-platforms">${(sub.platforms || []).length ? sub.platforms.map(p => `<span class="platform-tag">${platformIcon(p)} ${esc(p)}</span>`).join(" ") : "—"}</div>
         </div>
         ${(sub.tags || []).length ? `<div class="verify-field"><label>Tags</label><div class="verify-tags">${sub.tags.map(t => `<span class="card-tag">${esc(t)}</span>`).join(" ")}</div></div>` : ""}
         ${(sub.features || []).length ? `<div class="verify-field"><label>Features</label><ul class="sub-features-list">${sub.features.map(f => `<li>${esc(f)}</li>`).join("")}</ul></div>` : ""}
-        ${(sub.screenshots || []).length ? `<div class="verify-field"><label>Screenshots</label><div class="verify-screenshots">${sub.screenshots.map(s => `<a href="${escUrl(s)}" target="_blank" rel="noopener"><img class="verify-screenshot-thumb" src="${escUrl(s)}" alt="" onerror="this.style.display='none'"></a>`).join(" ")}</div></div>` : ""}
+        ${(sub.screenshots || []).length ? `<div class="verify-field"><label>Screenshots</label><div class="verify-screenshots">${sub.screenshots.map(s => `<a href="${escUrl(s)}" target="_blank" rel="noopener"><img class="verify-screenshot-thumb" src="${escUrl(s)}" alt="" data-fallback-char="?"></a>`).join(" ")}</div></div>` : ""}
         ${(sub.installMethods || []).length ? `<div class="verify-field"><label>Install Methods</label><div class="verify-install-methods">${sub.installMethods.map(m => `<code>${esc(m.label)}: ${esc(m.command)}</code>`).join("<br>")}</div></div>` : ""}
         ${sub.systemRequirements ? `<div class="verify-field"><label>System Requirements</label><pre class="verify-sysreq">${esc(sub.systemRequirements)}</pre></div>` : ""}
         <div class="verify-field-row">
@@ -2433,7 +2528,7 @@ async function showOpenLibTeamPage() {
         <div class="team-curated-grid">
           ${teamApps.slice(0, 8).map(a => `
             <a href="/app/${esc(a.id)}" class="team-curated-card">
-              ${a.logo ? `<img class="team-curated-logo" src="${escUrl(a.logo)}" alt="" onerror="this.style.display='none'">` : `<div class="team-curated-logo-fallback">${esc(a.name.charAt(0))}</div>`}
+              ${a.logo ? `<img class="team-curated-logo" src="${escUrl(a.logo)}" alt="" data-fallback-char="?">` : `<div class="team-curated-logo-fallback">${esc(a.name.charAt(0))}</div>`}
               <span class="team-curated-name">${esc(a.name)}</span>
               <span class="team-curated-cat">${esc(a.category)}</span>
             </a>
@@ -2991,7 +3086,7 @@ function renderAdminSubmissions(submissions) {
         ${field("Documentation", sub.docs, true)}
         <div class="sub-review-row">
           <span class="sub-review-label">Logo</span>
-          <span class="sub-review-value">${sub.logo ? `<img class="sub-review-logo" src="${escUrl(sub.logo)}" alt="" onerror="this.style.display='none'"> <a href="${escUrl(sub.logo)}" target="_blank" rel="noopener">URL</a>` : "—"}</span>
+          <span class="sub-review-value">${sub.logo ? `<img class="sub-review-logo" src="${escUrl(sub.logo)}" alt="" data-fallback-char="?"> <a href="${escUrl(sub.logo)}" target="_blank" rel="noopener">URL</a>` : "—"}</span>
         </div>
         ${field("Maintainer", sub.maintainer)}
         ${field("Developer", sub.developer)}
@@ -4312,7 +4407,7 @@ function showRankings() {
         ${ranked.map((app, i) => {
           const score = calcRankScore(app).toFixed(0);
           const logoHtml = app.logo
-            ? `<img class="rank-logo" src="${escUrl(app.logo)}" alt="" onerror="this.style.display='none'">`
+            ? `<img class="rank-logo" src="${escUrl(app.logo)}" alt="" data-fallback-char="${esc(app.name.charAt(0))}">`
             : `<div class="rank-logo-fallback">${esc(app.name.charAt(0))}</div>`;
           return `
             <a href="/app/${esc(app.id)}" class="ranking-item ${i < 3 ? 'top-' + (i+1) : ''}">
@@ -4995,9 +5090,9 @@ async function updateAuthUI(user) {
     userRecord = await createOrUpdateUserRecord(user);
     isAdmin = userRecord && ["admin", "openlib-team"].includes(userRecord.role);
 
-    // Show/hide admin link
+    // Show/hide admin link; hide Profile nav link (use auth dropdown instead)
     if (adminLink) adminLink.style.display = isAdmin ? "inline-flex" : "none";
-    if (profileLink) profileLink.style.display = "inline-flex";
+    if (profileLink) profileLink.style.display = "none";
 
     const avatarHtml = user.photoURL
       ? `<img class="auth-avatar" src="${escUrl(user.photoURL)}" alt="" referrerpolicy="no-referrer">`
@@ -5095,6 +5190,12 @@ function setupAuthHandlers() {
         showToast("Sign-out failed: " + err.message);
       }
     }
+    const profileLink = e.target.closest(".profile-link");
+    if (profileLink) {
+      e.preventDefault();
+      dropdown.classList.remove("open");
+      navigateTo("/profile");
+    }
   });
 }
 
@@ -5167,7 +5268,8 @@ function setupAccountLinkingModal() {
 function initAuth() {
   onUserAuthStateChanged(async user => {
     await updateAuthUI(user);
-    renderRecommendations();
+    renderForYou();
+    renderTrendingHome();
   });
   setupAuthHandlers();
   setupAccountLinkingModal();
@@ -5253,6 +5355,13 @@ function handleRoute() {
       url: `${BASE_URL}/rankings`
     });
     showRankings();
+  } else if (path === "/trending") {
+    updatePageMeta({
+      title: "Trending — OpenLib",
+      description: "Trending open-source apps on OpenLib this week.",
+      url: `${BASE_URL}/trending`
+    });
+    showTrending();
   } else if (path === "/profile" || path.startsWith("/profile/")) {
     const uid = path === "/profile" ? null : decodeURIComponent(path.replace("/profile/", ""));
     updatePageMeta({ title: "Profile — OpenLib", description: "User profile on OpenLib.", url: `${BASE_URL}${path}` });
@@ -5288,7 +5397,8 @@ function showHome() {
   document.getElementById("home-view").style.display = "block";
   buildFilters();
   renderGrid(getFiltered());
-  renderRecommendations();
+  renderForYou();
+  renderTrendingHome();
 }
 
 async function showReviewsPage(appId) {
@@ -5534,6 +5644,8 @@ function renderCurrentView() {
     showAppDetail(path.replace("/app/", ""));
   } else if (path === "/rankings") {
     showRankings();
+  } else if (path === "/trending") {
+    showTrending();
   } else if (path === "/profile" || path.startsWith("/profile/")) {
     showProfile(path === "/profile" ? null : path.replace("/profile/", ""));
   } else if (path.startsWith("/org/")) {
@@ -5545,7 +5657,7 @@ function renderCurrentView() {
   } else {
     buildFilters();
     renderGrid(getFiltered());
-    renderRecommendations();
+    renderForYou();
   }
 }
 
@@ -5710,10 +5822,17 @@ async function init() {
     navigateTo("/rankings");
   });
 
+  // Trending nav link
+  document.getElementById("trending-nav-link")?.addEventListener("click", e => {
+    e.preventDefault();
+    navigateTo("/trending");
+  });
+
   // Modal interactions
   document.querySelectorAll(".modal-overlay").forEach(overlay => {
     overlay.addEventListener("click", e => {
-      if (e.target === overlay || e.target.closest(".modal-close")) {
+      // Only close via explicit close button (not backdrop click)
+      if (e.target.closest(".modal-close")) {
         overlay.classList.remove("open");
       }
     });
@@ -5776,5 +5895,13 @@ async function init() {
     }
   });
 }
+
+// Global logo error handler — catches broken logos anywhere in the DOM
+document.addEventListener("error", e => {
+  const img = e.target;
+  if (img.tagName === "IMG" && img.dataset.fallbackChar) {
+    handleLogoError(e);
+  }
+}, true);
 
 document.addEventListener("DOMContentLoaded", init);

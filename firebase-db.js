@@ -1231,6 +1231,20 @@ export async function getAppReviews(appId, sortBy = "latest") {
   }
 }
 
+export async function getAverageRating(appId) {
+  try {
+    const q = query(collection(db, "app_reviews"), where("appId", "==", appId));
+    const snapshot = await getDocs(q);
+    if (snapshot.empty) return { avg: 0, count: 0 };
+    let total = 0;
+    snapshot.forEach(d => { total += d.data().rating || 0; });
+    return { avg: total / snapshot.size, count: snapshot.size };
+  } catch (e) {
+    console.error("Error getting average rating:", e);
+    return { avg: 0, count: 0 };
+  }
+}
+
 export async function markReviewHelpful(reviewId, helpful = true) {
   try {
     const field = helpful ? "helpful" : "unhelpful";
@@ -1375,29 +1389,43 @@ export async function getWeeklyDownloads(appId) {
 //  OPEN APP TRACKING — Collection: app_opens/{id}
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// Per-session throttle map for anonymous open tracking
+const _anonOpenThrottle = new Map();
+
 export async function trackOpen(appId, userId) {
   try {
-    // Throttle: 1 open per user/session per app per hour
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-    const identifier = userId || "anonymous";
-    const opensRef = collection(db, "app_opens");
-    const q = query(
-      opensRef,
-      where("appId", "==", appId),
-      where("userId", "==", identifier),
-      where("timestamp", ">", oneHourAgo),
-      limit(1)
-    );
-    const existing = await getDocs(q);
-    if (!existing.empty) {
-      const appRef = doc(db, "apps", appId);
-      const snap = await getDoc(appRef);
-      return snap.data()?.opens || 0;
+    // Session-based throttle for anonymous users (no Firestore query needed)
+    if (!userId) {
+      const key = `open_${appId}`;
+      const last = _anonOpenThrottle.get(key);
+      if (last && Date.now() - last < 3600000) {
+        const snap = await getDoc(doc(db, "apps", appId));
+        return snap.data()?.opens || 0;
+      }
+      _anonOpenThrottle.set(key, Date.now());
     }
 
-    await addDoc(opensRef, {
+    // Throttle: 1 open per user per app per hour (authenticated)
+    if (userId) {
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      const opensRef = collection(db, "app_opens");
+      const q = query(
+        opensRef,
+        where("appId", "==", appId),
+        where("userId", "==", userId),
+        where("timestamp", ">", oneHourAgo),
+        limit(1)
+      );
+      const existing = await getDocs(q);
+      if (!existing.empty) {
+        const snap = await getDoc(doc(db, "apps", appId));
+        return snap.data()?.opens || 0;
+      }
+    }
+
+    await addDoc(collection(db, "app_opens"), {
       appId,
-      userId: identifier,
+      userId: userId || "anonymous",
       timestamp: new Date().toISOString()
     });
     const appRef = doc(db, "apps", appId);
