@@ -707,33 +707,49 @@ async function incrementActivity(uid, field) {
   }
 }
 
-export function computeRecommendations(allApps, _unused, userRecord) {
+export function computeRecommendations(allApps, _unused, userRecord, bookmarkedAppIds = []) {
   if (!allApps.length) return [];
 
   const prefCats = userRecord?.preferences?.categories || [];
   const prefPlats = userRecord?.preferences?.platforms || [];
 
-  const scored = allApps.map(app => {
+  // Derive category affinity from bookmarks (behavior-based signal)
+  const bookmarkSet = new Set(bookmarkedAppIds);
+  const bookmarkedCats = {};
+  allApps.forEach(app => {
+    if (bookmarkSet.has(app.id) && app.category) {
+      bookmarkedCats[app.category] = (bookmarkedCats[app.category] || 0) + 1;
+    }
+  });
+
+  const scored = allApps
+    .filter(app => !bookmarkSet.has(app.id)) // Exclude already-bookmarked apps
+    .map(app => {
     let score = 0;
 
-    // Category affinity (40%)
-    if (prefCats.length > 0 && prefCats.includes(app.category)) score += 40;
+    // Category affinity from preferences (25%)
+    if (prefCats.length > 0 && prefCats.includes(app.category)) score += 25;
 
-    // Popularity (30%)
-    const pop = ((app.likes || 0) * 1.5) + ((app.views || 0) * 0.01);
-    score += Math.min(30, pop);
-
-    // Freshness (15%)
-    if (app.createdAt) {
-      const days = (Date.now() - new Date(app.createdAt).getTime()) / 86400000;
-      score += Math.max(0, 15 - (days * 0.1));
+    // Category affinity from bookmarks behavior (25%)
+    if (bookmarkedCats[app.category]) {
+      score += Math.min(25, bookmarkedCats[app.category] * 8);
     }
 
-    // Platform match (15%)
-    if (prefPlats.length > 0 && app.platforms?.some(p => prefPlats.includes(p))) score += 15;
+    // Popularity (25%)
+    const pop = ((app.likes || 0) * 1.5) + ((app.views || 0) * 0.01) + ((app.opens || 0) * 0.5) + ((app.downloads || 0) * 0.5);
+    score += Math.min(25, pop);
 
-    // Discovery bonus
-    if (prefCats.length > 0 && !prefCats.includes(app.category)) score += 5;
+    // Freshness (10%)
+    if (app.createdAt) {
+      const days = (Date.now() - new Date(app.createdAt).getTime()) / 86400000;
+      score += Math.max(0, 10 - (days * 0.07));
+    }
+
+    // Platform match (10%)
+    if (prefPlats.length > 0 && app.platforms?.some(p => prefPlats.includes(p))) score += 10;
+
+    // Discovery bonus (5%) — categories user hasn't seen yet
+    if (prefCats.length > 0 && !prefCats.includes(app.category) && !bookmarkedCats[app.category]) score += 5;
 
     return { ...app, _recScore: score };
   });
@@ -1210,6 +1226,18 @@ export async function addAppReview(appId, reviewData, user) {
   };
   await setDoc(ref, review);
   await incrementActivity(user.uid, "reviewsDone");
+
+  // Update average rating on the app document for fast card rendering
+  try {
+    const { avg, count } = await getAverageRating(appId);
+    await updateDoc(doc(db, "apps", appId), {
+      avgRating: Math.round(avg * 10) / 10,
+      reviewCount: count
+    });
+  } catch (e) {
+    console.error("Error updating app avg rating:", e);
+  }
+
   return { id: reviewId, ...review };
 }
 

@@ -462,9 +462,9 @@ function buildCard(app, rankMap) {
       ${tagsHtml}
       <div class="app-stats-row">
         <span class="stat-item" title="Views">👁 ${app.views || 0}</span>
-        <span class="stat-item like-stat" title="Likes">👍 ${app.likes || 0}</span>
-        <span class="stat-item dislike-stat" title="Dislikes">👎 ${app.dislikes || 0}</span>
+        <span class="stat-item like-stat" title="Score">👍 ${(app.likes || 0) - (app.dislikes || 0)}</span>
         ${isWebOnly(app.platforms) ? `<span class="stat-item" title="Opens">↗ ${app.opens || 0}</span>` : `<span class="stat-item" title="Downloads">⬇ ${app.downloads || 0}</span>`}
+        ${app.avgRating ? `<span class="stat-item card-rating" title="${app.avgRating} stars (${app.reviewCount || 0} reviews)">★ ${app.avgRating}</span>` : ""}
         <span class="stat-item">${addedByBadge(app.addedBy)}</span>
       </div>
       <div class="platforms-row">${plates}${isWebOnly(app.platforms) ? '<span class="web-only-label">Runs in browser</span>' : ''}</div>
@@ -854,22 +854,21 @@ async function showAppDetail(appId) {
 
         <div class="detail-stats-actions">
           <div class="detail-stats">
-            <div class="detail-stat-card"><span class="stat-number">${app.views || 0}</span><span class="stat-label">Views</span></div>
-            <div class="detail-stat-card"><span class="stat-number">${app.likes || 0}</span><span class="stat-label">Likes</span></div>
-            <div class="detail-stat-card"><span class="stat-number">${app.dislikes || 0}</span><span class="stat-label">Dislikes</span></div>
+            <div class="detail-stat-card" data-stat="views"><span class="stat-number">${app.views || 0}</span><span class="stat-label">Views</span></div>
+            <div class="detail-stat-card" data-stat="score"><span class="stat-number">${(app.likes || 0) - (app.dislikes || 0)}</span><span class="stat-label">Score</span></div>
             ${isWebOnly(app.platforms)
-              ? `<div class="detail-stat-card"><span class="stat-number">${app.opens || 0}</span><span class="stat-label">Opens</span></div>`
-              : `<div class="detail-stat-card"><span class="stat-number">${app.downloads || 0}</span><span class="stat-label">Downloads</span></div>`}
-            ${ratingData.count > 0 ? `<div class="detail-stat-card"><span class="stat-number">${"★".repeat(Math.round(ratingData.avg))}${"☆".repeat(5 - Math.round(ratingData.avg))}</span><span class="stat-label">${ratingData.avg.toFixed(1)} (${ratingData.count})</span></div>` : ""}
+              ? `<div class="detail-stat-card" data-stat="opens"><span class="stat-number">${app.opens || 0}</span><span class="stat-label">Opens</span></div>`
+              : `<div class="detail-stat-card" data-stat="downloads"><span class="stat-number">${app.downloads || 0}</span><span class="stat-label">Downloads</span></div>`}
+            <div class="detail-stat-card" data-stat="rating"><span class="stat-number">${ratingData.count > 0 ? "★".repeat(Math.round(ratingData.avg)) + "☆".repeat(5 - Math.round(ratingData.avg)) : "☆☆☆☆☆"}</span><span class="stat-label">${ratingData.count > 0 ? ratingData.avg.toFixed(1) + " (" + ratingData.count + " reviews)" : "No ratings yet"}</span></div>
           </div>
 
           <div class="detail-actions-row">
             <div class="vote-buttons">
               <button class="vote-btn like-btn ${userVote === 'like' ? 'active' : ''}" data-app-id="${esc(appId)}" data-vote="like">
-                👍 Like <span class="vote-count" id="like-count-${esc(appId)}">${app.likes || 0}</span>
+                👍 <span class="vote-count" id="vote-score-${esc(appId)}">${(app.likes || 0) - (app.dislikes || 0)}</span>
               </button>
               <button class="vote-btn dislike-btn ${userVote === 'dislike' ? 'active' : ''}" data-app-id="${esc(appId)}" data-vote="dislike">
-                👎 Dislike <span class="vote-count" id="dislike-count-${esc(appId)}">${app.dislikes || 0}</span>
+                👎
               </button>
             </div>
             <div class="detail-links">
@@ -967,7 +966,7 @@ async function showAppDetail(appId) {
         if (newCount != null) {
           const idx = apps.findIndex(a => a.id === appId);
           if (idx >= 0) apps[idx].downloads = newCount;
-          const dlStat = detailView.querySelector('.detail-stats .detail-stat-card:nth-child(4) .stat-number');
+          const dlStat = detailView.querySelector('.detail-stat-card[data-stat="downloads"] .stat-number');
           if (dlStat) dlStat.textContent = newCount;
         }
       } finally {
@@ -976,23 +975,25 @@ async function showAppDetail(appId) {
     });
   });
 
-  // Track Open App clicks (debounced, similar to download tracking)
+  // Track Open App clicks (fire-and-forget to not block navigation)
   detailView.querySelectorAll(".open-track-link").forEach(link => {
-    let tracking = false;
-    link.addEventListener("click", async () => {
-      if (tracking) return;
-      tracking = true;
-      try {
-        const newCount = await trackOpen(appId, currentUser?.uid);
+    let lastTracked = 0;
+    link.addEventListener("click", () => {
+      const now = Date.now();
+      if (now - lastTracked < 30000) return; // debounce: 1 per 30s
+      lastTracked = now;
+      // Optimistic UI update
+      const openStat = detailView.querySelector('.detail-stat-card[data-stat="opens"] .stat-number');
+      if (openStat) openStat.textContent = (parseInt(openStat.textContent) || 0) + 1;
+      const idx = apps.findIndex(a => a.id === appId);
+      if (idx >= 0) apps[idx].opens = (apps[idx].opens || 0) + 1;
+      // Fire-and-forget: don't await, let navigation proceed
+      trackOpen(appId, currentUser?.uid).then(newCount => {
         if (newCount != null) {
-          const idx = apps.findIndex(a => a.id === appId);
           if (idx >= 0) apps[idx].opens = newCount;
-          const openStat = detailView.querySelector('.detail-stats .detail-stat-card:nth-child(4) .stat-number');
           if (openStat) openStat.textContent = newCount;
         }
-      } finally {
-        setTimeout(() => { tracking = false; }, 2000);
-      }
+      }).catch(() => {});
     });
   });
 
@@ -1593,18 +1594,20 @@ function roleBadge(role) {
 }
 
 // ── For You Section ──────────────────────────────────────────────────────────
-function renderForYou() {
+async function renderForYou() {
   const container = document.getElementById("recommendations-section");
   if (!container) return;
 
   let recs;
   if (currentUser && userRecord) {
-    // Personalized recommendations for logged-in users
-    recs = computeRecommendations(apps, {}, userRecord);
+    // Behavior-based recommendations: use bookmarks + preferences
+    let bookmarkedIds = [];
+    try { bookmarkedIds = (await getUserBookmarks(currentUser.uid)).map(b => b.appId); } catch (e) {}
+    recs = computeRecommendations(apps, {}, userRecord, bookmarkedIds);
   } else {
     // Popular apps fallback for anonymous users
     recs = [...apps]
-      .sort((a, b) => ((b.likes || 0) * 2 + (b.views || 0) * 0.1) - ((a.likes || 0) * 2 + (a.views || 0) * 0.1))
+      .sort((a, b) => ((b.likes || 0) * 2 + (b.views || 0) * 0.1 + (b.opens || 0) + (b.downloads || 0)) - ((a.likes || 0) * 2 + (a.views || 0) * 0.1 + (a.opens || 0) + (a.downloads || 0)))
       .slice(0, 8);
   }
 
@@ -1630,7 +1633,7 @@ function renderForYou() {
               <span class="rec-name">${esc(app.name)}</span>
               <span class="rec-cat">${esc(app.category)}</span>
             </div>
-            <span class="rec-rating">👍 ${app.likes || 0}</span>
+            <span class="rec-rating">${app.avgRating ? `★ ${app.avgRating}` : `👍 ${app.likes || 0}`}</span>
           </a>`;
       }).join("")}
     </div>
@@ -1640,15 +1643,28 @@ function renderForYou() {
 // ── Trending Apps ────────────────────────────────────────────────────────────
 function getTrendingApps(period = "week") {
   const now = Date.now();
-  const cutoff = period === "today" ? 86400000 : 7 * 86400000;
+  const cutoffs = { today: 86400000, week: 7 * 86400000, month: 30 * 86400000 };
+  const cutoff = cutoffs[period] || cutoffs.week;
+
   return [...apps]
     .map(app => {
       const age = app.createdAt ? (now - new Date(app.createdAt).getTime()) : Infinity;
       const freshness = Math.max(0, 1 - (age / (30 * 86400000))); // 0-1 over 30 days
-      const activity = ((app.likes || 0) * 3) + ((app.views || 0) * 0.05) + ((app.opens || 0) * 2) + ((app.downloads || 0) * 2);
-      const recency = age < cutoff ? 2 : 1;
-      return { ...app, _trendScore: activity * recency + freshness * 20 };
+      const isRecent = age < cutoff;
+
+      // Engagement velocity: weight recent activity higher
+      const engagement = ((app.likes || 0) * 3) + ((app.views || 0) * 0.05) + ((app.opens || 0) * 2) + ((app.downloads || 0) * 2);
+
+      // For time-filtered periods, heavily favor recently created/active apps
+      const recencyMultiplier = isRecent ? 2.5 : 0.3;
+
+      // Velocity bonus: ratio of engagement to age (in days) - rewards fast growth
+      const ageDays = Math.max(1, age / 86400000);
+      const velocity = engagement / ageDays;
+
+      return { ...app, _trendScore: (engagement * recencyMultiplier) + (freshness * 20) + (velocity * 5) };
     })
+    .filter(app => app._trendScore > 0)
     .sort((a, b) => b._trendScore - a._trendScore);
 }
 
@@ -1672,7 +1688,7 @@ function renderTrendingHome() {
               <span class="rec-name">${esc(app.name)}</span>
               <span class="rec-cat">${esc(app.category)}</span>
             </div>
-            <span class="rec-rating">👍 ${app.likes || 0}</span>
+            <span class="rec-rating">${app.avgRating ? `★ ${app.avgRating}` : `👍 ${app.likes || 0}`}</span>
           </a>`;
       }).join("")}
     </div>
@@ -1686,39 +1702,58 @@ function renderTrendingHome() {
   });
 }
 
-function showTrending() {
+function showTrending(period = "week") {
   switchView("trending-view");
   const view = document.getElementById("trending-view");
   view.style.display = "block";
 
-  const trending = getTrendingApps("week");
+  const renderList = (p) => {
+    const trending = getTrendingApps(p);
+    const listEl = view.querySelector(".rankings-list");
+    if (!listEl) return;
+    listEl.innerHTML = trending.slice(0, 50).map((app, i) => {
+      const logoHtml = app.logo
+        ? `<img class="rank-logo" src="${escUrl(app.logo)}" alt="" data-fallback-char="${esc(app.name.charAt(0))}">`
+        : `<div class="rank-logo-fallback">${esc(app.name.charAt(0))}</div>`;
+      return `
+        <a href="/app/${esc(app.id)}" class="ranking-item ${i < 3 ? 'top-' + (i+1) : ''}">
+          <span class="ranking-pos">${i + 1}</span>
+          ${logoHtml}
+          <div class="ranking-info">
+            <span class="ranking-name">${esc(app.name)}</span>
+            <span class="ranking-cat">${esc(app.category)}</span>
+          </div>
+          <div class="ranking-metrics">
+            <span title="Score">👍 ${(app.likes || 0) - (app.dislikes || 0)}</span>
+            <span title="Views">👁 ${app.views || 0}</span>
+            ${isWebOnly(app.platforms) ? `<span title="Opens">↗ ${app.opens || 0}</span>` : `<span title="Downloads">⬇ ${app.downloads || 0}</span>`}
+          </div>
+        </a>`;
+    }).join("") || '<div class="empty-state"><h3>No trending apps for this period</h3></div>';
+  };
+
+  const periodLabels = { today: "Today", week: "This Week", month: "This Month" };
   view.innerHTML = `
     <div class="rankings-page">
       <a href="/" class="back-link">← Back to library</a>
       <h1 class="rankings-title">🔥 Trending Apps</h1>
-      <p class="rankings-subtitle">Most active apps based on views, likes, and usage this week</p>
-      <div class="rankings-list">
-        ${trending.slice(0, 50).map((app, i) => {
-          const logoHtml = app.logo
-            ? `<img class="rank-logo" src="${escUrl(app.logo)}" alt="" data-fallback-char="${esc(app.name.charAt(0))}">`
-            : `<div class="rank-logo-fallback">${esc(app.name.charAt(0))}</div>`;
-          return `
-            <a href="/app/${esc(app.id)}" class="ranking-item ${i < 3 ? 'top-' + (i+1) : ''}">
-              <span class="ranking-pos">${i + 1}</span>
-              ${logoHtml}
-              <div class="ranking-info">
-                <span class="ranking-name">${esc(app.name)}</span>
-                <span class="ranking-cat">${esc(app.category)}</span>
-              </div>
-              <div class="ranking-metrics">
-                <span title="Likes">👍 ${app.likes || 0}</span>
-                <span title="Views">👁 ${app.views || 0}</span>
-              </div>
-            </a>`;
-        }).join("")}
+      <p class="rankings-subtitle">Most active apps based on views, likes, and usage</p>
+      <div class="trending-filters">
+        ${["today", "week", "month"].map(p => `<button class="trending-filter-btn${p === period ? " active" : ""}" data-period="${p}">${periodLabels[p]}</button>`).join("")}
       </div>
+      <div class="rankings-list"></div>
     </div>
   `;
+
+  renderList(period);
+
+  view.querySelectorAll(".trending-filter-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      view.querySelectorAll(".trending-filter-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      renderList(btn.dataset.period);
+    });
+  });
 }
 
 // ── Profile View ─────────────────────────────────────────────────────────────
@@ -1934,7 +1969,6 @@ async function showProfile(uid) {
         await updateUserProfile(currentUser.uid, { bio, website, preferences: { categories, platforms } });
         userRecord = await getUserRecord(currentUser.uid);
         showFormSuccess(form, "Profile updated!");
-        renderForYou();
       } catch (err) {
         showFormError(form, err.message);
       }
@@ -4418,7 +4452,7 @@ function showRankings() {
                 <span class="ranking-cat">${esc(app.category)}</span>
               </div>
               <div class="ranking-metrics">
-                <span title="Likes">👍 ${app.likes || 0}</span>
+                <span title="Score">👍 ${(app.likes || 0) - (app.dislikes || 0)}</span>
                 <span title="Views">👁 ${app.views || 0}</span>
               </div>
               <span class="ranking-score" title="Score">${score} pts</span>
@@ -4458,26 +4492,30 @@ async function handleVoteClick(e) {
   const voteType = btn.dataset.vote;
 
   btn.disabled = true;
+
+  // Optimistic update: compute new score immediately
+  const appIdx = apps.findIndex(a => a.id === appId);
+  const currentApp = appIdx >= 0 ? apps[appIdx] : null;
+  const oldLikes = currentApp?.likes || 0;
+  const oldDislikes = currentApp?.dislikes || 0;
+
   try {
     const result = await toggleVote(appId, currentUser.uid, voteType);
-    // Refresh app data
+    // Refresh app data from DB for accuracy
     const updatedApp = await getAppFromFirestore(appId);
     if (updatedApp) {
-      const idx = apps.findIndex(a => a.id === appId);
-      if (idx >= 0) apps[idx] = updatedApp;
+      if (appIdx >= 0) apps[appIdx] = updatedApp;
 
-      // Update vote button counts
-      const likeCount = document.getElementById(`like-count-${appId}`);
-      const dislikeCount = document.getElementById(`dislike-count-${appId}`);
-      if (likeCount) likeCount.textContent = updatedApp.likes || 0;
-      if (dislikeCount) dislikeCount.textContent = updatedApp.dislikes || 0;
+      // Compute and update the unified score
+      const score = (updatedApp.likes || 0) - (updatedApp.dislikes || 0);
+      const scoreEl = document.getElementById(`vote-score-${appId}`);
+      if (scoreEl) scoreEl.textContent = score;
 
-      // Update stat cards (Likes = 2nd card, Dislikes = 3rd card)
+      // Update score stat card
       const detailView = document.getElementById("detail-view");
       if (detailView) {
-        const statCards = detailView.querySelectorAll('.detail-stats .detail-stat-card .stat-number');
-        if (statCards[1]) statCards[1].textContent = updatedApp.likes || 0;
-        if (statCards[2]) statCards[2].textContent = updatedApp.dislikes || 0;
+        const scoreStat = detailView.querySelector('[data-stat="score"] .stat-number');
+        if (scoreStat) scoreStat.textContent = score;
       }
 
       // Toggle active states
@@ -5268,8 +5306,6 @@ function setupAccountLinkingModal() {
 function initAuth() {
   onUserAuthStateChanged(async user => {
     await updateAuthUI(user);
-    renderForYou();
-    renderTrendingHome();
   });
   setupAuthHandlers();
   setupAccountLinkingModal();
@@ -5397,8 +5433,6 @@ function showHome() {
   document.getElementById("home-view").style.display = "block";
   buildFilters();
   renderGrid(getFiltered());
-  renderForYou();
-  renderTrendingHome();
 }
 
 async function showReviewsPage(appId) {
@@ -5657,7 +5691,6 @@ function renderCurrentView() {
   } else {
     buildFilters();
     renderGrid(getFiltered());
-    renderForYou();
   }
 }
 
@@ -5739,21 +5772,31 @@ async function init() {
     const rb = e.target.closest(".report-btn");
     if (rb) openReportModal(rb.dataset.appId, rb.dataset.appName);
 
-    // Track Open App clicks from cards (debounced)
+    // Track Open App clicks from cards (fire-and-forget)
     const openLink = e.target.closest(".open-track-link");
     if (openLink) {
       const appId = openLink.dataset.appId;
-      if (appId && !openLink._tracking) {
-        openLink._tracking = true;
-        try {
-          const newCount = await trackOpen(appId, currentUser?.uid);
-          if (newCount != null) {
-            const idx = apps.findIndex(a => a.id === appId);
-            if (idx >= 0) apps[idx].opens = newCount;
-          }
-        } finally {
-          setTimeout(() => { openLink._tracking = false; }, 2000);
+      if (appId) {
+        // Client-side debounce: 1 per 30s per link
+        const now = Date.now();
+        if (openLink._lastTracked && now - openLink._lastTracked < 30000) return;
+        openLink._lastTracked = now;
+        // Optimistic UI update
+        const card = openLink.closest(".app-card");
+        const openStat = card?.querySelector('.stat-item[title="Opens"]');
+        if (openStat) {
+          const current = parseInt(openStat.textContent.replace(/[^\d]/g, '')) || 0;
+          openStat.textContent = `↗ ${current + 1}`;
         }
+        const idx = apps.findIndex(a => a.id === appId);
+        if (idx >= 0) apps[idx].opens = (apps[idx].opens || 0) + 1;
+        // Fire-and-forget: don't block navigation
+        trackOpen(appId, currentUser?.uid).then(newCount => {
+          if (newCount != null) {
+            if (idx >= 0) apps[idx].opens = newCount;
+            if (openStat) openStat.textContent = `↗ ${newCount}`;
+          }
+        }).catch(() => {});
       }
       return;
     }
