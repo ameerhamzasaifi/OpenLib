@@ -534,6 +534,7 @@ header {
 }
 
 .app-name {
+  display: block;
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 17px;
