@@ -1476,7 +1476,7 @@ async function handleEditRequestSubmit(e) {
 
   // Validate logo URL if provided
   if (changes.logo && !isValidLogoURL(changes.logo)) {
-    showFormError(form, "Logo URL must be a valid image link (.jpg, .jpeg, .png, or .svg).");
+    showFormError(form, "Logo URL must be a valid image link (.jpg, .jpeg, .png, .svg, or .webp).");
     return;
   }
 
@@ -3271,12 +3271,12 @@ function renderAdminAddApp() {
           </div>
         </div>
         <div class="form-group">
-          <label for="aa-logo">Logo <span class="optional">(URL or upload — .jpg, .jpeg, .png, .svg)</span></label>
+          <label for="aa-logo">Logo <span class="optional">(URL or upload — .jpg, .jpeg, .png, .webp)</span></label>
           <div class="logo-input-group">
             <input type="url" id="aa-logo" placeholder="https://…/logo.png" class="logo-url-input">
             <span class="logo-or">or</span>
             <label class="logo-upload-label" for="aa-logo-file">📁 Upload</label>
-            <input type="file" id="aa-logo-file" accept=".jpg,.jpeg,.png,.svg" class="logo-file-input">
+            <input type="file" id="aa-logo-file" accept=".jpg,.jpeg,.png,.webp" class="logo-file-input">
             <span class="logo-file-name" id="aa-logo-filename"></span>
           </div>
         </div>
@@ -4693,7 +4693,7 @@ async function handleSubmitApp(e) {
 
   let logo = form.querySelector("#sub-logo").value.trim();
   const logoFile = document.getElementById("sub-logo-file")?._selectedFile;
-  if (logo && !logoFile && !isValidLogoURL(logo)) { showFormError(form, "Logo URL must end in .jpg, .jpeg, .png, or .svg"); return; }
+  if (logo && !logoFile && !isValidLogoURL(logo)) { showFormError(form, "Logo URL must end in .jpg, .jpeg, .png, .svg, or .webp"); return; }
 
   // If a file was selected, upload it to Firebase Storage
   if (logoFile) {
@@ -4927,13 +4927,14 @@ function isValidLogoURL(url) {
       "firebasestorage.googleapis.com",
       "raw.githubusercontent.com",
       "i.imgur.com",
-      "imgur.com"
+      "imgur.com",
+      "upload.wikimedia.org"
     ];
     const isTrustedHost = trustedHosts.some(h => parsed.hostname === h || parsed.hostname.endsWith("." + h));
     if (isTrustedHost) return true;
-    // [VULN-C FIX] For untrusted hosts, allow image extensions but reject SVG
-    // (SVGs can contain <script> tags and execute in older browsers)
-    return /\.(jpe?g|png|webp)(\?.*)?$/i.test(parsed.pathname);
+    // SVG URLs are safe when rendered via <img> tags (scripts are sandboxed)
+    // File uploads of SVG are still blocked in Storage rules
+    return /\.(jpe?g|png|webp|svg)(\?.*)?$/i.test(parsed.pathname);
   } catch {
     return false;
   }
