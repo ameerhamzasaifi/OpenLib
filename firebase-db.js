@@ -361,9 +361,8 @@ export async function submitAppWithOwner(payload, userId, ownerType = "user", ow
     userId,
     ownerType,
     ownerId: ownerId || userId,
-    timestamp: now,
-    status: "pending",
-    version: "1.0.0"
+    createdAt: now,
+    status: "pending"
   };
 
   // If submitting on behalf of an org, validate membership and store audit trail

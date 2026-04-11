@@ -1937,7 +1937,7 @@ async function showProfile(uid) {
                 <span class="org-icon">${statusIcon}</span>
                 <div class="profile-list-info">
                   <span class="profile-list-name">${esc(sub.name)}</span>
-                  <span class="profile-list-meta">${esc(statusLabel)} · ${esc(sub.category)} · ${new Date(sub.timestamp).toLocaleDateString()}</span>
+                  <span class="profile-list-meta">${esc(statusLabel)} · ${esc(sub.category)} · ${new Date(sub.createdAt || sub.timestamp).toLocaleDateString()}</span>
                   ${sub.status === "changes_requested" && sub.changesComment ? `<span class="profile-list-feedback">💬 "${esc(sub.changesComment)}"</span>` : ""}
                   ${sub.status === "rejected" && sub.rejectReason ? `<span class="profile-list-feedback">❌ "${esc(sub.rejectReason)}"</span>` : ""}
                 </div>
@@ -2279,7 +2279,7 @@ function renderVerifyCards(submissions, filter) {
             <span class="sub-status-badge sub-status-${esc(sub.status)}">${statusIcon} ${statusLabel}</span>
           </div>
         </div>
-        <span class="verify-card-date">${sub.timestamp ? new Date(sub.timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}</span>
+        <span class="verify-card-date">${(sub.createdAt || sub.timestamp) ? new Date(sub.createdAt || sub.timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}</span>
       </div>
 
       <div class="verify-card-body">
@@ -2319,8 +2319,8 @@ function renderVerifyCards(submissions, filter) {
         ${(sub.installMethods || []).length ? `<div class="verify-field"><label>Install Methods</label><div class="verify-install-methods">${sub.installMethods.map(m => `<code>${esc(m.label)}: ${esc(m.command)}</code>`).join("<br>")}</div></div>` : ""}
         ${sub.systemRequirements ? `<div class="verify-field"><label>System Requirements</label><pre class="verify-sysreq">${esc(sub.systemRequirements)}</pre></div>` : ""}
         <div class="verify-field-row">
-          <div class="verify-field"><label>Submitted by</label><p>${esc(sub.userId ? sub.userId.slice(0, 16) : "—")}… ${sub.submitterEmail ? `(${esc(sub.submitterEmail)})` : ""}</p></div>
-          <div class="verify-field"><label>Date</label><p>${sub.timestamp ? new Date(sub.timestamp).toLocaleString() : "—"}</p></div>
+          <div class="verify-field"><label>Submitted by</label><p>${esc(sub.userId ? sub.userId.slice(0, 16) : "—")}… ${(sub.userEmail || sub.submitterEmail) ? `(${esc(sub.userEmail || sub.submitterEmail)})` : ""}</p></div>
+          <div class="verify-field"><label>Date</label><p>${(sub.createdAt || sub.timestamp) ? new Date(sub.createdAt || sub.timestamp).toLocaleString() : "—"}</p></div>
         </div>
         ${sub.ownerType === "organization" ? `
         <div class="verify-field-row">
@@ -2329,7 +2329,7 @@ function renderVerifyCards(submissions, filter) {
           ${sub.submittedByName ? `<div class="verify-field"><label>Submitted by member</label><p>${esc(sub.submittedByName)}</p></div>` : ""}
         </div>
         ` : ""}
-        ${sub.updatedAt && sub.updatedAt !== sub.timestamp ? `<div class="verify-field"><label>Last updated</label><p>${new Date(sub.updatedAt).toLocaleString()}</p></div>` : ""}
+        ${sub.updatedAt && sub.updatedAt !== (sub.createdAt || sub.timestamp) ? `<div class="verify-field"><label>Last updated</label><p>${new Date(sub.updatedAt).toLocaleString()}</p></div>` : ""}
       </div>
 
       ${sub.status === "changes_requested" && sub.changesComment ? `
@@ -3106,7 +3106,7 @@ function renderAdminSubmissions(submissions) {
         <strong>${esc(sub.name || "(No name)")}</strong>
         <span class="badge badge-role">${esc(sub.category || "—")}</span>
         <span class="sub-status-badge sub-status-${esc(sub.status || "unknown")}">${statusIcon} ${statusLabel}</span>
-        <span class="admin-card-date">${sub.timestamp ? new Date(sub.timestamp).toLocaleDateString() : "—"}</span>
+        <span class="admin-card-date">${(sub.createdAt || sub.timestamp) ? new Date(sub.createdAt || sub.timestamp).toLocaleDateString() : "—"}</span>
       </div>
 
       <div class="sub-review-details">
@@ -3153,7 +3153,7 @@ function renderAdminSubmissions(submissions) {
           <span class="sub-review-label">Submitted by</span>
           <span class="sub-review-value">
             <span class="sub-submitter-uid" title="${esc(sub.userId || "")}">${esc(sub.userId ? sub.userId.slice(0, 12) + "…" : "—")}</span>
-            ${sub.submitterEmail ? ` <span class="sub-submitter-email">(${esc(sub.submitterEmail)})</span>` : ""}
+            ${(sub.userEmail || sub.submitterEmail) ? ` <span class="sub-submitter-email">(${esc(sub.userEmail || sub.submitterEmail)})</span>` : ""}
             <button class="btn btn-sm btn-secondary sub-lookup-user-btn" data-uid="${esc(sub.userId || "")}" title="Lookup submitter profile">👤 Lookup</button>
           </span>
         </div>
@@ -3454,7 +3454,7 @@ function renderAdminReports(reports) {
     const statusIcon = r.status === "pending" ? "🟡" : r.status === "under_review" ? "🔵" : r.status === "resolved" ? "🟢" : r.status === "rejected" ? "🔴" : "⚪";
     const statusLabel = r.status === "under_review" ? "Under Review" : (r.status || "unknown").charAt(0).toUpperCase() + (r.status || "unknown").slice(1);
     const canAct = r.status === "pending" || r.status === "under_review";
-    const date = r.timestamp ? new Date(r.timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
+    const date = (r.createdAt || r.timestamp) ? new Date(r.createdAt || r.timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
     const reportedApp = apps.find(a => a.id === r.appId);
     const appModStatus = reportedApp?.moderationStatus || "active";
 
@@ -4761,7 +4761,7 @@ async function handleSubmitApp(e) {
     installMethods,
     systemRequirements: (form.querySelector("#sub-sysreq")?.value || "").trim(),
     platforms,
-    submitterEmail: form.querySelector("#sub-email").value.trim(),
+    userEmail: form.querySelector("#sub-email").value.trim(),
   };
 
   btn.textContent = "Submitting…";
