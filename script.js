@@ -1549,13 +1549,39 @@ async function handleEditRequestSubmit(e) {
     return;
   }
 
-  // Comparison data
+  // Comparison data — only include if actually changed from original
   const erCompEl = document.getElementById("er-comparison-editor");
   if (erCompEl && erCompEl.querySelector(".comp-editor")) {
     const compErr = validateComparisonEditor(erCompEl);
     if (compErr) { showFormError(form, compErr); return; }
     const compData = getComparisonData(erCompEl);
-    if (compData) changes.comparisonData = compData;
+    const origComp = app?.comparisonData;
+    let compChanged = false;
+    if (compData && !origComp) {
+      compChanged = true;
+    } else if (compData && origComp) {
+      const oCols = origComp.columns || [];
+      const nCols = compData.columns || [];
+      const oRows = origComp.rows || [];
+      const nRows = compData.rows || [];
+      if (oCols.length !== nCols.length || oRows.length !== nRows.length) {
+        compChanged = true;
+      } else if (oCols.some((c, i) => c !== nCols[i])) {
+        compChanged = true;
+      } else {
+        for (let i = 0; i < oRows.length; i++) {
+          if (oRows[i].feature !== nRows[i].feature) { compChanged = true; break; }
+          const oVals = oRows[i].values || [];
+          const nVals = nRows[i].values || [];
+          if (oVals.length !== nVals.length) { compChanged = true; break; }
+          for (let j = 0; j < oVals.length; j++) {
+            if (oVals[j] !== nVals[j]) { compChanged = true; break; }
+          }
+          if (compChanged) break;
+        }
+      }
+    }
+    if (compChanged) changes.comparisonData = compData;
   }
 
   if (Object.keys(changes).length === 0) {
