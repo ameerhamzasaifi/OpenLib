@@ -1506,8 +1506,7 @@ async function handleEditRequestSubmit(e) {
   const erTags = document.getElementById("er-tags").value.trim();
   if (erTags) changes.tags = erTags.split(",").map(t => t.trim().toLowerCase()).filter(Boolean);
 
-  const erScreenshots = document.getElementById("er-screenshots").value.trim();
-  // Process screenshot uploads + URLs
+  // Process screenshot uploads + URLs (processScreenshotUploads already reads the textarea)
   let screenshots = [];
   try {
     screenshots = await processScreenshotUploads("er", appId, msg => { btn.textContent = msg; });
@@ -1516,11 +1515,6 @@ async function handleEditRequestSubmit(e) {
     btn.disabled = false;
     btn.textContent = btn.getAttribute("data-original") || "Submit Edit Request";
     return;
-  }
-  // Merge uploaded screenshots with manually pasted URLs
-  if (erScreenshots) {
-    const urlScreenshots = erScreenshots.split("\n").map(s => s.trim()).filter(Boolean);
-    screenshots = screenshots.concat(urlScreenshots);
   }
   if (screenshots.length) changes.screenshots = screenshots;
 
