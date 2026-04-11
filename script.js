@@ -1390,6 +1390,10 @@ function openEditRequestModal(appId, appName, app, directEdit = false) {
   // Web-only platform detection for edit request
   updateFormWebOnlyState("er", "er-platforms", { enforceRequired: false, defaultDownloadPlaceholder: "https://…", defaultWebsitePlaceholder: "https://…" });
 
+  // Initialize screenshot uploader
+  clearScreenshotUploader("er");
+  initScreenshotUploader("er");
+
   // Comparison editor
   const erCompContainer = document.getElementById("er-comparison-editor");
   const erCompInitBtn = document.getElementById("er-comp-init");
@@ -1503,7 +1507,22 @@ async function handleEditRequestSubmit(e) {
   if (erTags) changes.tags = erTags.split(",").map(t => t.trim().toLowerCase()).filter(Boolean);
 
   const erScreenshots = document.getElementById("er-screenshots").value.trim();
-  if (erScreenshots) changes.screenshots = erScreenshots.split("\n").map(s => s.trim()).filter(Boolean);
+  // Process screenshot uploads + URLs
+  let screenshots = [];
+  try {
+    screenshots = await processScreenshotUploads("er", appId, msg => { btn.textContent = msg; });
+  } catch (err) {
+    showFormError(form, err.message || "Screenshot upload failed.");
+    btn.disabled = false;
+    btn.textContent = btn.getAttribute("data-original") || "Submit Edit Request";
+    return;
+  }
+  // Merge uploaded screenshots with manually pasted URLs
+  if (erScreenshots) {
+    const urlScreenshots = erScreenshots.split("\n").map(s => s.trim()).filter(Boolean);
+    screenshots = screenshots.concat(urlScreenshots);
+  }
+  if (screenshots.length) changes.screenshots = screenshots;
 
   const erInstall = document.getElementById("er-install-methods").value.trim();
   if (erInstall) changes.installMethods = erInstall.split("\n").map(line => {

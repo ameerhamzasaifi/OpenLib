@@ -562,8 +562,21 @@
           <input type="text" id="er-tags" placeholder="e.g. privacy, encryption, chat" maxlength="200">
         </div>
         <div class="form-group">
-          <label for="er-screenshots">Screenshot URLs <span class="optional">(one per line)</span></label>
-          <textarea id="er-screenshots" rows="2" placeholder="https://…/screenshot1.png&#10;https://…/screenshot2.png" maxlength="2000"></textarea>
+          <label for="er-screenshots">Screenshots <span class="optional">(upload files or paste URLs)</span></label>
+          <div class="screenshot-upload-area" id="er-screenshot-area">
+            <div class="screenshot-previews" id="er-screenshot-previews"></div>
+            <div class="screenshot-controls">
+              <label class="btn btn-secondary btn-sm screenshot-upload-btn" for="er-screenshot-files">📁 Upload Images</label>
+              <input type="file" id="er-screenshot-files" accept=".jpg,.jpeg,.png,.webp" multiple class="screenshot-file-input">
+              <span class="screenshot-hint">JPG, PNG, WebP · Max 5 MB each · Up to 6 screenshots</span>
+            </div>
+            <div class="screenshot-url-fallback">
+              <details>
+                <summary class="screenshot-url-toggle">Or paste URLs manually</summary>
+                <textarea id="er-screenshots" rows="2" placeholder="https://…/screenshot1.png&#10;https://…/screenshot2.png" maxlength="2000"></textarea>
+              </details>
+            </div>
+          </div>
         </div>
         <div class="form-group">
           <label for="er-install-methods">Installation Methods <span class="optional">(label | command, one per line)</span></label>
