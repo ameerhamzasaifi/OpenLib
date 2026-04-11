@@ -880,7 +880,7 @@ export async function adminRemoveApp(appId, adminUid) {
 
 export async function getAllPendingSubmissions() {
   try {
-    const q = query(collection(db, "submissions"), where("status", "==", "pending"), orderBy("timestamp", "desc"));
+    const q = query(collection(db, "submissions"), where("status", "==", "pending"), orderBy("createdAt", "desc"));
     const snapshot = await getDocs(q);
     return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
   } catch (e) {
@@ -1038,9 +1038,9 @@ export async function getAllSubmissions(statusFilter) {
   try {
     let q;
     if (statusFilter) {
-      q = query(collection(db, "submissions"), where("status", "==", statusFilter), orderBy("timestamp", "desc"));
+      q = query(collection(db, "submissions"), where("status", "==", statusFilter), orderBy("createdAt", "desc"));
     } else {
-      q = query(collection(db, "submissions"), orderBy("timestamp", "desc"));
+      q = query(collection(db, "submissions"), orderBy("createdAt", "desc"));
     }
     const snapshot = await getDocs(q);
     return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -1065,7 +1065,7 @@ export async function getSubmission(submissionId) {
 // Get submissions for a specific user
 export async function getUserSubmissions(uid) {
   try {
-    const q = query(collection(db, "submissions"), where("userId", "==", uid), orderBy("timestamp", "desc"));
+    const q = query(collection(db, "submissions"), where("userId", "==", uid), orderBy("createdAt", "desc"));
     const snapshot = await getDocs(q);
     return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
   } catch (e) {
