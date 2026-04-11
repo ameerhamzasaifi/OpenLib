@@ -1434,19 +1434,23 @@ export async function trackOpen(appId, userId) {
 
     // Throttle: 1 open per user per app per hour (authenticated)
     if (userId) {
-      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-      const opensRef = collection(db, "app_opens");
-      const q = query(
-        opensRef,
-        where("appId", "==", appId),
-        where("userId", "==", userId),
-        where("timestamp", ">", oneHourAgo),
-        limit(1)
-      );
-      const existing = await getDocs(q);
-      if (!existing.empty) {
-        const snap = await getDoc(doc(db, "apps", appId));
-        return snap.data()?.opens || 0;
+      try {
+        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+        const opensRef = collection(db, "app_opens");
+        const q = query(
+          opensRef,
+          where("appId", "==", appId),
+          where("userId", "==", userId),
+          where("timestamp", ">", oneHourAgo),
+          limit(1)
+        );
+        const existing = await getDocs(q);
+        if (!existing.empty) {
+          const snap = await getDoc(doc(db, "apps", appId));
+          return snap.data()?.opens || 0;
+        }
+      } catch (throttleErr) {
+        console.warn("Open throttle check failed, allowing increment:", throttleErr);
       }
     }
 
