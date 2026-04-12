@@ -35,3 +35,4 @@ npm-debug.log*
 # Build output
 dist/
 build/
+functions/spa.html
