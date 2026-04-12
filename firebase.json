@@ -10,11 +10,12 @@
     "public": ".",
     "cleanUrls": true,
     "trailingSlash": false,
-    "predeploy": ["node bump-version.js"],
+    "predeploy": ["node bump-version.js", "node bump-sitemap.js"],
     "ignore": [
       "firebase.json",
       "firebase-config.template.js",
       "bump-version.js",
+      "bump-sitemap.js",
       "firestore.rules",
       ".firebaserc",
       ".gitignore",

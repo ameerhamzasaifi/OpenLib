@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /verify
+Disallow: /team/manage
+
+Sitemap: https://openlib-f7bf1.web.app/sitemap.xml

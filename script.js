@@ -441,7 +441,7 @@ function buildCard(app, rankMap) {
   const rank = rankMap ? rankMap.get(app.id) : getAppRank(app.id);
   const plates = (app.platforms || []).map(p => `<span class="platform-tag">${platformIcon(p)} ${esc(p)}</span>`).join("");
   const logoHtml = app.logo
-    ? `<img class="app-logo" src="${escUrl(app.logo)}" alt="${esc(app.name)} logo" data-app-id="${esc(app.id)}" data-fallback-char="${esc(app.name.charAt(0))}">`
+    ? `<img class="app-logo" src="${escUrl(app.logo)}" alt="${esc(app.name)} logo" loading="lazy" width="64" height="64" data-app-id="${esc(app.id)}" data-fallback-char="${esc(app.name.charAt(0))}">`
     : `<div class="app-logo-fallback">${esc(app.name.charAt(0))}</div>`;
   const tags = (app.tags || []).slice(0, 3);
   const tagsHtml = tags.length ? `<div class="card-tags">${tags.map(t => `<span class="card-tag">${esc(t)}</span>`).join("")}</div>` : "";
@@ -569,6 +569,9 @@ async function showAppDetail(appId) {
     return;
   }
 
+  // SEO: Inject SoftwareApplication JSON-LD for this app
+  injectAppJsonLd(app);
+
   // Increment views (throttled: 1 per user per app per hour)
   const viewUserId = currentUser ? currentUser.uid : null;
   const newViews = await incrementAppViews(appId, viewUserId);
@@ -609,7 +612,7 @@ async function showAppDetail(appId) {
       <div class="screenshots-gallery">
         ${screenshots.map((url, i) => `
           <figure class="screenshot-item" data-index="${i}">
-            <img class="screenshot-thumb" src="${escUrl(url)}" alt="Screenshot ${i+1}" data-full="${escUrl(url)}" loading="lazy" decoding="async"
+            <img class="screenshot-thumb" src="${escUrl(url)}" alt="${esc(app.name)} screenshot — ${esc((app.description || '').slice(0, 60))}" data-full="${escUrl(url)}" loading="lazy" decoding="async"
               onload="this.parentElement.dataset.ratio=this.naturalWidth>=this.naturalHeight?'landscape':'portrait'">
           </figure>`).join("")}
       </div>
@@ -5383,6 +5386,64 @@ function updatePageMeta({ title, description, url }) {
   setAttr("tw-title",       "content", title);
   setAttr("tw-description", "content", description);
   setAttr("tw-url",         "content", url);
+
+  // Dynamic og:type per page
+  const ogType = document.getElementById("og-type");
+  if (ogType) {
+    ogType.setAttribute("content", url.includes("/app/") ? "article" : "website");
+  }
+}
+
+// ── SEO: Dynamic JSON-LD injection ───────────────────────────────────────────
+function updateJsonLd(data) {
+  let el = document.getElementById("dynamic-ld-json");
+  if (!el) {
+    el = document.createElement("script");
+    el.type = "application/ld+json";
+    el.id = "dynamic-ld-json";
+    document.head.appendChild(el);
+  }
+  el.textContent = JSON.stringify(data);
+}
+
+function injectAppJsonLd(app) {
+  updateJsonLd({
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": app.name,
+    "description": app.description || "",
+    "applicationCategory": app.category || "DesignApplication",
+    "operatingSystem": (app.platforms || []).join(", ") || "All",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    ...(app.license ? { "license": app.license } : {}),
+    ...(app.download ? { "downloadUrl": app.download } : {}),
+    ...(app.version ? { "softwareVersion": app.version } : {}),
+    ...(app.avgRating ? {
+      "aggregateRating": {
+        "@type": "AggregateRating",
+        "ratingValue": app.avgRating,
+        "reviewCount": app.reviewCount || 1,
+        "bestRating": "5",
+        "worstRating": "1"
+      }
+    } : {})
+  });
+}
+
+function injectHomeJsonLd(appList) {
+  updateJsonLd({
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    "name": "Open Source App Library",
+    "description": "A curated directory of free, open-source software alternatives.",
+    "numberOfItems": appList.length,
+    "itemListElement": appList.slice(0, 50).map((app, i) => ({
+      "@type": "ListItem",
+      "position": i + 1,
+      "name": app.name,
+      "url": `${BASE_URL}/app/${encodeURIComponent(app.id)}`
+    }))
+  });
 }
 
 // ── Router ───────────────────────────────────────────────────────────────────
@@ -5419,22 +5480,22 @@ function handleRoute() {
     const appId = decodeURIComponent(path.replace("/app/", ""));
     const app = apps.find(a => a.id === appId);
     updatePageMeta({
-      title: app ? `${app.name} — OpenLib` : "App — OpenLib",
-      description: app ? app.description : "Open-source app details on OpenLib.",
+      title: app ? `${app.name} — Free Open Source Alternative to ${app.alternative || 'Proprietary Apps'} | OpenLib` : "App — OpenLib",
+      description: app ? `${app.name} is a free, open-source alternative to ${app.alternative || 'proprietary software'}. ${(app.description || '').slice(0, 120)}` : "Open-source app details on OpenLib.",
       url: `${BASE_URL}/app/${encodeURIComponent(appId)}`
     });
     showAppDetail(appId);
   } else if (path === "/rankings") {
     updatePageMeta({
-      title: "Rankings — OpenLib",
-      description: "Top-rated open-source apps ranked by the OpenLib community.",
+      title: "Top Ranked Open Source Apps 2026 | OpenLib",
+      description: "Discover the highest-rated free and open-source apps ranked by the OpenLib community. Find the best FOSS alternatives.",
       url: `${BASE_URL}/rankings`
     });
     showRankings();
   } else if (path === "/trending") {
     updatePageMeta({
-      title: "Trending — OpenLib",
-      description: "Trending open-source apps on OpenLib this week.",
+      title: "Trending Open Source Apps This Week | OpenLib",
+      description: "See which free and open-source apps are trending this week on OpenLib. Discover popular FOSS alternatives.",
       url: `${BASE_URL}/trending`
     });
     showTrending();
@@ -5460,8 +5521,8 @@ function handleRoute() {
     showOpenLibTeamPage();
   } else {
     updatePageMeta({
-      title: "OpenLib — Open Source App Library",
-      description: "Discover free alternatives. Rate what you use. Own your software stack.",
+      title: "OpenLib — Open Source App Library | Free Software Alternatives",
+      description: "Discover free, open-source alternatives to popular apps. Compare FOSS software, read community reviews, and find the best free alternatives to Photoshop, Office, and more.",
       url: BASE_URL
     });
     showHome();
@@ -5473,6 +5534,7 @@ function showHome() {
   document.getElementById("home-view").style.display = "block";
   buildFilters();
   renderGrid(getFiltered());
+  injectHomeJsonLd(apps);
 }
 
 async function showReviewsPage(appId) {
