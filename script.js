@@ -5396,14 +5396,14 @@ function updatePageMeta({ title, description, url }) {
 
 // ── SEO: Dynamic JSON-LD injection ───────────────────────────────────────────
 function updateJsonLd(data) {
-  let el = document.getElementById("dynamic-ld-json");
-  if (!el) {
-    el = document.createElement("script");
-    el.type = "application/ld+json";
-    el.id = "dynamic-ld-json";
-    document.head.appendChild(el);
-  }
+  const old = document.getElementById("jsonld");
+  if (old) old.remove();
+
+  const el = document.createElement("script");
+  el.type = "application/ld+json";
+  el.id = "jsonld";
   el.textContent = JSON.stringify(data);
+  document.head.appendChild(el);
 }
 
 function injectAppJsonLd(app) {
