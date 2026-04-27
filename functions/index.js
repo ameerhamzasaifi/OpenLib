@@ -283,6 +283,16 @@ async function renderTrending() {
 
 // ── Main Cloud Function ──────────────────────────────────────────────────────
 exports.prerender = functions.https.onRequest(async (req, res) => {
+  // Enable CORS
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Content-Type");
+
+  // Handle OPTIONS requests
+  if (req.method === "OPTIONS") {
+    return res.status(204).send("");
+  }
+
   const ua = req.headers["user-agent"] || "";
 
   // Regular users → serve the SPA directly

@@ -88,18 +88,6 @@
     ],
     "rewrites": [
       {
-        "source": "/app/**",
-        "function": "prerender"
-      },
-      {
-        "source": "/rankings",
-        "function": "prerender"
-      },
-      {
-        "source": "/trending",
-        "function": "prerender"
-      },
-      {
         "source": "**",
         "destination": "/index.html"
       }

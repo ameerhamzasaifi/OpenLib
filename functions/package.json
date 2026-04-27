@@ -2,7 +2,7 @@
   "name": "openlib-functions",
   "description": "OpenLib Cloud Functions — bot prerendering for SEO",
   "engines": {
-    "node": "22"
+    "node": "20"
   },
   "main": "index.js",
   "dependencies": {
