@@ -217,6 +217,40 @@ function getAppPrimaryUrl(app) {
   return app.download || app.website || "#";
 }
 
+function extractYouTubeVideoId(url) {
+  // Extract video ID from YouTube URL (handles youtube.com, youtu.be, etc.)
+  if (!url || typeof url !== 'string') return null;
+  
+  let videoId = null;
+  
+  // Try different URL patterns in order
+  const patterns = [
+    /(?:youtube\.com\/watch\?.*v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/)([\w-]{11})/i,
+    /youtube\.com\/watch\?[^#]*v=([^#&\n?]*)/i,
+    /youtu\.be\/([^\?#&\n]*)/i,
+    /youtube\.com\/embed\/([^\?#&\n]*)/i,
+    /youtube\.com\/v\/([^\?#&\n]*)/i
+  ];
+  
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match && match[1]) {
+      videoId = match[1];
+      // Validate video ID format (should be 11 characters, alphanumeric + dash/underscore)
+      if (/^[a-zA-Z0-9_-]{11}$/.test(videoId)) {
+        return videoId;
+      }
+    }
+  }
+  
+  // Last resort: if URL is already just a video ID
+  if (/^[a-zA-Z0-9_-]{11}$/.test(url)) {
+    return url;
+  }
+  
+  return null;
+}
+
 function addedByBadge(addedBy) {
   // Synchronous card-level badge — uses isOfficialApp for fast rendering
   if (!addedBy || addedBy.type === "openlib-team" || addedBy.role === "admin") {
@@ -888,6 +922,34 @@ async function showAppDetail(appId) {
           </div>
         </div>
 
+        ${app.youtube ? (() => {
+          const videoId = extractYouTubeVideoId(app.youtube);
+          return videoId ? `
+        <div class="detail-section video-section">
+          <h3>Video</h3>
+          <div class="video-container" data-youtube-url="${esc(app.youtube)}" data-video-id="${esc(videoId)}">
+            <iframe class="youtube-embed" 
+              src="https://www.youtube.com/embed/${esc(videoId)}?rel=0&modestbranding=1&iv_load_policy=3" 
+              title="${esc(app.name)} - YouTube video player"
+              frameborder="0" 
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+              allowfullscreen>
+            </iframe>
+          </div>
+          <div class="video-fallback" style="display:none; margin-top:8px;">
+            <p style="color: var(--text-2); font-size: 13px; margin-bottom: 8px;">Video player unavailable. </p>
+            <a href="${esc(app.youtube)}" class="btn btn-secondary btn-sm" target="_blank" rel="noopener">▶️ Watch on YouTube</a>
+          </div>
+        </div>` : `
+        <div class="detail-section video-section">
+          <h3>Video</h3>
+          <div class="video-fallback" style="margin-top:0;">
+            <p style="color: var(--text-2); font-size: 13px; margin-bottom: 8px;">Invalid video URL. </p>
+            <a href="${esc(app.youtube)}" class="btn btn-secondary btn-sm" target="_blank" rel="noopener">▶️ Watch on YouTube</a>
+          </div>
+        </div>`;
+        })() : ""}
+
         <div class="detail-secondary-actions">
             <button class="report-btn detail-report" data-app-id="${esc(appId)}" data-app-name="${esc(app.name)}">⚑ Report this app</button>
             <button class="btn btn-direct-edit" data-app-id="${esc(appId)}" data-app-name="${esc(app.name)}">✏️ Edit App</button>
@@ -1039,6 +1101,50 @@ async function showAppDetail(appId) {
     shareDropdown.classList.remove("open");
   });
   document.addEventListener("click", () => shareDropdown?.classList.remove("open"), { once: true });
+
+  // Video embed error handling
+  const videoContainer = detailView.querySelector(".video-container");
+  if (videoContainer) {
+    const iframe = videoContainer.querySelector(".youtube-embed");
+    const fallback = videoContainer.closest(".video-section")?.querySelector(".video-fallback");
+    const videoSection = videoContainer.closest(".video-section");
+    
+    if (iframe && fallback) {
+      let iframeLoaded = false;
+      
+      iframe.addEventListener("load", () => { 
+        iframeLoaded = true;
+        // YouTube embeds are loaded, but may still have errors
+        // Give it a moment to determine if it's an error screen
+        setTimeout(() => {
+          try {
+            // Try to access iframe content to detect errors
+            // This won't work due to CORS, but the attempt helps us know if access is blocked
+            const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+            if (!iframeDoc) {
+              // CORS blocked, likely a valid YouTube embed
+            }
+          } catch (e) {
+            // Expected CORS error for valid YouTube embeds
+          }
+        }, 1000);
+      });
+      
+      // If iframe doesn't load after 5 seconds, show fallback
+      setTimeout(() => {
+        if (!iframeLoaded) {
+          videoContainer.style.display = "none";
+          if (fallback) fallback.style.display = "block";
+        }
+      }, 5000);
+      
+      // Handle iframe errors
+      iframe.addEventListener("error", () => {
+        videoContainer.style.display = "none";
+        if (fallback) fallback.style.display = "block";
+      });
+    }
+  }
 
   // Screenshots lightbox
   const screenshotItems = detailView.querySelectorAll(".screenshot-item");
@@ -1373,6 +1479,7 @@ function openEditRequestModal(appId, appName, app, directEdit = false) {
   document.getElementById("er-source").placeholder = app.source || "Source URL";
   document.getElementById("er-website").placeholder = app.website || "Website URL";
   document.getElementById("er-docs").placeholder = app.docs || "Docs URL";
+  document.getElementById("er-youtube").placeholder = app.youtube || "YouTube URL";
   document.getElementById("er-version").placeholder = app.version || "Version";
   document.getElementById("er-filesize").placeholder = app.fileSize || "File size";
   document.getElementById("er-developer").placeholder = app.developer || "Developer";
@@ -1467,6 +1574,7 @@ async function handleEditRequestSubmit(e) {
     { id: "er-category", key: "category" },
     { id: "er-website", key: "website" },
     { id: "er-docs", key: "docs" },
+    { id: "er-youtube", key: "youtube" },
     { id: "er-version", key: "version" },
     { id: "er-license", key: "license" },
     { id: "er-filesize", key: "fileSize" },
@@ -3339,6 +3447,9 @@ function renderAdminAddApp() {
           <div class="form-group" id="aa-website-group"><label for="aa-website"><span id="aa-website-label">Website URL</span> <span class="optional" id="aa-website-optional">(optional)</span><span class="required initially-hidden" id="aa-website-required">*</span></label><input type="url" id="aa-website" placeholder="https://appname.org"></div>
           <div class="form-group"><label for="aa-docs">Docs URL <span class="optional">(optional)</span></label><input type="url" id="aa-docs" placeholder="https://docs.appname.org"></div>
         </div>
+        <div class="form-row">
+          <div class="form-group"><label for="aa-youtube">YouTube Video <span class="optional">(optional)</span></label><input type="url" id="aa-youtube" placeholder="https://youtube.com/watch?v=…"></div>
+        </div>
       </fieldset>
 
       <!-- ── Section: Developer Info ── -->
@@ -4000,6 +4111,7 @@ function attachAdminHandlers(tab) {
         source: document.getElementById("aa-source").value.trim(),
         website: document.getElementById("aa-website").value.trim(),
         docs: document.getElementById("aa-docs").value.trim(),
+        youtube: document.getElementById("aa-youtube").value.trim(),
         maintainer: document.getElementById("aa-maintainer").value,
         developer: document.getElementById("aa-developer").value.trim(),
         developerUrl: document.getElementById("aa-developer-url").value.trim(),
@@ -4792,6 +4904,7 @@ async function handleSubmitApp(e) {
     source: form.querySelector("#sub-source").value.trim(),
     website: (form.querySelector("#sub-website")?.value || "").trim(),
     docs: (form.querySelector("#sub-docs")?.value || "").trim(),
+    youtube: (form.querySelector("#sub-youtube")?.value || "").trim(),
     maintainer: form.querySelector("#sub-maintainer").value,
     developer: (form.querySelector("#sub-developer")?.value || "").trim(),
     developerUrl: (form.querySelector("#sub-developer-url")?.value || "").trim(),
@@ -4846,6 +4959,7 @@ function openResubmitModal(sub) {
   document.getElementById("resub-maintainer").value = sub.maintainer || "individual";
   document.getElementById("resub-website").value = sub.website || "";
   document.getElementById("resub-docs").value = sub.docs || "";
+  document.getElementById("resub-youtube").value = sub.youtube || "";
   document.getElementById("resub-version").value = sub.version || "";
   document.getElementById("resub-license").value = sub.license || "";
   document.getElementById("resub-filesize").value = sub.fileSize || "";
@@ -4921,6 +5035,7 @@ async function handleResubmit(e) {
     platforms,
     website: (document.getElementById("resub-website")?.value || "").trim(),
     docs: (document.getElementById("resub-docs")?.value || "").trim(),
+    youtube: (document.getElementById("resub-youtube")?.value || "").trim(),
     version: (document.getElementById("resub-version")?.value || "").trim(),
     license: (document.getElementById("resub-license")?.value || ""),
     fileSize: (document.getElementById("resub-filesize")?.value || "").trim(),
