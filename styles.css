@@ -58,6 +58,8 @@
 
 html {
   scroll-behavior: smooth;
+  scrollbar-gutter: stable;
+  overflow-y: scroll;
 }
 
 body {
@@ -97,25 +99,33 @@ header {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   width: 100%;
-  overflow-x: hidden;
+  height: 78px;
+  display: flex;
+  align-items: center;
+  contain: layout style paint;
+  overflow: visible;
 }
 
 .header-inner {
+  width: 100%;
   max-width: 1280px;
   margin: 0 auto;
   padding: 0 24px;
-  min-height: 64px;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 @media (max-width: 768px) {
+  header {
+    height: 60px;
+  }
+  
   .header-inner {
     padding: 0 12px;
-    min-height: 60px;
   }
 }
 
@@ -125,6 +135,7 @@ header {
   gap: 10px;
   text-decoration: none;
   flex-shrink: 0;
+  height: 100%;
 }
 
 .logo-icon {
@@ -158,11 +169,13 @@ header {
   display: flex;
   align-items: center;
   gap: 12px;
+  height: 100%;
+  flex-wrap: nowrap;
 }
 
 .theme-toggle {
-  width: 38px;
-  height: 38px;
+  width: 40px;
+  height: 40px;
   border: 1px solid var(--border);
   background: var(--surface);
   border-radius: var(--radius-sm);
@@ -173,8 +186,8 @@ header {
   font-size: 17px;
   transition: background var(--transition), border-color var(--transition), transform var(--transition);
   color: var(--text-2);
-  min-height: 40px;
-  min-width: 40px;
+  flex-shrink: 0;
+  padding: 0;
   -webkit-user-select: none;
   user-select: none;
 }
@@ -188,13 +201,15 @@ header {
 /* ── Auth Menu ── */
 .auth-menu {
   position: relative;
+  z-index: 101;
 }
 
 .auth-btn {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 14px;
+  padding: 8px 14px;
+  height: 40px;
   border: 1px solid var(--border);
   background: var(--surface);
   border-radius: var(--radius-sm);
@@ -205,7 +220,7 @@ header {
   cursor: pointer;
   transition: all var(--transition);
   white-space: nowrap;
-  min-height: 40px;
+  flex-shrink: 0;
   -webkit-user-select: none;
   user-select: none;
 }
@@ -235,7 +250,7 @@ header {
   pointer-events: none;
   transform: translateY(-8px);
   transition: opacity 0.2s, transform 0.2s;
-  z-index: 1000;
+  z-index: 1001;
   overflow: hidden;
   max-height: 80vh;
   overflow-y: auto;
@@ -330,8 +345,13 @@ header {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 20px;
-  padding: 2px 10px;
+  padding: 6px 10px;
   letter-spacing: 0.3px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  line-height: 1;
 }
 
 /* ── Hero / Controls ── */
@@ -899,7 +919,8 @@ footer {
 
 /* ── Submit App header button ── */
 .btn-submit-app {
-  padding: 7px 14px;
+  padding: 8px 14px;
+  height: 40px;
   background: var(--accent);
   color: #0c0c0f;
   border: none;
@@ -910,7 +931,7 @@ footer {
   cursor: pointer;
   transition: background var(--transition), transform var(--transition), box-shadow var(--transition);
   white-space: nowrap;
-  min-height: 40px;
+  flex-shrink: 0;
   -webkit-user-select: none;
   user-select: none;
   display: flex;
@@ -1243,17 +1264,35 @@ footer {
 
 /* ── Responsive ── */
 @media (max-width: 768px) {
-  .header-inner {
-    padding: 0 12px;
+  header {
     height: auto;
     min-height: 60px;
+  }
+  
+  .header-inner {
+    padding: 10px 12px;
+    height: auto;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 10px;
+    align-content: center;
+    justify-content: space-between;
   }
 
   .logo-group {
     flex-shrink: 0;
     width: auto;
+    height: auto;
+    order: 1;
+  }
+
+  .logo-icon {
+    width: 32px;
+    height: 32px;
+    font-size: 15px;
+  }
+
+  .logo-title {
+    font-size: 18px;
   }
 
   .header-actions {
@@ -1262,27 +1301,63 @@ footer {
     gap: 8px;
     flex-wrap: wrap;
     justify-content: flex-end;
-    flex: 1;
+    flex-basis: 100%;
+    order: 2;
     min-width: 0;
+    overflow: visible;
+  }
+
+  .count-badge {
+    display: none;
   }
 
   .nav-link {
-    font-size: 11px;
-    padding: 4px 8px;
-    min-height: 40px;
+    font-size: 12px;
+    padding: 6px 10px;
+    height: 36px;
     display: flex;
     align-items: center;
+    flex-shrink: 0;
+    border-radius: 16px;
   }
 
   .auth-btn {
-    min-height: 40px;
-    padding: 8px 12px;
+    height: 36px;
+    padding: 6px 12px;
+    flex-shrink: 0;
+    font-size: 12px;
+    z-index: 101;
+    position: relative;
   }
 
   .btn-submit-app {
-    min-height: 40px;
-    padding: 8px 12px;
-    white-space: normal;
+    height: 36px;
+    padding: 6px 12px;
+    font-size: 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .theme-toggle {
+    width: 36px;
+    height: 36px;
+    font-size: 15px;
+    flex-shrink: 0;
+  }
+
+  .auth-menu {
+    position: relative;
+    z-index: 101;
+    overflow: visible;
+  }
+
+  .auth-dropdown {
+    z-index: 1001;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 4px;
+    min-width: 180px;
   }
 
   .controls-section {
@@ -1295,11 +1370,6 @@ footer {
 
   #app-grid {
     grid-template-columns: 1fr;
-  }
-
-  .count-badge {
-    display: inline-block;
-    font-size: 10px;
   }
 
   .controls-row {
@@ -1328,6 +1398,53 @@ footer {
 }
 
 @media (max-width: 560px) {
+  header {
+    min-height: 56px;
+  }
+  
+  .header-inner {
+    padding: 8px 10px;
+    gap: 8px;
+  }
+
+  .logo-icon {
+    width: 30px;
+    height: 30px;
+    font-size: 14px;
+  }
+
+  .logo-title {
+    font-size: 16px;
+  }
+
+  .header-actions {
+    gap: 6px;
+  }
+
+  .nav-link {
+    font-size: 11px;
+    padding: 5px 8px;
+    height: 32px;
+  }
+
+  .auth-btn {
+    height: 32px;
+    padding: 5px 10px;
+    font-size: 11px;
+  }
+
+  .btn-submit-app {
+    height: 32px;
+    padding: 5px 10px;
+    font-size: 11px;
+  }
+
+  .theme-toggle {
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
+  }
+
   .form-row {
     grid-template-columns: 1fr;
   }
@@ -1360,14 +1477,68 @@ footer {
 }
 
 @media (max-width: 480px) {
+  header {
+    min-height: 52px;
+  }
+  
+  .header-inner {
+    padding: 8px 10px;
+  }
+
   .logo-icon {
-    width: 30px;
-    height: 30px;
-    font-size: 14px;
+    width: 28px;
+    height: 28px;
+    font-size: 13px;
   }
 
   .logo-title {
-    font-size: 16px;
+    font-size: 15px;
+  }
+
+  .header-actions {
+    gap: 6px;
+    width: 100%;
+    order: 2;
+  }
+
+  /* Hide rankings & trending on very small screens to reduce crowding */
+  #ranking-nav-link,
+  #trending-nav-link {
+    display: none;
+  }
+
+  .nav-link {
+    font-size: 10px;
+    padding: 4px 8px;
+    height: 30px;
+  }
+
+  .auth-btn {
+    height: 30px;
+    padding: 4px 10px;
+    font-size: 10px;
+    z-index: 101;
+  }
+
+  .btn-submit-app {
+    height: 30px;
+    padding: 4px 10px;
+    font-size: 10px;
+    flex-shrink: 0;
+  }
+
+  .theme-toggle {
+    width: 30px;
+    height: 30px;
+    font-size: 13px;
+  }
+
+  .auth-menu {
+    z-index: 101;
+  }
+
+  .auth-dropdown {
+    z-index: 1001;
   }
 
   .hero-text h1 {
@@ -1476,16 +1647,18 @@ footer {
   }
 
   .btn-submit-app {
-    min-height: 44px;
+    height: 44px;
   }
 
   .auth-btn {
-    min-height: 44px;
+    height: 44px;
+    flex-shrink: 0;
   }
 
   .nav-link {
-    min-height: 44px;
+    height: 44px;
     font-size: 12px;
+    flex-shrink: 0;
   }
 
   .detail-section {
@@ -1556,8 +1729,61 @@ footer {
 
 /* ── Ultra-mobile (< 375px) ── */
 @media (max-width: 374px) {
+  header {
+    min-height: 50px;
+  }
+
+  .header-inner {
+    padding: 6px 8px;
+  }
+
+  .logo-title {
+    font-size: 13px;
+  }
+
   .logo-title span {
     display: none;
+  }
+
+  .logo-icon {
+    width: 26px;
+    height: 26px;
+    font-size: 12px;
+  }
+
+  .header-actions {
+    gap: 4px;
+  }
+
+  /* Prioritize Sign In button, hide Submit App */
+  #submit-app-btn {
+    display: none;
+  }
+
+  .auth-btn {
+    height: 28px;
+    padding: 3px 8px;
+    font-size: 9px;
+  }
+
+  .auth-btn #auth-label {
+    display: none;
+  }
+
+  .auth-btn #auth-icon {
+    font-size: 14px;
+  }
+
+  .nav-link {
+    font-size: 9px;
+    padding: 3px 6px;
+    height: 28px;
+  }
+
+  .theme-toggle {
+    width: 28px;
+    height: 28px;
+    font-size: 12px;
   }
 
   .hero-text h1 {
@@ -1566,11 +1792,6 @@ footer {
 
   .detail-name {
     font-size: 14px;
-  }
-
-  .nav-link {
-    font-size: 10px;
-    padding: 6px 6px;
   }
 
   .detail-stats {
