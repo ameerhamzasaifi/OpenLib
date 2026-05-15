@@ -6,7 +6,7 @@
 [![License](https://img.shields.io/badge/license-MPL--2.0-green)](LICENSE)
 [![GitHub](https://img.shields.io/badge/GitHub-ameerhamzasaifi%2Fopenlib-blue)](https://github.com/ameerhamzasaifi/openlib)
 
-**https://openlib-f7bf1.web.app**
+**https://www.openlib.online/**
 
 ---
 
