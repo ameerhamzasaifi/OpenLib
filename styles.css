@@ -102,7 +102,6 @@ header {
   height: 78px;
   display: flex;
   align-items: center;
-  contain: layout style paint;
   overflow: visible;
 }
 
@@ -201,7 +200,6 @@ header {
 /* ── Auth Menu ── */
 .auth-menu {
   position: relative;
-  z-index: 101;
 }
 
 .auth-btn {
@@ -250,7 +248,7 @@ header {
   pointer-events: none;
   transform: translateY(-8px);
   transition: opacity 0.2s, transform 0.2s;
-  z-index: 1001;
+  z-index: 99999;
   overflow: hidden;
   max-height: 80vh;
   overflow-y: auto;
@@ -268,6 +266,7 @@ header {
     transform: translateY(100%);
     max-width: none;
     max-height: 70vh;
+    z-index: 99999;
   }
 
   .auth-dropdown.open {
@@ -283,6 +282,37 @@ header {
 
 #auth-content {
   padding: 8px;
+}
+
+@media (max-width: 480px) {
+  #auth-content {
+    padding: 16px 12px;
+    padding-top: 20px;
+    max-height: calc(100vh - 100px);
+    overflow-y: auto;
+  }
+
+  .auth-option {
+    padding: 12px 14px;
+    font-size: 14px;
+    height: 44px;
+    margin-bottom: 8px;
+  }
+
+  .user-info {
+    padding: 16px;
+    margin-bottom: 12px;
+    border-bottom: 2px solid var(--border);
+  }
+
+  .user-info .user-name {
+    font-size: 15px;
+    margin-bottom: 4px;
+  }
+
+  .user-info .user-email {
+    font-size: 12px;
+  }
 }
 
 .auth-option {
@@ -1347,12 +1377,11 @@ footer {
 
   .auth-menu {
     position: relative;
-    z-index: 101;
     overflow: visible;
   }
 
   .auth-dropdown {
-    z-index: 1001;
+    z-index: 99999;
     position: absolute;
     top: 100%;
     right: 0;
@@ -1533,12 +1562,8 @@ footer {
     font-size: 13px;
   }
 
-  .auth-menu {
-    z-index: 101;
-  }
-
   .auth-dropdown {
-    z-index: 1001;
+    z-index: 99999;
   }
 
   .hero-text h1 {
