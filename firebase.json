@@ -86,6 +86,13 @@
         ]
       }
     ],
+    "redirects": [
+      {
+        "source": "/:path**",
+        "destination": "https://www.openlib.online/:path",
+        "type": 301
+      }
+    ],
     "rewrites": [
       {
         "source": "**",

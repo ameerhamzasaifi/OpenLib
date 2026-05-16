@@ -4,4 +4,4 @@ Disallow: /admin
 Disallow: /verify
 Disallow: /team/manage
 
-Sitemap: https://openlib-f7bf1.web.app/sitemap.xml
+Sitemap: https://www.openlib.online/sitemap.xml

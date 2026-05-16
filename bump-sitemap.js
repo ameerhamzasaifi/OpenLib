@@ -10,7 +10,7 @@ const fs = require("fs");
 const path = require("path");
 
 const PROJECT_ID = "openlib-f7bf1";
-const BASE_URL = "https://openlib-f7bf1.web.app";
+const BASE_URL = "https://www.openlib.online";
 const COLLECTION = "apps";
 
 function fetchApps() {

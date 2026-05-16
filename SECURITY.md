@@ -72,5 +72,5 @@ If you are contributing code to OpenLib, please follow these guidelines:
 This project is licensed under the [Mozilla Public License 2.0](LICENSE).
 Security researchers are permitted to test against their own Firebase project
 instance using the open-source code, but must not test against the live
-production environment at `https://openlib-f7bf1.web.app` without prior
+production environment at `https://www.openlib.online` without prior
 written permission.
