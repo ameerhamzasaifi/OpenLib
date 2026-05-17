@@ -49,6 +49,12 @@
   }
   </script>
 
+  <script>
+    if (location.hostname === 'openlib.online') {
+      location.replace(`https://www.openlib.online${location.pathname}${location.search}${location.hash}`);
+    }
+  </script>
+
   <!-- Google Analytics (GA4) — [OPT-15 FIX] Only load on production hostname -->
   <script>
     if (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {

@@ -1,13 +1,24 @@
 # Firebase deploy ignore (overrides .gitignore)
 .git
+.git/**
+.firebase
+.firebase/**
 .github
 .gitignore
 .firebaserc
 firebase.json
 firebase-config.template.js
 firestore.rules
+firestore.indexes.json
+storage.rules
 node_modules
+functions
+functions/**
+old asset
+old asset/**
+CONTRIBUTING.md
 README.md
+SECURITY.md
 LICENSE
 *.log
 .DS_Store
