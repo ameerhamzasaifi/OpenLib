@@ -4,7 +4,6 @@
 
 [![Live](https://img.shields.io/badge/Live-Firebase-orange)](https://www.openlib.online/)
 [![License](https://img.shields.io/badge/license-MPL--2.0-green)](LICENSE)
-[![GitHub](https://img.shields.io/badge/GitHub-ameerhamzasaifi%2Fopenlib-blue)](https://github.com/ameerhamzasaifi/openlib)
 
 **https://www.openlib.online/**
 
